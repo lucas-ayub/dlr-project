@@ -9,16 +9,11 @@ def db_norm(x, eps=1e-12):
 def plot_results(
     ta, taz, sref, srec, srefF, srecF,
     u_ref, u_rec, fa, abw, abw_idx,
-    delta_r=None,
-    delta_phi=None,
 ):
     dph = np.angle(np.fft.fft(srecF) * np.conj(np.fft.fft(srefF)), deg=True)
     dph[abw_idx] = 0
 
-    # ============================================================
     # Combined 2x2 figure
-    # ============================================================
-
     plt.figure(figsize=(12, 9))
     plt.suptitle("NIDA Numerical Reconstruction", fontsize=15)
 
@@ -60,10 +55,7 @@ def plot_results(
     plt.grid()
     plt.legend()
 
-    # ============================================================
     # Individual large figures
-    # ============================================================
-
     plt.figure(figsize=(12, 6))
     plt.title("Azimuth signal envelope")
     plt.plot(ta, np.abs(sref), label="Reference")
@@ -102,29 +94,8 @@ def plot_results(
     plt.grid()
     plt.legend()
 
-    # ============================================================
-    # Delta r and delta phi plots
-    # ============================================================
 
-    if delta_r is not None:
-        plt.figure(figsize=(12, 6))
-        plt.title(r"Range error $\Delta r(t_a)$")
-        plt.plot(ta, delta_r, label=r"$\Delta r(t_a)$")
-        plt.xlabel("Azimuth time [s]")
-        plt.ylabel(r"$\Delta r$ [m]")
-        plt.grid()
-        plt.legend()
-
-    if delta_phi is not None:
-        plt.figure(figsize=(12, 6))
-        plt.title(r"Phase error $\Delta \phi(t_a)$")
-        plt.plot(ta, delta_phi, label=r"$\Delta \phi(t_a)$")
-        plt.xlabel("Azimuth time [s]")
-        plt.ylabel(r"$\Delta \phi$ [rad]")
-        plt.grid()
-        plt.legend()
-
-def plot_delta_models_all_channels(ta, ptx, prx, sceneMid, wl):
+def plot_delta_r_all_channels(ta, ptx, prx, sceneMid):
     ptg = sceneMid[0]
 
     r_tx = np.linalg.norm(ptx - ptg[None, :], axis=1)
@@ -133,35 +104,47 @@ def plot_delta_models_all_channels(ta, ptx, prx, sceneMid, wl):
     plt.figure(figsize=(12, 6))
     plt.title(r"All channels: $\Delta r(t_a)$ and quadratic fits")
 
-    plt.figure(figsize=(12, 6))
-    plt.title(r"All channels: $\Delta \phi(t_a)$")
-
     for ch in range(prx.shape[0]):
         r_rx = np.linalg.norm(prx[ch] - ptg[None, :], axis=1)
-
         r_bi = 0.5 * (r_tx + r_rx)
 
         delta_r = r_bi - r_ref
-        delta_phi = 4 * np.pi / wl * delta_r
 
         coeff = np.polyfit(ta, delta_r, 2)
         delta_r_fit = np.polyval(coeff, ta)
 
-        plt.figure(plt.get_fignums()[-2])
-        plt.plot(ta, delta_r, label=f"ch {ch} Δr")
-        plt.plot(ta, delta_r_fit, "--", label=f"ch {ch} quadratic fit")
+        plt.plot(ta, delta_r, label=fr"ch {ch} $\Delta r$")
+        plt.plot(ta, delta_r_fit, "--", label=fr"ch {ch} fit")
 
-        plt.figure(plt.get_fignums()[-1])
-        plt.plot(ta, delta_phi, label=f"ch {ch}")
-
-    plt.figure(plt.get_fignums()[-2])
     plt.xlabel("Azimuth time [s]")
     plt.ylabel(r"$\Delta r$ [m]")
     plt.grid()
     plt.legend()
 
-    plt.figure(plt.get_fignums()[-1])
-    plt.xlabel("Azimuth time [s]")
-    plt.ylabel(r"$\Delta \phi$ [rad]")
+
+def plot_delta_phi_H_all_channels(fa, abw, wl, coeffs):
+    C0 = coeffs["C0"]
+    C1 = coeffs["C1"]
+    C2 = coeffs["C2"]
+    Dt = coeffs["Dt"]
+
+    Nrx = len(C0)
+
+    plt.figure(figsize=(12, 6))
+    plt.title(r"All channels: $\Delta \phi_H(f_a)$ used in Hf")
+
+    for ch in range(Nrx):
+        delta_phi_H = 2 * np.pi * (
+            C0[ch] / wl
+            + (-C1[ch] + Dt[ch]) * fa
+            + C2[ch] * wl * fa**2
+        )
+
+        plt.plot(fa, delta_phi_H, label=f"ch {ch}")
+
+    plt.axvline(x=abw / 2, color="r", linestyle="-.", label="+ bandwidth")
+    plt.axvline(x=-abw / 2, color="r", linestyle="-.", label="- bandwidth")
+    plt.xlabel("Doppler frequency [Hz]")
+    plt.ylabel(r"$\Delta \phi_H(f_a)$ [rad]")
     plt.grid()
     plt.legend()
