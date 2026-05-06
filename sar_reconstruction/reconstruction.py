@@ -199,4 +199,12 @@ def ReconstructSignalNumeri(data_ch, prfCh, wl, sceneMid, ta,
 
     srec = np.fft.ifft(np.roll(srec, int(Na / 2), axis=0), axis=0)
 
-    return srec
+    coeffs = {
+    "C0": C0,
+    "C1": C1,
+    "C2": C2,
+    "Dt": Dt,
+    }
+
+    return srec, coeffs
+
