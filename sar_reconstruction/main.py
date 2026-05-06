@@ -1,3 +1,4 @@
+# main.py
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -6,8 +7,11 @@ from signal_model import getRawData1D
 from geometry import build_geometry
 from reconstruction import ReconstructSignalNumeri
 from utils import zoom1Dpeak
-from plotting import plot_results, plot_delta_models_all_channels
-
+from plotting import (
+    plot_results,
+    plot_delta_r_all_channels,
+    plot_delta_phi_H_all_channels,
+)
 
 def main():
     # ============================================================
@@ -37,11 +41,11 @@ def main():
     # b_at -= b_at[Nrx // 2]
     # b_xt = np.zeros(Nrx)
     
-    b_at = np.array([0.0, 0.0, 0.0, 0.0, 0.0])
-    b_xt = np.array([0.0, 50.0, 100.0, 150.0, 200.0])
+    #b_at = np.array([0.0, 0.0, 0.0, 0.0, 0.0])
+    #b_xt = np.array([0.0, 0.0, 0.0, 0.0, 0.0])
     
     b_at = np.array([-4.4, -2.2, 0.0, 2.2, 4.4])
-    b_xt = np.array([0.0, 0.0, 0.0, 0.0, 0.0])
+    b_xt = np.array([0.0, 50.0, 100.0, 150.0, 200.0])
 
     Nrx = len(b_at)   
 
@@ -128,7 +132,7 @@ def main():
     # NIDA numerical reconstruction
     # ============================================================
 
-    srec = ReconstructSignalNumeri(
+    srec, coeffs = ReconstructSignalNumeri(
         s_channel.reshape((Nrx, Na_ch, 1)),
         PRF_op,
         wl,
@@ -201,12 +205,18 @@ def main():
         abw_idx=abw_idx,
     )
     
-    plot_delta_models_all_channels(
+    plot_delta_r_all_channels(
         ta=ta,
         ptx=ptx,
         prx=prx,
         sceneMid=sceneMid,
+    )
+
+    plot_delta_phi_H_all_channels(
+        fa=fa,
+        abw=abw,
         wl=wl,
+        coeffs=coeffs,
     )
 
     # ============================================================
@@ -239,12 +249,25 @@ def main():
 
         all_titles = title + " " + axes_titles
 
-        if "delta r" in all_titles or "δr" in all_titles:
+        # Só Delta r real vai para delta_r
+        if (
+            "delta r" in all_titles
+            or "δr" in all_titles
+            or "\\delta r" in all_titles
+        ):
             folder = dirs["delta_r"]
             prefix = "delta_r"
-        elif "delta phi" in all_titles or "δφ" in all_titles or "phase error" in all_titles:
+
+        # Só o Delta Phi H do filtro Hf vai para delta_phi
+        elif (
+            "delta phi h" in all_titles
+            or "phi_h" in all_titles
+            or "\\delta \\phi_h" in all_titles
+        ):
             folder = dirs["delta_phi"]
-            prefix = "delta_phi"
+            prefix = "delta_phi_h"
+
+        # Residual phase error e demais plots ficam em general
         else:
             folder = dirs["general"]
             prefix = "general"
@@ -255,7 +278,6 @@ def main():
         print(f"saved: {filename}")
 
     print("end")
-
 
 if __name__ == "__main__":
     main()
