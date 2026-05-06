@@ -21,7 +21,7 @@ def GetCoeffNu(ptg, ptx, prx, vtx, vrx, pax, vax,
     valid_idxR = np.where(abs(inst_sqR) <= (sq_rx + theta_rx / 2))[0]
 
     taCommon = np.intersect1d(ta[valid_idxT], ta[valid_idxR])
-    idx_com = np.nonzero(np.in1d(ta, taCommon))[0]
+    idx_com = np.nonzero(np.isin(ta, taCommon))[0]
 
     rhMS = 2 * rhT[idx_com]
     rhBS = (rhA + rhR)[idx_com]
@@ -212,4 +212,3 @@ def ReconstructSignalNumeri(data_ch, prfCh, wl, sceneMid, ta,
     }
 
     return srec, coeffs
-
