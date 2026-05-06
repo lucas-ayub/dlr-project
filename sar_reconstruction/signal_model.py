@@ -2,6 +2,54 @@ import numpy as np
 
 def getRawData1D(ptgs, ptx, prx, vtx, vrx, ta,
                  sq_tx, sq_rx, theta_tx, theta_rx, wl, prf):
+    """
+    Simulate 1D bistatic SAR raw data in azimuth for one receiver channel.
+
+    For each point target, the function computes the transmitter and receiver
+    range histories, applies simple rectangular antenna visibility windows based
+    on instantaneous squint angles, and adds the corresponding complex phase
+    history to the raw azimuth signal.
+
+    The simulated phase uses the total bistatic path:
+
+        rh(t_a) = r_tx(t_a) + r_rx(t_a)
+
+    and the signal model:
+
+        s(t_a) = exp(-j 2*pi*rh(t_a)/wl)
+
+    Parameters
+    ----------
+    ptgs : ndarray of shape (Np, 3)
+        Point target positions. Each row is [x, y, z] in meters.
+    ptx : ndarray of shape (Na, 3)
+        Transmitter positions over azimuth time.
+    prx : ndarray of shape (Na, 3)
+        Receiver positions for one channel over azimuth time.
+    vtx : ndarray of shape (Na,)
+        Transmitter velocity magnitude over azimuth time [m/s].
+    vrx : ndarray of shape (Na,)
+        Receiver velocity magnitude over azimuth time [m/s].
+    ta : ndarray of shape (Na,)
+        Azimuth slow-time vector [s].
+    sq_tx : float
+        Transmitter squint angle limit or center parameter [rad].
+    sq_rx : float
+        Receiver squint angle limit or center parameter [rad].
+    theta_tx : float
+        Transmitter azimuth beamwidth [rad].
+    theta_rx : float
+        Receiver azimuth beamwidth [rad].
+    wl : float
+        Radar wavelength [m].
+    prf : float
+        Pulse repetition frequency [Hz].
+
+    Returns
+    -------
+    datal : ndarray of shape (Na,)
+        Simulated complex raw azimuth signal for one receiver channel.
+    """
 
     Na = len(ta)
     Np = len(ptgs[:, 0])

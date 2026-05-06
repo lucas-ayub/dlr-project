@@ -4,6 +4,109 @@ def GetCoeffNu(ptg, ptx, prx, vtx, vrx, pax, vax,
                prf, wl, ta, sq_tx, sq_rx,
                theta_tx, theta_rx,
                N_time=2, dN_time=2):
+    """
+
+    Estimate the numerical residual phase coefficients for one receiver channel.
+
+    This function follows a Nida-style numerical coefficient estimation. It computes
+
+    monostatic and bistatic range histories, restricts them to the common valid
+
+    Doppler/support region, aligns their closest-approach neighborhoods, fits
+
+    second-order polynomials, and combines the fitted coefficients into the
+
+    residual phase model parameters C0, C1, C2 and Dt.
+
+    Parameters
+
+    ----------
+
+    ptg : ndarray of shape (3,)
+
+        Target position [x, y, z] in meters.
+
+    ptx : ndarray of shape (Na, 3)
+
+        Transmitter positions over azimuth time.
+
+    prx : ndarray of shape (Na, 3)
+
+        Receiver positions for one channel over azimuth time.
+
+    vtx : ndarray of shape (Na,)
+
+        Transmitter velocity magnitude over azimuth time [m/s].
+
+    vrx : ndarray of shape (Na,)
+
+        Receiver velocity magnitude over azimuth time [m/s].
+
+    pax : ndarray of shape (Na, 3)
+
+        Active/reference sensor positions over azimuth time.
+
+    vax : ndarray of shape (Na,)
+
+        Active/reference sensor velocity magnitude [m/s].
+
+    prf : float
+
+        Pulse repetition frequency used for the full azimuth grid [Hz].
+
+    wl : float
+
+        Radar wavelength [m].
+
+    ta : ndarray of shape (Na,)
+
+        Azimuth slow-time vector [s].
+
+    sq_tx : float
+
+        Transmitter squint angle limit or center parameter [rad].
+
+    sq_rx : float
+
+        Receiver squint angle limit or center parameter [rad].
+
+    theta_tx : float
+
+        Transmitter azimuth beamwidth [rad].
+
+    theta_rx : float
+
+        Receiver azimuth beamwidth [rad].
+
+    N_time : int, optional
+
+        Polynomial degree for the monostatic/reference range fit.
+
+    dN_time : int, optional
+
+        Polynomial degree for the bistatic-minus-monostatic range fit.
+
+    Returns
+
+    -------
+
+    C0 : float
+
+        Constant coefficient of the residual phase model.
+
+    C1 : float
+
+        Linear-time related coefficient of the residual phase model.
+
+    C2 : float
+
+        Quadratic/Doppler-rate related coefficient of the residual phase model.
+
+    Dt : float
+
+        Difference between bistatic and monostatic closest-approach times [s].
+
+    """
 
     rhT = np.sqrt(np.sum((ptx - ptg[np.newaxis, :]) ** 2, axis=1))
     inst_sqT = np.arcsin(np.gradient(rhT, 1 / prf) / vtx)
@@ -82,7 +185,39 @@ def GetCoeffNu(ptg, ptx, prx, vtx, vrx, pax, vax,
 
 
 def GetInversionFilters(Hf):
-    """Get inversion filter."""
+    """
+
+    Compute the multichannel inversion filters from the channel transfer matrix.
+
+    For each azimuth frequency bin, this function solves the linear system
+
+        Hf[k, :, :] @ X[k, :, :] = Nrx * I
+
+    where Hf[k, :, :] maps the reconstructed Doppler subbands to the observed
+
+    receiver channels. The output filters are stored as stacked subband blocks.
+
+    Parameters
+
+    ----------
+
+    Hf : ndarray of shape (Na_ch, Nsb, Nrx)
+
+        Multichannel transfer matrix in Doppler domain. For each frequency bin,
+
+        Hf[k, :, :] is the reconstruction system matrix.
+
+    Returns
+
+    -------
+
+    iHf : ndarray of shape (Na_ch * Nsb, Nrx)
+
+        Inversion filters stacked by subband. Rows
+
+        jj * Na_ch : (jj + 1) * Na_ch correspond to subband jj.
+
+    """
 
     Na_ch = Hf.shape[0]
     Nsb = Hf.shape[1]
@@ -108,6 +243,134 @@ def ReconstructSignalNumeri(data_ch, prfCh, wl, sceneMid, ta,
                             sq_tx, sq_rx, theta_tx, theta_rx,
                             ve, abw,
                             zeroOutBw=False):
+    
+    """
+
+    Reconstruct the full-PRF azimuth signal from multichannel sampled data.
+
+    The function performs a numerical multichannel azimuth reconstruction using
+
+    receiver-dependent residual phase coefficients. For each range/target bin, it:
+
+        1. Fourier-transforms each receiver channel in azimuth;
+
+        2. estimates C0, C1, C2 and Dt for every receiver;
+
+        3. builds the Doppler-domain transfer matrix Hf;
+
+        4. computes the inversion filters;
+
+        5. combines the receiver spectra into the reconstructed full-band spectrum;
+
+        6. optionally zeros out frequencies outside the processed azimuth bandwidth;
+
+        7. transforms the reconstructed spectrum back to azimuth time.
+
+    Parameters
+
+    ----------
+
+    data_ch : ndarray of shape (Nrx, Na_ch, Nr)
+
+        Multichannel input data. Nrx is the number of receiver channels,
+
+        Na_ch is the number of azimuth samples per channel, and Nr is the
+
+        number of range/target bins.
+
+    prfCh : float
+
+        Per-channel pulse repetition frequency [Hz].
+
+    wl : float
+
+        Radar wavelength [m].
+
+    sceneMid : ndarray of shape (3, Nr)
+
+        Target positions. Column mm is the target used for range bin mm.
+
+    ta : ndarray of shape (Na,)
+
+        Full-PRF azimuth slow-time vector [s].
+
+    ptx : ndarray of shape (Na, 3)
+
+        Transmitter positions over the full azimuth grid.
+
+    prx : ndarray of shape (Nrx, Na, 3)
+
+        Receiver positions for all channels over the full azimuth grid.
+
+    vtx : ndarray of shape (Na,)
+
+        Transmitter velocity magnitude over the full azimuth grid [m/s].
+
+    vrx : ndarray of shape (Nrx, Na)
+
+        Receiver velocity magnitudes for all channels [m/s].
+
+    pax : ndarray of shape (Na, 3)
+
+        Active/reference sensor positions over the full azimuth grid.
+
+    vax : ndarray of shape (Na,)
+
+        Active/reference sensor velocity magnitude [m/s].
+
+    sq_tx : float
+
+        Transmitter squint angle limit or center parameter [rad].
+
+    sq_rx : ndarray of shape (Nrx,)
+
+        Receiver squint angle limit or center parameter for each channel [rad].
+
+    theta_tx : float
+
+        Transmitter azimuth beamwidth [rad].
+
+    theta_rx : ndarray of shape (Nrx,)
+
+        Receiver azimuth beamwidth for each channel [rad].
+
+    ve : float
+
+        Effective velocity parameter [m/s]. Currently not used inside this function.
+
+    abw : float
+
+        Processed azimuth bandwidth [Hz].
+
+    zeroOutBw : bool, optional
+
+        If True, Doppler bins outside [-abw/2, abw/2] are set to zero before
+
+        transforming back to time domain.
+
+    Returns
+
+    -------
+
+    srec : ndarray of shape (Na, Nr)
+
+        Reconstructed full-PRF azimuth signal in time domain.
+
+    coeffs : dict
+
+        Dictionary containing the last estimated coefficient arrays:
+
+            - "C0" : ndarray of shape (Nrx,)
+
+            - "C1" : ndarray of shape (Nrx,)
+
+            - "C2" : ndarray of shape (Nrx,)
+
+            - "Dt" : ndarray of shape (Nrx,)
+
+        For Nr > 1, these correspond to the last processed range/target bin.
+
+    """
 
     Nrx, Na_ch, Nr = np.shape(data_ch)
 
