@@ -82,18 +82,33 @@ def GetCoeffNu(ptg, ptx, prx, vtx, vrx, pax, vax,
 
 
 def GetInversionFilters(Hf):
-    Na_ch = Hf.shape[0]
-    Nsb = Hf.shape[1]
-    Nrx = Hf.shape[2]
+    """
+    Hf shape: (Na_ch, Nsb, Nrx)
 
-    iHf = np.empty([Na_ch * Nsb, Nrx], dtype=np.complex64)
+    Para cada bin de azimute k:
+        Hf[k, :, :] @ X = Nrx * I
 
-    id_mat = np.identity(Nrx) * Nrx
-    Ti = np.repeat(id_mat[np.newaxis, :, :], Na_ch, axis=0)
+    Retorna:
+        iHf shape: (Na_ch * Nsb, Nrx)
+    """
 
-    for jj in range(Nsb):
-        rhs = Ti[:, :, jj].reshape([Na_ch, Nrx])
-        iHf[jj * Na_ch:(jj + 1) * Na_ch, :] = np.linalg.solve(Hf, rhs)
+    Na_ch, Nsb, Nrx = Hf.shape
+
+    if Nsb != Nrx:
+        raise ValueError(
+            f"Para np.linalg.solve, Hf[k] precisa ser quadrada. "
+            f"Recebido: Nsb={Nsb}, Nrx={Nrx}."
+        )
+
+    iHf = np.empty((Na_ch * Nsb, Nrx), dtype=np.complex128)
+
+    I = np.eye(Nrx, dtype=np.complex128) * Nrx
+
+    for k in range(Na_ch):
+        X = np.linalg.solve(Hf[k, :, :], I)  # shape: (Nsb, Nrx)
+
+        for jj in range(Nsb):
+            iHf[jj * Na_ch + k, :] = X[jj, :]
 
     return iHf
 
