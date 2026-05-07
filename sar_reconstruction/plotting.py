@@ -20,11 +20,11 @@ def db_norm(x, eps=1e-12):
     """
     return 20 * np.log10(np.abs(x) / (np.max(np.abs(x)) + eps) + eps)
 
-
 def plot_results(
     ta, taz, sref, srec, srefF, srecF,
     u_ref, u_rec, fa, abw, abw_idx,
-    ):
+    case_title=None, b_at=None, b_xt=None,
+):
     """
     Plot the main numerical reconstruction results.
 
@@ -69,7 +69,24 @@ def plot_results(
 
     # Combined 2x2 figure
     plt.figure(figsize=(12, 9))
-    plt.suptitle("Numerical Reconstruction", fontsize=15)
+
+    if case_title is None:
+        suptitle = "Numerical Reconstruction"
+    else:
+        suptitle = case_title
+
+        if b_at is not None and b_xt is not None:
+            b_at_str = np.array2string(np.asarray(b_at), precision=1, separator=", ")
+            b_xt_str = np.array2string(np.asarray(b_xt), precision=1, separator=", ")
+
+            suptitle += (
+                "\n"
+                rf"$b_{{at}}$ = {b_at_str} m"
+                " | "
+                rf"$b_{{xt}}$ = {b_xt_str} m"
+            )
+
+    plt.suptitle(suptitle, fontsize=14)
 
     plt.subplot(221)
     plt.title("1. Azimuth signal envelope")
