@@ -1,9 +1,21 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
-
+import json
+import os 
 from run_pipeline import run_case
 
+def load_test_cases(filename="test_cases.json"):
+
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+
+    path = os.path.join(base_dir, filename)
+
+    with open(path, "r", encoding="utf-8") as f:
+
+        return json.load(f)
+
+all_cases = load_test_cases()
 
 def main():
     # ============================================================
@@ -26,38 +38,9 @@ def main():
     # Test cases
     # ============================================================
 
-    test_cases = {
-        "2ch_mixed_large": {
-            "title": "Two-Channel Mixed Baseline",
-            "b_at": [0.0, 10.0],
-            "b_xt": [0.0, 600.0],
-        },
+    test_cases = all_cases
 
-        "2ch_at_medium": {
-            "title": "Two-Channel Along-Track Baseline",
-            "b_at": [0.0, 30.0],
-            "b_xt": [0.0, 0.0],
-        },
-
-        "2ch_at_large": {
-            "title": "Two-Channel Along-Track Baseline",
-            "b_at": [0.0, 90.0],
-            "b_xt": [0.0, 0.0],
-        },
-
-        "3ch_mixed_uniform": {
-            "title": "Three-Channel Mixed Baseline Formation",
-            "b_at": [0.0, 30.0, 60.0],
-            "b_xt": [200.0, 200.0, 200.0],
-        },
-    }
-
-    cases_to_run = [
-        "2ch_mixed_large",
-        # "2ch_at_medium",
-        # "2ch_at_large",
-        # "3ch_mixed_uniform",
-    ]
+    cases_to_run = all_cases.keys()
 
     for case_name in cases_to_run:
         run_case(

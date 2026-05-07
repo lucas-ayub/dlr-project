@@ -1,0 +1,67 @@
+{
+  "2ch_at_small": {
+    "title": "Two-Channel Along-Track Baseline",
+    "b_at": [0.0, 10.0],
+    "b_xt": [0.0, 0.0]
+  },
+
+  "2ch_at_medium": {
+    "title": "Two-Channel Along-Track Baseline",
+    "b_at": [0.0, 30.0],
+    "b_xt": [0.0, 0.0]
+  },
+
+  "2ch_at_large": {
+    "title": "Two-Channel Along-Track Baseline",
+    "b_at": [0.0, 90.0],
+    "b_xt": [0.0, 0.0]
+  },
+
+  "2ch_at_stress": {
+    "title": "Two-Channel Along-Track Baseline",
+    "b_at": [0.0, 150.0],
+    "b_xt": [0.0, 0.0]
+  },
+
+  "2ch_xt_small": {
+    "title": "Two-Channel Cross-Track Baseline and Small Along-Track",
+    "b_at": [0.0, 5.0],
+    "b_xt": [0.0, 50.0]
+  },
+
+  "2ch_xt_medium": {
+    "title": "Two-Channel Cross-Track Baseline and Small Along-Track",
+    "b_at": [0.0, 5.0],
+    "b_xt": [0.0, 200.0]
+  },
+
+  "2ch_xt_large": {
+    "title": "Two-Channel Cross-Track Baseline and Small Along-Track",
+    "b_at": [0.0, 5.0],
+    "b_xt": [0.0, 600.0]
+  },
+
+  "2ch_mixed_small": {
+    "title": "Two-Channel Mixed Baseline",
+    "b_at": [0.0, 10.0],
+    "b_xt": [0.0, 100.0]
+  },
+
+  "2ch_mixed_medium": {
+    "title": "Two-Channel Mixed Baseline",
+    "b_at": [0.0, 30.0],
+    "b_xt": [0.0, 200.0]
+  },
+
+  "2ch_mixed_large": {
+    "title": "Two-Channel Mixed Baseline",
+    "b_at": [0.0, 10.0],
+    "b_xt": [0.0, 600.0]
+  },
+
+  "2ch_mixed_stress": {
+    "title": "Two-Channel Mixed Baseline",
+    "b_at": [0.0, 90.0],
+    "b_xt": [0.0, 600.0]
+  }
+}
