@@ -357,7 +357,6 @@ def save_figures_by_type(case_name):
 
         if (
             "delta r" in all_titles
-            or "δr" in all_titles
             or "\\delta r" in all_titles
         ):
             folder = dirs["delta_r"]
