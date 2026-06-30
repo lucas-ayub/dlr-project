@@ -8,6 +8,11 @@ Run:
 To change the system or geometry, edit the presets in sar_recon/config.py
 (make_diff_config / make_dpca_config) or build your own ExperimentConfig and
 pass it to run_case().
+
+To run with multiple scattering points, you don't need to touch this file:
+add a new named scene to sar_recon.config.SCENE_PRESETS (a tuple of
+(dx, dy, dh) offsets in metres relative to the central reconstruction point),
+then list that name in SCENE_NAMES below.
 """
 import os
 
@@ -18,13 +23,19 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 # What to sweep. Edit these freely.
 CHANNEL_NUMBERS = list(range(2, 10))
 CASES = ["diff", "dpca"]
+# "single" reproduces the original one-target behaviour. Add any other name
+# defined in sar_recon.config.SCENE_PRESETS to also run multi-point scenes,
+# e.g. SCENE_NAMES = ["single", "along_track_line", "varied_heights"].
+SCENE_NAMES = ["single", "along_track_line", "cross_track_patch", "varied_heights"]
 MAKE_PLOTS = True
-
+USE_LATEX_FONTS = False
 
 def run_case(cfg: sar.ExperimentConfig, make_plots: bool = True):
     """Full forward + reconstruction + (optional) diagnostics for one config."""
     print(f"r0 = {cfg.scene.r0}")
     print(f"y0 = {cfg.scene.y0}")
+    print(f"scene points: {len(cfg.scene.points)} "
+          f"(center + {len(cfg.scene.extra_offsets)} extra)")
 
     tracks = sar.build_platform_tracks(cfg)
 
@@ -39,17 +50,27 @@ def run_case(cfg: sar.ExperimentConfig, make_plots: bool = True):
         sar.plot_combined(cfg, res)
         sar.plot_polyfit_diagnostic(cfg, tracks)
         sar.plot_geometry_3d(cfg)
+        # Scene-layout plots only add value when there's more than one point;
+        # cheap either way, so just gate them on extra_offsets being set.
+        if cfg.scene.extra_offsets:
+            sar.plot_scene_points(cfg)
+            sar.plot_scene_points_3d(cfg)
 
     return res
 
 
 def main():
+    
+    if USE_LATEX_FONTS:
+        sar.enable_latex_fonts()
+    
     for Nrx in CHANNEL_NUMBERS:
         for case in CASES:
-            cfg = sar.CONFIG_FACTORIES[case](Nrx, SCRIPT_DIR)
-            print(f"\n=== case={case} | Nrx={Nrx} | prf={cfg.prf:.1f} | "
-                  f"PRF_op={cfg.PRF_op:.1f} ===")
-            run_case(cfg, make_plots=MAKE_PLOTS)
+            for scene_name in SCENE_NAMES:
+                cfg = sar.CONFIG_FACTORIES[case](Nrx, SCRIPT_DIR, scene_name)
+                print(f"\n=== case={case} | scene={scene_name} | Nrx={Nrx} | "
+                      f"prf={cfg.prf:.1f} | PRF_op={cfg.PRF_op:.1f} ===")
+                run_case(cfg, make_plots=MAKE_PLOTS)
     print("end")
 
 
