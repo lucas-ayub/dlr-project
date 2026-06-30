@@ -5,11 +5,6 @@ Numerical multichannel azimuth reconstruction.
 GetCoeffNu, GetInversionFilters and ReconstructSignalNumeri are kept verbatim.
 reconstruct() is a thin adapter that calls ReconstructSignalNumeri with the
 arguments derived from an ExperimentConfig + PlatformTracks.
-
-NOTE: this module is intentionally isolated. To swap the numerical coefficient
-fit for the analytic Hf formula (Krieger et al. 2004, eq. 6/13), replace the
-Hf assembly inside ReconstructSignalNumeri (or add an alternative reconstruct_*
-function) without touching config / geometry / signal model.
 """
 from __future__ import annotations
 
