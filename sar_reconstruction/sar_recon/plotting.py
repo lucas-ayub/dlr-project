@@ -7,6 +7,7 @@ affecting the numerical pipeline.
 from __future__ import annotations
 
 import os
+import shutil
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -19,8 +20,50 @@ _text_kwargs = dict(fontsize=8, verticalalignment='top',
                     bbox=dict(boxstyle="round", fc="w", ec="0.5"))
 
 
+def enable_latex_fonts(font_family: str = "serif", preamble: str = "") -> None:
+    """
+    Opt-in: render all plot text through a real LaTeX install instead of
+    Matplotlib's built-in mathtext. Not enabled by default -- call this once,
+    before generating any plots, if you want it.
+
+    Requires LaTeX + dvipng (for the Agg backend used by this pipeline) +
+    Ghostscript to be installed and on PATH (this is an OS-level toolchain,
+    not a Python/Matplotlib package -- no matplotlib version requirement
+    beyond >=3.5 for the font_family syntax used here). On Ubuntu/Debian:
+
+        sudo apt install texlive texlive-latex-extra dvipng ghostscript cm-super
+
+    font_family: "serif", "sans-serif", "cursive" or "monospace" (the
+    generic families Matplotlib's usetex support understands), or a specific
+    font name like "Helvetica" (Matplotlib >=3.5).
+    preamble: extra LaTeX preamble, e.g. r"\\usepackage{sfmath}" to get
+    sans-serif math when font_family="sans-serif".
+    """
+    missing = [tool for tool in ("latex", "dvipng", "gs") if shutil.which(tool) is None]
+    if missing:
+        raise RuntimeError(
+            "enable_latex_fonts(): missing required executable(s) on PATH: "
+            f"{', '.join(missing)}. Install a LaTeX distribution + dvipng + "
+            "ghostscript (e.g. `sudo apt install texlive texlive-latex-extra "
+            "dvipng ghostscript cm-super` on Ubuntu/Debian) before calling this."
+        )
+
+    rc = {"text.usetex": True, "font.family": font_family}
+    if preamble:
+        rc["text.latex.preamble"] = preamble
+    plt.rcParams.update(rc)
+
+
 def _auto_dpi(data_len, min_dpi=100, max_dpi=300, ref_len=4096):
     return int(np.clip(min_dpi * data_len / ref_len, min_dpi, max_dpi))
+
+
+def _subdir(cfg: ExperimentConfig, name: str) -> str:
+    """Return cfg.plots_dir/<name>, creating it if needed. Keeps each plot
+    type in its own folder instead of dumping everything together."""
+    path = os.path.join(cfg.plots_dir, name)
+    os.makedirs(path, exist_ok=True)
+    return path
 
 
 def plot_combined(cfg: ExperimentConfig, res: ReconResult):
@@ -66,7 +109,7 @@ def plot_combined(cfg: ExperimentConfig, res: ReconResult):
     axes[1, 1].text(0.02, 0.95, f'Nrx={Nrx}', transform=axes[1, 1].transAxes, **_text_kwargs)
 
     fig.tight_layout()
-    fig.savefig(os.path.join(cfg.plots_dir, f'plot_combined_Nrx{Nrx}.png'),
+    fig.savefig(os.path.join(_subdir(cfg, "combined"), f'plot_combined_Nrx{Nrx}.png'),
                 dpi=dpi_all, bbox_inches='tight')
     plt.close(fig)
 
@@ -144,18 +187,19 @@ def plot_polyfit_diagnostic(cfg: ExperimentConfig, tracks: PlatformTracks):
         axes_d[1].grid()
 
         fig_d.tight_layout()
-        fig_d.savefig(os.path.join(cfg.plots_dir, f'plot_polyfit_Nrx{cfg.Nrx}_CH{kk}.png'),
+        fig_d.savefig(os.path.join(_subdir(cfg, "polyfit"), f'plot_polyfit_Nrx{cfg.Nrx}_CH{kk}.png'),
                       dpi=dpi_d, bbox_inches='tight')
         plt.close(fig_d)
 
 
 def plot_geometry_3d(cfg: ExperimentConfig, n_plot: int = 400):
-    """3D acquisition geometry (TX track, RX tracks, target)."""
+    """3D acquisition geometry (TX track, RX tracks, all scatterers)."""
     sk = 1e-3
     idx_vis = np.linspace(0, cfg.Na - 1, n_plot, dtype=int)
     ta_vis = cfg.ta[idx_vis]
     vs, H = cfg.system.vs, cfg.scene.H
-    x0, y0, h0 = cfg.scene.ptg
+    points = cfg.scene.points          # [Np, 3], row 0 is the central point
+    x0, y0, h0 = points[0]
 
     fig3d = plt.figure(figsize=(10, 7))
     ax3d = fig3d.add_subplot(111, projection='3d')
@@ -174,11 +218,20 @@ def plot_geometry_3d(cfg: ExperimentConfig, n_plot: int = 400):
                   label=f'RX{jj+1} (bat={cfg.array.bat[jj]:.1f} m, bxt={cfg.array.bxt[jj]:.1f} m)')
         ax3d.text(rx_x[-1], rx_y[-1], rx_z[-1], f'  RX{jj+1}', color=rx_colors[jj], fontsize=7)
 
-    ax3d.scatter([x0 * sk], [y0 * sk], [h0 * sk], color='red', s=80, zorder=5, label='Target')
+    # Central point (used for reconstruction) in red, any extra scatterers in orange.
+    ax3d.scatter([x0 * sk], [y0 * sk], [h0 * sk], color='red', s=80, zorder=5,
+                 label='Target (center)')
     ax3d.text(x0 * sk, y0 * sk, h0 * sk + 2 * sk,
-              f'  Target\n  ({x0:.0f}, {y0:.0f}, {h0:.0f}) m', color='red', fontsize=8)
+              f'  Center\n  ({x0:.0f}, {y0:.0f}, {h0:.0f}) m', color='red', fontsize=8)
     ax3d.plot([x0 * sk, x0 * sk], [y0 * sk, y0 * sk], [h0 * sk, H * sk],
               color='red', lw=0.8, linestyle=':', alpha=0.6)
+
+    if len(points) > 1:
+        ex = points[1:, 0] * sk
+        ey = points[1:, 1] * sk
+        ez = points[1:, 2] * sk
+        ax3d.scatter(ex, ey, ez, color='darkorange', s=50, zorder=5,
+                     label=f'Extra scatterers ({len(points) - 1})')
 
     ax3d.set_xlabel('Along-track [km]'); ax3d.set_ylabel('Cross-track [km]')
     ax3d.set_zlabel('Altitude [km]')
@@ -187,6 +240,106 @@ def plot_geometry_3d(cfg: ExperimentConfig, n_plot: int = 400):
     ax3d.view_init(elev=25, azim=-60)
 
     fig3d.tight_layout()
-    fig3d.savefig(os.path.join(cfg.plots_dir, f'plot_geometry_3d_Nrx{cfg.Nrx}.png'),
+    fig3d.savefig(os.path.join(_subdir(cfg, "geometry_3d"), f'plot_geometry_3d_Nrx{cfg.Nrx}.png'),
                   dpi=150, bbox_inches='tight')
     plt.close(fig3d)
+
+
+def plot_scene_points(cfg: ExperimentConfig):
+    """
+    Zoomed top-down view of the scatterers, in metres RELATIVE TO THE CENTRAL
+    POINT. The full geometry plot is at km scale (slant range is often
+    hundreds of km), so scatterers spaced metres apart are indistinguishable
+    there; this plot exists purely to inspect the scene layout itself.
+    """
+    points = cfg.scene.points          # [Np, 3], row 0 is the central point
+    center = points[0]
+    rel = points - center[np.newaxis, :]   # along-track / cross-track / height offsets [m]
+
+    fig, axes = plt.subplots(1, 2, figsize=(11, 5))
+    fig.suptitle(f'Scene scatterers relative to reconstruction center '
+                 f'({len(points)} point{"s" if len(points) != 1 else ""})', fontsize=10)
+
+    # Top-down: along-track (x) vs cross-track (y)
+    ax = axes[0]
+    ax.scatter([0.0], [0.0], color='red', s=90, zorder=5, label='Center (reconstruction pt)')
+    if len(points) > 1:
+        ax.scatter(rel[1:, 0], rel[1:, 1], color='darkorange', s=60, zorder=5,
+                   label='Extra scatterers')
+        for ii in range(1, len(points)):
+            ax.annotate(f'P{ii}', (rel[ii, 0], rel[ii, 1]),
+                       textcoords='offset points', xytext=(5, 5), fontsize=8)
+    ax.set_xlabel('Δ along-track [m]'); ax.set_ylabel('Δ cross-track [m]')
+    ax.set_title('Top-down view'); ax.grid(); ax.axis('equal')
+    ax.legend(fontsize=8, loc='best')
+
+    # Side view: along-track (x) vs height (h)
+    ax2 = axes[1]
+    ax2.scatter([0.0], [0.0], color='red', s=90, zorder=5, label='Center')
+    if len(points) > 1:
+        ax2.scatter(rel[1:, 0], rel[1:, 2], color='darkorange', s=60, zorder=5,
+                    label='Extra scatterers')
+        for ii in range(1, len(points)):
+            ax2.annotate(f'P{ii}', (rel[ii, 0], rel[ii, 2]),
+                        textcoords='offset points', xytext=(5, 5), fontsize=8)
+    ax2.set_xlabel('Δ along-track [m]'); ax2.set_ylabel('Δ height [m]')
+    ax2.set_title('Side view'); ax2.grid()
+    ax2.legend(fontsize=8, loc='best')
+
+    fig.tight_layout()
+    fig.savefig(os.path.join(_subdir(cfg, "scene_points"), f'plot_scene_points_Nrx{cfg.Nrx}.png'),
+                dpi=150, bbox_inches='tight')
+    plt.close(fig)
+
+
+def plot_scene_points_3d(cfg: ExperimentConfig):
+    """
+    3D scatter of the scene scatterers, RELATIVE TO THE CENTRAL POINT, at a
+    scale appropriate to the offsets themselves (metres, equal aspect ratio).
+
+    This is the 3D counterpart of plot_scene_points: plot_geometry_3d shows
+    the full acquisition geometry at km scale (so scatterers metres apart are
+    indistinguishable there), while this one drops the platform tracks
+    entirely and zooms in on just the scene, in 3D, so you can see the actual
+    spatial relationship between along-track, cross-track and height offsets
+    at once.
+    """
+    points = cfg.scene.points              # [Np, 3], row 0 is the central point
+    center = points[0]
+    rel = points - center[np.newaxis, :]   # along-track / cross-track / height offsets [m]
+
+    fig = plt.figure(figsize=(8, 7))
+    ax = fig.add_subplot(111, projection='3d')
+
+    ax.scatter([0.0], [0.0], [0.0], color='red', s=110, zorder=5,
+               label='Center (reconstruction pt)')
+    ax.text(0.0, 0.0, 0.0, '  Center', color='red', fontsize=8)
+
+    if len(points) > 1:
+        ax.scatter(rel[1:, 0], rel[1:, 1], rel[1:, 2], color='darkorange', s=70,
+                   zorder=5, label=f'Extra scatterers ({len(points) - 1})')
+        for ii in range(1, len(points)):
+            ax.text(rel[ii, 0], rel[ii, 1], rel[ii, 2], f'  P{ii}',
+                   color='darkorange', fontsize=8)
+            # Dotted stem down to the ground plane (Δheight=0) for depth cues.
+            ax.plot([rel[ii, 0], rel[ii, 0]], [rel[ii, 1], rel[ii, 1]],
+                    [0.0, rel[ii, 2]], color='darkorange', lw=0.7,
+                    linestyle=':', alpha=0.6)
+
+    # Equal aspect ratio across all 3 axes so distances aren't visually distorted.
+    span = np.max(np.abs(rel)) if len(points) > 1 else 1.0
+    span = max(span, 1.0) * 1.2
+    ax.set_xlim(-span, span); ax.set_ylim(-span, span); ax.set_zlim(-span, span)
+
+    ax.set_xlabel('Δ along-track [m]'); ax.set_ylabel('Δ cross-track [m]')
+    ax.set_zlabel('Δ height [m]')
+    ax.set_title(f'Scene scatterers (3D, zoomed) | Nrx={cfg.Nrx} | '
+                 f'{len(points)} point{"s" if len(points) != 1 else ""}', fontsize=11)
+    ax.legend(fontsize=8, loc='upper left')
+    ax.view_init(elev=25, azim=-60)
+
+    fig.tight_layout()
+    fig.savefig(os.path.join(_subdir(cfg, "scene_points_3d"),
+                             f'plot_scene_points_3d_Nrx{cfg.Nrx}.png'),
+                dpi=150, bbox_inches='tight')
+    plt.close(fig)
