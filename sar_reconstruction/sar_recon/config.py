@@ -63,12 +63,23 @@ class SystemParams:
 # ---------------------------------------------------------------------------
 @dataclass
 class Scene:
-    """Target position and reference slant range, derived from the range delay."""
+    """
+    Target geometry, derived from the range delay.
+
+    The central point (x0, y0, h0) is the one used for RECONSTRUCTION
+    (sceneMid is always [3, 1] -> single coefficient fit per range bin).
+
+    extra_offsets lets you add more scatterers to the SCENE used for signal
+    GENERATION only: each entry is an (dx, dy, dh) offset, in metres, applied
+    to the central point. Reconstruction keeps using the single central point
+    regardless of how many scatterers produced the signal.
+    """
     rDelay: float                          # two-way range delay [s]
     H: float = 720e3                       # platform height [m]
-    x0: float = 20.0                       # target along-track position [m]
-    h0: float = 2.0                        # target height [m]
+    x0: float = 20.0                       # central target along-track position [m]
+    h0: float = 2.0                        # central target height [m]
     c0: float = DEFAULT_C0
+    extra_offsets: tuple = ()              # tuple of (dx, dy, dh) offsets [m]
 
     @property
     def r0(self) -> float:
@@ -76,13 +87,44 @@ class Scene:
 
     @property
     def y0(self) -> float:
-        """Cross-track ground position, corrected for target height h0."""
+        """Cross-track ground position of the central point, corrected for h0."""
         return float(np.sqrt(max(self.r0 ** 2 - (self.H - self.h0) ** 2, 0.0)))
 
     @property
     def ptg(self) -> np.ndarray:
-        """Target position [x0, y0, h0] as a (3,) vector."""
+        """Central point [x0, y0, h0] (3,) -- the one reconstruction uses."""
         return np.array([self.x0, self.y0, self.h0], dtype=np.float64)
+
+    @property
+    def points(self) -> np.ndarray:
+        """
+        All scatterers used for signal GENERATION: the central point plus any
+        extra_offsets, shape [Np, 3]. With no extra_offsets this is just the
+        central point, identical to the original single-target behaviour.
+        """
+        center = self.ptg
+        pts = [center]
+        for ddx, ddy, ddh in self.extra_offsets:
+            pts.append(center + np.array([ddx, ddy, ddh], dtype=np.float64))
+        return np.array(pts, dtype=np.float64)
+
+    @classmethod
+    def from_target(cls, x0: float, y0: float, h0: float, H: float = 720e3,
+                    c0: float = DEFAULT_C0, extra_offsets: tuple = ()) -> "Scene":
+        """
+        Build a Scene directly from the desired central point (x0, y0, h0),
+        instead of from rDelay. This back-computes the range delay that would
+        place the central point exactly there:
+
+            r0 = sqrt(y0**2 + (H - h0)**2)
+            rDelay = 2 * r0 / c0
+
+        Use this when you think in terms of "I want my target at this
+        position", rather than "I want this range delay".
+        """
+        r0 = float(np.sqrt(y0 ** 2 + (H - h0) ** 2))
+        rDelay = 2.0 * r0 / c0
+        return cls(rDelay=rDelay, H=H, x0=x0, h0=h0, c0=c0, extra_offsets=extra_offsets)
 
 
 # ---------------------------------------------------------------------------
@@ -171,6 +213,44 @@ class ExperimentConfig:
 
 
 # ---------------------------------------------------------------------------
+# Named multi-scatterer scene presets
+# ---------------------------------------------------------------------------
+# Each entry is a tuple of (dx, dy, dh) offsets [m] relative to the central
+# reconstruction point. "single" (the default) reproduces the original
+# one-target behaviour exactly. To add your own scene, just add a new entry
+# here -- nothing else in the pipeline needs to change.
+SCENE_PRESETS = {
+    "single": (),
+    "along_track_line": (
+        (-60.0, 0.0, 0.0),
+        (-20.0, 0.0, 0.0),
+        (20.0, 0.0, 0.0),
+        (60.0, 0.0, 0.0),
+    ),
+    "cross_track_patch": (
+        (25.0, 15.0, 0.0),
+        (-25.0, 15.0, 0.0),
+        (25.0, -15.0, 0.0),
+        (-25.0, -15.0, 0.0),
+    ),
+    "varied_heights": (
+        (15.0, 5.0, 8.0),
+        (-15.0, 5.0, 15.0),
+        (15.0, -10.0, 3.0),
+        (-15.0, -10.0, 25.0),
+    ),
+}
+
+
+def _plots_subdir(base_plots_dir: str, scene_name: str) -> str:
+    """plots/ for the default 'single' scene, plots/<scene_name>/ otherwise,
+    so multi-point runs don't mix their plots with the single-target ones."""
+    path = base_plots_dir if scene_name == "single" else os.path.join(base_plots_dir, scene_name)
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+# ---------------------------------------------------------------------------
 # PRF strategy helpers
 # ---------------------------------------------------------------------------
 def prf_from_fixed(prf: float, Nrx: int):
@@ -185,12 +265,13 @@ def prf_from_dpca(system: SystemParams, Nrx: int, dx: float):
 
 
 # ---------------------------------------------------------------------------
-# Presets (reproduce the original two cases exactly)
+# Presets (reproduce the original two cases exactly when scene_name="single")
 # ---------------------------------------------------------------------------
-def make_dpca_config(Nrx: int, base_dir: str) -> ExperimentConfig:
+def make_dpca_config(Nrx: int, base_dir: str, scene_name: str = "single") -> ExperimentConfig:
     """DPCA case: small receiver spacing dx fixes the PRF; abw = 2*ve/La."""
     system = SystemParams()
-    scene = Scene(rDelay=0.0038659204080400003, c0=system.c0)
+    scene = Scene(rDelay=0.0038659204080400003, c0=system.c0,
+                  extra_offsets=SCENE_PRESETS[scene_name])
 
     dx, dxt = 11.0, 100.0
     array = ArrayGeometry.linear(Nrx, dx, dxt)
@@ -199,8 +280,7 @@ def make_dpca_config(Nrx: int, base_dir: str) -> ExperimentConfig:
     acq_time = 2.0 * integration_time(system, scene)
     Na, Na_ch, ta = build_time_axis(prf, Nrx, acq_time)
 
-    plots_dir = os.path.join(base_dir, "plots_dpca_prf")
-    os.makedirs(plots_dir, exist_ok=True)
+    plots_dir = _plots_subdir(os.path.join(base_dir, "plots_dpca_prf"), scene_name)
 
     return ExperimentConfig(
         name="dpca", system=system, scene=scene, array=array,
@@ -208,10 +288,11 @@ def make_dpca_config(Nrx: int, base_dir: str) -> ExperimentConfig:
     )
 
 
-def make_diff_config(Nrx: int, base_dir: str) -> ExperimentConfig:
+def make_diff_config(Nrx: int, base_dir: str, scene_name: str = "single") -> ExperimentConfig:
     """Large-baseline case: fixed PRF (2000 Hz), large along-track baselines."""
     system = SystemParams()
-    scene = Scene(rDelay=0.0051115753, c0=system.c0)
+    scene = Scene(rDelay=0.0051115753, c0=system.c0,
+                  extra_offsets=SCENE_PRESETS[scene_name])
 
     dx, dxt = 100.0, 200.0
     array = ArrayGeometry.linear(Nrx, dx, dxt)
@@ -220,8 +301,7 @@ def make_diff_config(Nrx: int, base_dir: str) -> ExperimentConfig:
     acq_time = 2.0 * integration_time(system, scene)
     Na, Na_ch, ta = build_time_axis(prf, Nrx, acq_time)
 
-    plots_dir = os.path.join(base_dir, "plots")
-    os.makedirs(plots_dir, exist_ok=True)
+    plots_dir = _plots_subdir(os.path.join(base_dir, "plots"), scene_name)
 
     return ExperimentConfig(
         name="diff", system=system, scene=scene, array=array,
@@ -230,6 +310,7 @@ def make_diff_config(Nrx: int, base_dir: str) -> ExperimentConfig:
 
 
 # Registry so the driver can iterate over named cases.
+# Each factory takes (Nrx, base_dir, scene_name="single").
 CONFIG_FACTORIES = {
     "diff": make_diff_config,
     "dpca": make_dpca_config,
