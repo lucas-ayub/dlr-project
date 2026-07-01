@@ -146,9 +146,22 @@ class ArrayGeometry:
         return len(self.bat)
 
     @classmethod
-    def linear(cls, Nrx: int, dx: float, dxt: float) -> "ArrayGeometry":
-        """Uniform linear array: along-track spacing dx, centred cross-track spacing dxt."""
-        bat = dx * np.arange(Nrx)
+    def linear(cls, Nrx: int, dx: float, dxt: float,
+               bat_offset: float = 0.0) -> "ArrayGeometry":
+        """
+        Uniform linear array: along-track spacing dx, centred cross-track
+        spacing dxt.
+
+        bat_offset shifts the whole array along-track relative to the TX.
+        Default (0.0) places the first receiver at bat=0 (co-located with
+        the TX in along-track), which is the standard DPCA condition.
+        Set bat_offset=dx/2 (half-spacing) to ensure every receiver has a
+        non-zero bat, which is useful for testing the numerical reconstruction
+        in the general bistatic case.
+
+        bat[i] = bat_offset + dx * i
+        """
+        bat = bat_offset + dx * np.arange(Nrx)
         bxt = dxt * (np.arange(Nrx) - (Nrx - 1) / 2.0)
         return cls(bat=bat, bxt=bxt)
 
@@ -242,17 +255,15 @@ SCENE_PRESETS = {
 }
 
 
-def _plots_subdir(base_plots_dir: str, scene_name: str) -> str:
+def _plots_subdir(base_dir: str, case_name: str, scene_name: str) -> str:
     """
-    Always plots/<scene_name>/, including for the default 'single' scene.
+    All cases share a single plots/ root:
+        plots/<case_name>/<scene_name>/
 
-    Earlier this omitted the subfolder for 'single' to keep the original
-    flat layout, but that left plots/combined, plots/geometry_3d, etc. sitting
-    mixed alphabetically with the scene-named folders (along_track_line,
-    varied_heights, ...) at the same level -- confusing to scan. Giving
-    'single' its own folder too makes every scene look the same.
+    This keeps the output tree clean: one folder to look in, subfolders
+    organised first by case, then by scene.
     """
-    path = os.path.join(base_plots_dir, scene_name)
+    path = os.path.join(base_dir, "plots", case_name, scene_name)
     os.makedirs(path, exist_ok=True)
     return path
 
@@ -272,7 +283,7 @@ def prf_from_dpca(system: SystemParams, Nrx: int, dx: float):
 
 
 # ---------------------------------------------------------------------------
-# Presets (reproduce the original two cases exactly when scene_name="single")
+# Presets
 # ---------------------------------------------------------------------------
 def make_dpca_config(Nrx: int, base_dir: str, scene_name: str = "single") -> ExperimentConfig:
     """DPCA case: small receiver spacing dx fixes the PRF; abw = 2*ve/La."""
@@ -287,16 +298,15 @@ def make_dpca_config(Nrx: int, base_dir: str, scene_name: str = "single") -> Exp
     acq_time = 2.0 * integration_time(system, scene)
     Na, Na_ch, ta = build_time_axis(prf, Nrx, acq_time)
 
-    plots_dir = _plots_subdir(os.path.join(base_dir, "plots_dpca_prf"), scene_name)
-
     return ExperimentConfig(
         name="dpca", system=system, scene=scene, array=array,
-        prf=prf, PRF_op=PRF_op, Na=Na, Na_ch=Na_ch, ta=ta, plots_dir=plots_dir,
+        prf=prf, PRF_op=PRF_op, Na=Na, Na_ch=Na_ch, ta=ta,
+        plots_dir=_plots_subdir(base_dir, "dpca", scene_name),
     )
 
 
-def make_diff_config(Nrx: int, base_dir: str, scene_name: str = "single") -> ExperimentConfig:
-    """Large-baseline case: fixed PRF (2000 Hz), large along-track baselines."""
+def make_large_bat_config(Nrx: int, base_dir: str, scene_name: str = "single") -> ExperimentConfig:
+    """Large along-track baseline case: fixed PRF (2000 Hz), large bat spacing."""
     system = SystemParams()
     scene = Scene(rDelay=0.0051115753, c0=system.c0,
                   extra_offsets=SCENE_PRESETS[scene_name])
@@ -308,17 +318,49 @@ def make_diff_config(Nrx: int, base_dir: str, scene_name: str = "single") -> Exp
     acq_time = 2.0 * integration_time(system, scene)
     Na, Na_ch, ta = build_time_axis(prf, Nrx, acq_time)
 
-    plots_dir = _plots_subdir(os.path.join(base_dir, "plots"), scene_name)
+    return ExperimentConfig(
+        name="large_bat", system=system, scene=scene, array=array,
+        prf=prf, PRF_op=PRF_op, Na=Na, Na_ch=Na_ch, ta=ta,
+        plots_dir=_plots_subdir(base_dir, "large_bat", scene_name),
+    )
+
+
+def make_dpca_offset_config(Nrx: int, base_dir: str, scene_name: str = "single") -> ExperimentConfig:
+    """
+    DPCA variant where every receiver has a non-zero bat.
+
+    Same system and PRF as make_dpca_config, but the array is shifted by
+    dx/2 (half the receiver spacing), so:
+
+        bat[i] = dx/2 + dx * i   (no receiver at bat=0)
+
+    This tests the numerical reconstruction in the general bistatic case
+    without the "coinciding phase center" of the standard DPCA condition.
+    Compare the combined plot against the standard 'dpca' case to see how
+    the reconstruction quality changes.
+    """
+    system = SystemParams()
+    scene = Scene(rDelay=0.0038659204080400003, c0=system.c0,
+                  extra_offsets=SCENE_PRESETS[scene_name])
+
+    dx, dxt = 11.0, 100.0
+    array = ArrayGeometry.linear(Nrx, dx, dxt, bat_offset=dx / 2)
+
+    prf, PRF_op = prf_from_dpca(system, Nrx, dx)
+    acq_time = 2.0 * integration_time(system, scene)
+    Na, Na_ch, ta = build_time_axis(prf, Nrx, acq_time)
 
     return ExperimentConfig(
-        name="diff", system=system, scene=scene, array=array,
-        prf=prf, PRF_op=PRF_op, Na=Na, Na_ch=Na_ch, ta=ta, plots_dir=plots_dir,
+        name="dpca_offset", system=system, scene=scene, array=array,
+        prf=prf, PRF_op=PRF_op, Na=Na, Na_ch=Na_ch, ta=ta,
+        plots_dir=_plots_subdir(base_dir, "dpca_offset", scene_name),
     )
 
 
 # Registry so the driver can iterate over named cases.
 # Each factory takes (Nrx, base_dir, scene_name="single").
 CONFIG_FACTORIES = {
-    "diff": make_diff_config,
-    "dpca": make_dpca_config,
+    "large_bat":    make_large_bat_config,
+    "dpca":         make_dpca_config,
+    "dpca_offset":  make_dpca_offset_config,
 }

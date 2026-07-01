@@ -22,13 +22,18 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # What to sweep. Edit these freely.
 CHANNEL_NUMBERS = list(range(2, 10))
-CASES = ["diff", "dpca"]
+CASES = ["large_bat", "dpca", "dpca_offset"]
 # "single" reproduces the original one-target behaviour. Add any other name
 # defined in sar_recon.config.SCENE_PRESETS to also run multi-point scenes,
 # e.g. SCENE_NAMES = ["single", "along_track_line", "varied_heights"].
 SCENE_NAMES = ["single", "along_track_line", "cross_track_patch", "varied_heights"]
 MAKE_PLOTS = True
+# Set True to render all plot text through a real LaTeX install (Computer
+# Modern font, etc). Requires LaTeX + dvipng + Ghostscript on PATH -- see
+# sar_recon.plotting.enable_latex_fonts docstring. Leave False if you don't
+# have that toolchain installed.
 USE_LATEX_FONTS = False
+
 
 def run_case(cfg: sar.ExperimentConfig, make_plots: bool = True):
     """Full forward + reconstruction + (optional) diagnostics for one config."""
@@ -60,13 +65,11 @@ def run_case(cfg: sar.ExperimentConfig, make_plots: bool = True):
 
 
 def main():
-    
     if USE_LATEX_FONTS:
+        # Must happen before any figure is created -- rcParams are global and
+        # only affect plots made after this point.
         sar.enable_latex_fonts()
-    sar.set_font_size(14)
-    
-        
-    
+
     for Nrx in CHANNEL_NUMBERS:
         for case in CASES:
             for scene_name in SCENE_NAMES:

@@ -4,7 +4,8 @@ from .config import (
     SystemParams, Scene, ArrayGeometry, ExperimentConfig,
     integration_time, build_time_axis,
     prf_from_fixed, prf_from_dpca,
-    make_diff_config, make_dpca_config, CONFIG_FACTORIES, SCENE_PRESETS,
+    make_large_bat_config, make_dpca_config, make_dpca_offset_config,
+    CONFIG_FACTORIES, SCENE_PRESETS,
 )
 from .geometry import PlatformTracks, build_platform_tracks
 from .signal_model import getRawData1D, generate_reference, generate_channels
@@ -20,7 +21,8 @@ from .plotting import (
 __all__ = [
     "SystemParams", "Scene", "ArrayGeometry", "ExperimentConfig",
     "integration_time", "build_time_axis", "prf_from_fixed", "prf_from_dpca",
-    "make_diff_config", "make_dpca_config", "CONFIG_FACTORIES", "SCENE_PRESETS",
+    "make_large_bat_config", "make_dpca_config", "make_dpca_offset_config",
+    "CONFIG_FACTORIES", "SCENE_PRESETS",
     "PlatformTracks", "build_platform_tracks",
     "getRawData1D", "generate_reference", "generate_channels",
     "GetCoeffNu", "GetInversionFilters", "ReconstructSignalNumeri", "reconstruct",

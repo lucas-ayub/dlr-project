@@ -28,7 +28,7 @@ def set_font_size(size: float = 14) -> None:
     ...). Call this once, anywhere before generating plots -- order relative
     to enable_latex_fonts() doesn't matter, they touch different rcParams.
 
-    `size` is the base font size in points (Matplotlib's default is 10).
+    `size` is the base font size in points (Matplotlib's default isƒ 10).
     """
     plt.rcParams.update({"font.size": size})
 
@@ -93,7 +93,7 @@ def plot_combined(cfg: ExperimentConfig, res: ReconResult):
     dpi_all = _auto_dpi(cfg.Na)
     fig, axes = plt.subplots(2, 2, figsize=(12, 8), dpi=dpi_all)
     fig.suptitle(f'Numerical Reconstruction | Nrx={Nrx} | prf={prf:.1f} Hz | '
-                 f'abw={abw:.1f} Hz | $\\Delta$bat={dx:.1f} m | $\\Delta$bxt={dxt:.1f} m')
+                f'abw={abw:.1f} Hz | $\\Delta b_{{at}}$={dx:.1f} m | $\\Delta b_{{xt}}$={dxt:.1f} m')
 
     axes[0, 0].plot(ta, abs(res.sref), label='ref')
     axes[0, 0].plot(ta, abs(res.srecN), label='rec')
@@ -194,9 +194,9 @@ def plot_polyfit_diagnostic(cfg: ExperimentConfig, tracks: PlatformTracks):
         axes_d[0].legend(fontsize='small'); axes_d[0].grid()
 
         axes_d[1].plot(ta_fit_, residual_ ** 2 * 1e12)
-        axes_d[1].set_xlabel('ta - tbc [s]'); axes_d[1].set_ylabel('[μm²]')
-        axes_d[1].set_title(f'Squared residual | RMSE={rmse_um:.3f} μm | '
-                            f'RMS phase err={rms_phase:.3f} deg')
+        axes_d[1].set_xlabel('ta - tbc [s]'); axes_d[1].set_ylabel('[$\\mu$m$^2$]')
+        axes_d[1].set_title(f'Squared residual | RMSE={rmse_um:.3f} $\\mu$m | '
+                                    f'RMS phase err={rms_phase:.3f} deg')
         axes_d[1].grid()
 
         fig_d.tight_layout()
