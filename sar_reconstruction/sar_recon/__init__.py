@@ -14,7 +14,7 @@ from .reconstruction import (
 from .analysis import ReconResult, zoom1Dpeak, matched_filter, analyze
 from .plotting import (
     plot_combined, plot_polyfit_diagnostic, plot_geometry_3d,
-    plot_scene_points, plot_scene_points_3d, enable_latex_fonts,
+    plot_scene_points, plot_scene_points_3d, enable_latex_fonts, set_font_size,
 )
 
 __all__ = [
@@ -26,5 +26,5 @@ __all__ = [
     "GetCoeffNu", "GetInversionFilters", "ReconstructSignalNumeri", "reconstruct",
     "ReconResult", "zoom1Dpeak", "matched_filter", "analyze",
     "plot_combined", "plot_polyfit_diagnostic", "plot_geometry_3d",
-    "plot_scene_points", "plot_scene_points_3d", "enable_latex_fonts",
+    "plot_scene_points", "plot_scene_points_3d", "enable_latex_fonts", "set_font_size",
 ]

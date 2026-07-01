@@ -16,8 +16,21 @@ from .config import ExperimentConfig
 from .geometry import PlatformTracks
 from .analysis import ReconResult
 
-_text_kwargs = dict(fontsize=8, verticalalignment='top',
+_text_kwargs = dict(fontsize='small', verticalalignment='top',
                     bbox=dict(boxstyle="round", fc="w", ec="0.5"))
+
+
+def set_font_size(size: float = 14) -> None:
+    """
+    Bump every plot font (titles, axis labels, tick labels, legends,
+    annotations) together, by changing the single base size everything else
+    in this module is now expressed relative to ('small', 'medium', 'large',
+    ...). Call this once, anywhere before generating plots -- order relative
+    to enable_latex_fonts() doesn't matter, they touch different rcParams.
+
+    `size` is the base font size in points (Matplotlib's default is 10).
+    """
+    plt.rcParams.update({"font.size": size})
 
 
 def enable_latex_fonts(font_family: str = "serif", preamble: str = "") -> None:
@@ -80,25 +93,25 @@ def plot_combined(cfg: ExperimentConfig, res: ReconResult):
     dpi_all = _auto_dpi(cfg.Na)
     fig, axes = plt.subplots(2, 2, figsize=(12, 8), dpi=dpi_all)
     fig.suptitle(f'Numerical Reconstruction | Nrx={Nrx} | prf={prf:.1f} Hz | '
-                 f'abw={abw:.1f} Hz | Δbat={dx:.1f} m | Δbxt={dxt:.1f} m')
+                 f'abw={abw:.1f} Hz | $\\Delta$bat={dx:.1f} m | $\\Delta$bxt={dxt:.1f} m')
 
     axes[0, 0].plot(ta, abs(res.sref), label='ref')
     axes[0, 0].plot(ta, abs(res.srecN), label='rec')
     axes[0, 0].set_xlabel('Time [s]'); axes[0, 0].set_ylabel('Amplitude')
-    axes[0, 0].grid(); axes[0, 0].legend(prop={'size': 7}, loc='best')
+    axes[0, 0].grid(); axes[0, 0].legend(fontsize='small', loc='best')
     axes[0, 0].text(0.02, 0.95, f'Nrx={Nrx}', transform=axes[0, 0].transAxes, **_text_kwargs)
 
     axes[0, 1].plot(ta, 20. * np.log10(abs(res.srefF) / np.max(abs(res.srefF))), label='ref')
     axes[0, 1].plot(ta, 20. * np.log10(abs(res.srecNF) / np.max(abs(res.srecNF))), label='rec')
     axes[0, 1].set_xlabel('Time [s]'); axes[0, 1].set_ylabel('[dB]')
     axes[0, 1].set_ylim([-100, 0]); axes[0, 1].grid()
-    axes[0, 1].legend(prop={'size': 7}, loc='best')
+    axes[0, 1].legend(fontsize='small', loc='best')
     axes[0, 1].text(0.02, 0.95, f'Nrx={Nrx}', transform=axes[0, 1].transAxes, **_text_kwargs)
 
     axes[1, 0].plot(res.taz * 1e3, 20. * np.log10(abs(res.u_refFocC) / np.max(abs(res.u_refFocC))), label='ref')
     axes[1, 0].plot(res.taz * 1e3, 20. * np.log10(abs(res.u_interpFocCN) / np.max(abs(res.u_interpFocCN))), label='rec')
     axes[1, 0].set_xlabel('Time [ms]'); axes[1, 0].set_ylabel('[dB]')
-    axes[1, 0].grid(); axes[1, 0].legend(prop={'size': 7}, loc='best')
+    axes[1, 0].grid(); axes[1, 0].legend(fontsize='small', loc='best')
     axes[1, 0].text(0.02, 0.95, f'Nrx={Nrx}', transform=axes[1, 0].transAxes, **_text_kwargs)
 
     axes[1, 1].plot(res.fa, dph)
@@ -172,13 +185,13 @@ def plot_polyfit_diagnostic(cfg: ExperimentConfig, tracks: PlatformTracks):
         dpi_d = _auto_dpi(len(ta_fit_))
         fig_d, axes_d = plt.subplots(1, 2, figsize=(12, 4), dpi=dpi_d)
         fig_d.suptitle(f'Poly fit diagnostic | Nrx={cfg.Nrx} | CH{kk} | '
-                       f'bat={cfg.array.bat[kk]:.1f} m', fontsize=9)
+                       f'bat={cfg.array.bat[kk]:.1f} m', fontsize='medium')
 
         axes_d[0].plot(ta_fit_, diff_real_ * 1e3, label='real rh_bs - rh_ms')
         axes_d[0].plot(ta_fit_, diff_fit_ * 1e3, label='poly fit (order 2)', linestyle='--')
         axes_d[0].set_xlabel('ta - tbc [s]'); axes_d[0].set_ylabel('[mm]')
         axes_d[0].set_title('Bistatic path difference')
-        axes_d[0].legend(fontsize=8); axes_d[0].grid()
+        axes_d[0].legend(fontsize='small'); axes_d[0].grid()
 
         axes_d[1].plot(ta_fit_, residual_ ** 2 * 1e12)
         axes_d[1].set_xlabel('ta - tbc [s]'); axes_d[1].set_ylabel('[μm²]')
@@ -193,21 +206,37 @@ def plot_polyfit_diagnostic(cfg: ExperimentConfig, tracks: PlatformTracks):
 
 
 def plot_geometry_3d(cfg: ExperimentConfig, n_plot: int = 400):
-    """3D acquisition geometry (TX track, RX tracks, all scatterers)."""
+    """
+    Two-panel geometry figure.
+
+    Left  (3D, km scale): full acquisition geometry — TX/RX tracks, target
+          position. Good for overall context but receiver separations of
+          tens/hundreds of metres are invisible at this scale.
+
+    Right (2D top-down, metres): zoomed view of the receiver array at t=0,
+          with along-track (bat) on x and cross-track (bxt) on y, both in
+          metres relative to the TX position. This is where you actually see
+          the bat/bxt separations between receivers.
+    """
     sk = 1e-3
     idx_vis = np.linspace(0, cfg.Na - 1, n_plot, dtype=int)
     ta_vis = cfg.ta[idx_vis]
     vs, H = cfg.system.vs, cfg.scene.H
-    points = cfg.scene.points          # [Np, 3], row 0 is the central point
+    points = cfg.scene.points
     x0, y0, h0 = points[0]
 
-    fig3d = plt.figure(figsize=(10, 7))
-    ax3d = fig3d.add_subplot(111, projection='3d')
+    fig = plt.figure(figsize=(16, 7))
+    ax3d = fig.add_subplot(121, projection='3d')
+    ax2d = fig.add_subplot(122)
+    fig.suptitle(f'SAR Acquisition Geometry  —  Nrx={cfg.Nrx}', fontsize='large')
 
+    # ------------------------------------------------------------------ #
+    # LEFT: full 3D overview (km scale)                                   #
+    # ------------------------------------------------------------------ #
     tx_x = vs * ta_vis * sk
     ax3d.plot(tx_x, np.zeros(n_plot), H * np.ones(n_plot) * sk,
               color='royalblue', lw=2, label='TX')
-    ax3d.text(tx_x[-1], 0, H * sk, '  TX', color='royalblue', fontsize=8)
+    ax3d.text(tx_x[-1], 0, H * sk, '  TX', color='royalblue', fontsize='small')
 
     rx_colors = plt.cm.tab10(np.linspace(0, 0.9, cfg.Nrx))
     for jj in range(cfg.Nrx):
@@ -215,34 +244,67 @@ def plot_geometry_3d(cfg: ExperimentConfig, n_plot: int = 400):
         rx_y = cfg.array.bxt[jj] * np.ones(n_plot) * sk
         rx_z = H * np.ones(n_plot) * sk
         ax3d.plot(rx_x, rx_y, rx_z, color=rx_colors[jj], lw=1.2, linestyle='--',
-                  label=f'RX{jj+1} (bat={cfg.array.bat[jj]:.1f} m, bxt={cfg.array.bxt[jj]:.1f} m)')
-        ax3d.text(rx_x[-1], rx_y[-1], rx_z[-1], f'  RX{jj+1}', color=rx_colors[jj], fontsize=7)
+                  label=f'RX{jj+1} ($b_{{at}}$={cfg.array.bat[jj]:.1f} m, '
+                        f'$b_{{xt}}$={cfg.array.bxt[jj]:.1f} m)')
+        ax3d.text(rx_x[-1], rx_y[-1], rx_z[-1], f'  RX{jj+1}',
+                  color=rx_colors[jj], fontsize='small')
 
-    # Central point (used for reconstruction) in red, any extra scatterers in orange.
     ax3d.scatter([x0 * sk], [y0 * sk], [h0 * sk], color='red', s=80, zorder=5,
                  label='Target (center)')
     ax3d.text(x0 * sk, y0 * sk, h0 * sk + 2 * sk,
-              f'  Center\n  ({x0:.0f}, {y0:.0f}, {h0:.0f}) m', color='red', fontsize=8)
+              f'  Center\n  ({x0:.0f}, {y0:.0f}, {h0:.0f}) m',
+              color='red', fontsize='small')
     ax3d.plot([x0 * sk, x0 * sk], [y0 * sk, y0 * sk], [h0 * sk, H * sk],
               color='red', lw=0.8, linestyle=':', alpha=0.6)
 
     if len(points) > 1:
-        ex = points[1:, 0] * sk
-        ey = points[1:, 1] * sk
-        ez = points[1:, 2] * sk
-        ax3d.scatter(ex, ey, ez, color='darkorange', s=50, zorder=5,
+        ax3d.scatter(points[1:, 0] * sk, points[1:, 1] * sk, points[1:, 2] * sk,
+                     color='darkorange', s=50, zorder=5,
                      label=f'Extra scatterers ({len(points) - 1})')
 
     ax3d.set_xlabel('Along-track [km]'); ax3d.set_ylabel('Cross-track [km]')
     ax3d.set_zlabel('Altitude [km]')
-    ax3d.set_title(f'SAR Acquisition Geometry  —  Nrx={cfg.Nrx}', fontsize=11)
-    ax3d.legend(fontsize=7, loc='upper left', ncol=2)
+    ax3d.set_title('Full geometry (km scale)', fontsize='medium')
+    ax3d.legend(fontsize='small', loc='upper left', ncol=1)
     ax3d.view_init(elev=25, azim=-60)
 
-    fig3d.tight_layout()
-    fig3d.savefig(os.path.join(_subdir(cfg, "geometry_3d"), f'plot_geometry_3d_Nrx{cfg.Nrx}.png'),
-                  dpi=150, bbox_inches='tight')
-    plt.close(fig3d)
+    # ------------------------------------------------------------------ #
+    # RIGHT: receiver array top-down zoom (metres, t = 0)                 #
+    # TX is fixed at (0, 0); each RX is displaced by (-bat, bxt).        #
+    # ------------------------------------------------------------------ #
+    # TX at origin
+    ax2d.scatter([0], [0], color='royalblue', s=120, zorder=5, label='TX')
+    ax2d.annotate('TX', (0, 0), textcoords='offset points',
+                  xytext=(6, 6), color='royalblue', fontsize='small')
+
+    for jj in range(cfg.Nrx):
+        bat_j = -cfg.array.bat[jj]    # RX trails TX by bat -> negative along-track offset
+        bxt_j = cfg.array.bxt[jj]
+        ax2d.scatter([bat_j], [bxt_j], color=rx_colors[jj], s=80, zorder=5)
+        ax2d.annotate(f'RX{jj+1}', (bat_j, bxt_j),
+                      textcoords='offset points', xytext=(6, 4),
+                      color=rx_colors[jj], fontsize='small')
+
+    # Add margin so points don't sit on the axes edges
+    all_bat = np.concatenate([[0], -cfg.array.bat])
+    all_bxt = np.concatenate([[0], cfg.array.bxt])
+    margin = max(np.ptp(all_bat), np.ptp(all_bxt), 1.0) * 0.3
+    ax2d.set_xlim(all_bat.min() - margin, all_bat.max() + margin)
+    ax2d.set_ylim(all_bxt.min() - margin, all_bxt.max() + margin)
+
+    ax2d.set_xlabel('$\\Delta$ along-track / $b_{at}$ [m]')
+    ax2d.set_ylabel('$\\Delta$ cross-track / $b_{xt}$ [m]')
+    ax2d.set_title('Receiver array (metres, $t=0$)', fontsize='medium')
+    ax2d.axhline(0, color='grey', lw=0.6, linestyle=':')
+    ax2d.axvline(0, color='grey', lw=0.6, linestyle=':')
+    ax2d.set_aspect('equal')
+    ax2d.grid()
+
+    fig.tight_layout()
+    fig.savefig(os.path.join(_subdir(cfg, "geometry_3d"), f'plot_geometry_3d_Nrx{cfg.Nrx}.png'),
+                dpi=150, bbox_inches='tight')
+    plt.close(fig)
+
 
 
 def plot_scene_points(cfg: ExperimentConfig):
@@ -258,7 +320,7 @@ def plot_scene_points(cfg: ExperimentConfig):
 
     fig, axes = plt.subplots(1, 2, figsize=(11, 5))
     fig.suptitle(f'Scene scatterers relative to reconstruction center '
-                 f'({len(points)} point{"s" if len(points) != 1 else ""})', fontsize=10)
+                 f'({len(points)} point{"s" if len(points) != 1 else ""})', fontsize='medium')
 
     # Top-down: along-track (x) vs cross-track (y)
     ax = axes[0]
@@ -268,10 +330,10 @@ def plot_scene_points(cfg: ExperimentConfig):
                    label='Extra scatterers')
         for ii in range(1, len(points)):
             ax.annotate(f'P{ii}', (rel[ii, 0], rel[ii, 1]),
-                       textcoords='offset points', xytext=(5, 5), fontsize=8)
-    ax.set_xlabel('Δ along-track [m]'); ax.set_ylabel('Δ cross-track [m]')
+                       textcoords='offset points', xytext=(5, 5), fontsize='small')
+    ax.set_xlabel('$\\Delta$ along-track [m]'); ax.set_ylabel('$\\Delta$ cross-track [m]')
     ax.set_title('Top-down view'); ax.grid(); ax.axis('equal')
-    ax.legend(fontsize=8, loc='best')
+    ax.legend(fontsize='small', loc='best')
 
     # Side view: along-track (x) vs height (h)
     ax2 = axes[1]
@@ -281,10 +343,10 @@ def plot_scene_points(cfg: ExperimentConfig):
                     label='Extra scatterers')
         for ii in range(1, len(points)):
             ax2.annotate(f'P{ii}', (rel[ii, 0], rel[ii, 2]),
-                        textcoords='offset points', xytext=(5, 5), fontsize=8)
-    ax2.set_xlabel('Δ along-track [m]'); ax2.set_ylabel('Δ height [m]')
+                        textcoords='offset points', xytext=(5, 5), fontsize='small')
+    ax2.set_xlabel('$\\Delta$ along-track [m]'); ax2.set_ylabel('$\\Delta$ height [m]')
     ax2.set_title('Side view'); ax2.grid()
-    ax2.legend(fontsize=8, loc='best')
+    ax2.legend(fontsize='small', loc='best')
 
     fig.tight_layout()
     fig.savefig(os.path.join(_subdir(cfg, "scene_points"), f'plot_scene_points_Nrx{cfg.Nrx}.png'),
@@ -313,14 +375,14 @@ def plot_scene_points_3d(cfg: ExperimentConfig):
 
     ax.scatter([0.0], [0.0], [0.0], color='red', s=110, zorder=5,
                label='Center (reconstruction pt)')
-    ax.text(0.0, 0.0, 0.0, '  Center', color='red', fontsize=8)
+    ax.text(0.0, 0.0, 0.0, '  Center', color='red', fontsize='small')
 
     if len(points) > 1:
         ax.scatter(rel[1:, 0], rel[1:, 1], rel[1:, 2], color='darkorange', s=70,
                    zorder=5, label=f'Extra scatterers ({len(points) - 1})')
         for ii in range(1, len(points)):
             ax.text(rel[ii, 0], rel[ii, 1], rel[ii, 2], f'  P{ii}',
-                   color='darkorange', fontsize=8)
+                   color='darkorange', fontsize='small')
             # Dotted stem down to the ground plane (Δheight=0) for depth cues.
             ax.plot([rel[ii, 0], rel[ii, 0]], [rel[ii, 1], rel[ii, 1]],
                     [0.0, rel[ii, 2]], color='darkorange', lw=0.7,
@@ -331,11 +393,11 @@ def plot_scene_points_3d(cfg: ExperimentConfig):
     span = max(span, 1.0) * 1.2
     ax.set_xlim(-span, span); ax.set_ylim(-span, span); ax.set_zlim(-span, span)
 
-    ax.set_xlabel('Δ along-track [m]'); ax.set_ylabel('Δ cross-track [m]')
-    ax.set_zlabel('Δ height [m]')
+    ax.set_xlabel('$\\Delta$ along-track [m]'); ax.set_ylabel('$\\Delta$ cross-track [m]')
+    ax.set_zlabel('$\\Delta$ height [m]')
     ax.set_title(f'Scene scatterers (3D, zoomed) | Nrx={cfg.Nrx} | '
-                 f'{len(points)} point{"s" if len(points) != 1 else ""}', fontsize=11)
-    ax.legend(fontsize=8, loc='upper left')
+                 f'{len(points)} point{"s" if len(points) != 1 else ""}', fontsize='large')
+    ax.legend(fontsize='small', loc='upper left')
     ax.view_init(elev=25, azim=-60)
 
     fig.tight_layout()

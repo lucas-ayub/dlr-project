@@ -63,6 +63,9 @@ def main():
     
     if USE_LATEX_FONTS:
         sar.enable_latex_fonts()
+    sar.set_font_size(14)
+    
+        
     
     for Nrx in CHANNEL_NUMBERS:
         for case in CASES:

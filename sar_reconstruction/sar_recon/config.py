@@ -243,9 +243,16 @@ SCENE_PRESETS = {
 
 
 def _plots_subdir(base_plots_dir: str, scene_name: str) -> str:
-    """plots/ for the default 'single' scene, plots/<scene_name>/ otherwise,
-    so multi-point runs don't mix their plots with the single-target ones."""
-    path = base_plots_dir if scene_name == "single" else os.path.join(base_plots_dir, scene_name)
+    """
+    Always plots/<scene_name>/, including for the default 'single' scene.
+
+    Earlier this omitted the subfolder for 'single' to keep the original
+    flat layout, but that left plots/combined, plots/geometry_3d, etc. sitting
+    mixed alphabetically with the scene-named folders (along_track_line,
+    varied_heights, ...) at the same level -- confusing to scan. Giving
+    'single' its own folder too makes every scene look the same.
+    """
+    path = os.path.join(base_plots_dir, scene_name)
     os.makedirs(path, exist_ok=True)
     return path
 

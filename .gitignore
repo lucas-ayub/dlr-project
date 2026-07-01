@@ -26,3 +26,8 @@ __pycache__/
 # Environment variables/secrets
 .env
 .env.*
+
+# SAR reconstruction plots
+sar_reconstruction/plots/
+sar_reconstruction/plots_dpca_prf/
+
