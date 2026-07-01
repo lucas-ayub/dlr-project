@@ -252,10 +252,14 @@ SCENE_PRESETS = {
         (15.0, -10.0, 3.0),
         (-15.0, -10.0, 25.0),
     ),
+    "topo_ramp": tuple(
+        (0.0, round(frac * 2000.0, 1), round(frac * 500.0, 1))
+        for frac in [0.10, 0.20, 0.30, 0.40, 0.50]
+    ),
 }
 
 
-def _plots_subdir(base_dir: str, case_name: str, scene_name: str) -> str:
+def _plots_subdir(base_plots_dir: str, scene_name: str) -> str:
     """
     All cases share a single plots/ root:
         plots/<case_name>/<scene_name>/
@@ -263,7 +267,7 @@ def _plots_subdir(base_dir: str, case_name: str, scene_name: str) -> str:
     This keeps the output tree clean: one folder to look in, subfolders
     organised first by case, then by scene.
     """
-    path = os.path.join(base_dir, "plots", case_name, scene_name)
+    path = base_plots_dir if scene_name == "single" else os.path.join(base_plots_dir, scene_name)
     os.makedirs(path, exist_ok=True)
     return path
 
@@ -355,6 +359,37 @@ def make_dpca_offset_config(Nrx: int, base_dir: str, scene_name: str = "single")
         prf=prf, PRF_op=PRF_op, Na=Na, Na_ch=Na_ch, ta=ta,
         plots_dir=_plots_subdir(base_dir, "dpca_offset", scene_name),
     )
+    
+def make_topo_config(Nrx: int, base_dir: str, scene_name: str = "topo_ramp",
+                     dxt: float = 0.0) -> ExperimentConfig:
+    """Topographic experiment: central point at h=0, targets in a ramp, variable dxt."""
+    system = SystemParams()
+
+    # h0=0.0 → central point on ground
+    scene = Scene(rDelay=0.0051115753, c0=system.c0, h0=0.0,
+                  extra_offsets=SCENE_PRESETS[scene_name])
+
+    dx = 100.0          # along-track spacing 
+    array = ArrayGeometry.linear(Nrx, dx, dxt)   
+
+    prf, PRF_op = prf_from_fixed(2000.0, Nrx)
+    acq_time = 2.0 * integration_time(system, scene)
+    Na, Na_ch, ta = build_time_axis(prf, Nrx, acq_time)
+
+    plots_dir = _plots_subdir(
+        os.path.join(base_dir, "plots", f"topo_dxt{int(dxt)}"), scene_name
+    )
+
+    return ExperimentConfig(
+        name=f"topo_dxt{int(dxt)}", system=system, scene=scene, array=array,
+        prf=prf, PRF_op=PRF_op, Na=Na, Na_ch=Na_ch, ta=ta, plots_dir=plots_dir,
+    )
+
+def _make_topo_dxt(dxt_val):
+    """Create a factory for a fixed dxt, compatible with signature (Nrx, base_dir, scene_name)."""
+    def factory(Nrx, base_dir, scene_name="topo_ramp"):
+        return make_topo_config(Nrx, base_dir, scene_name, dxt=dxt_val)
+    return factory
 
 
 # Registry so the driver can iterate over named cases.
@@ -363,4 +398,9 @@ CONFIG_FACTORIES = {
     "large_bat":    make_large_bat_config,
     "dpca":         make_dpca_config,
     "dpca_offset":  make_dpca_offset_config,
+    "topo_dxt0":  _make_topo_dxt(0.0),
+    "topo_dxt10": _make_topo_dxt(10.0),
+    "topo_dxt20": _make_topo_dxt(20.0),
+    "topo_dxt50": _make_topo_dxt(50.0),
+    "topo_dxt100":_make_topo_dxt(100.0),
 }

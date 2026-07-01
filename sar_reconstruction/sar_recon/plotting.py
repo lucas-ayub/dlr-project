@@ -304,49 +304,35 @@ def plot_geometry_3d(cfg: ExperimentConfig, n_plot: int = 400):
     fig.savefig(os.path.join(_subdir(cfg, "geometry_3d"), f'plot_geometry_3d_Nrx{cfg.Nrx}.png'),
                 dpi=150, bbox_inches='tight')
     plt.close(fig)
-
-
-
+    
 def plot_scene_points(cfg: ExperimentConfig):
-    """
-    Zoomed top-down view of the scatterers, in metres RELATIVE TO THE CENTRAL
-    POINT. The full geometry plot is at km scale (slant range is often
-    hundreds of km), so scatterers spaced metres apart are indistinguishable
-    there; this plot exists purely to inspect the scene layout itself.
-    """
-    points = cfg.scene.points          # [Np, 3], row 0 is the central point
+    points = cfg.scene.points
     center = points[0]
-    rel = points - center[np.newaxis, :]   # along-track / cross-track / height offsets [m]
+    rel = points - center[np.newaxis, :]
 
-    fig, axes = plt.subplots(1, 2, figsize=(11, 5))
+    fig, axes = plt.subplots(1, 3, figsize=(16, 5))
     fig.suptitle(f'Scene scatterers relative to reconstruction center '
-                 f'({len(points)} point{"s" if len(points) != 1 else ""})', fontsize='medium')
+                 f'({len(points)} point{"s" if len(points) != 1 else ""})', fontsize=10)
 
-    # Top-down: along-track (x) vs cross-track (y)
-    ax = axes[0]
-    ax.scatter([0.0], [0.0], color='red', s=90, zorder=5, label='Center (reconstruction pt)')
-    if len(points) > 1:
-        ax.scatter(rel[1:, 0], rel[1:, 1], color='darkorange', s=60, zorder=5,
-                   label='Extra scatterers')
-        for ii in range(1, len(points)):
-            ax.annotate(f'P{ii}', (rel[ii, 0], rel[ii, 1]),
-                       textcoords='offset points', xytext=(5, 5), fontsize='small')
-    ax.set_xlabel('$\\Delta$ along-track [m]'); ax.set_ylabel('$\\Delta$ cross-track [m]')
-    ax.set_title('Top-down view'); ax.grid(); ax.axis('equal')
-    ax.legend(fontsize='small', loc='best')
+    panel_specs = [
+        (0, 1, '$\\Delta$ along-track [m]', '$\\Delta$ cross-track [m]', 'Top-down (along $\\times$ cross)'),
+        (0, 2, '$\\Delta$ along-track [m]', '$\\Delta$ height [m]',      'Side (along $\\times$ height)'),
+        (1, 2, '$\\Delta$ cross-track [m]', '$\\Delta$ height [m]',      'Front (cross $\\times$ height)'),
+    ]
 
-    # Side view: along-track (x) vs height (h)
-    ax2 = axes[1]
-    ax2.scatter([0.0], [0.0], color='red', s=90, zorder=5, label='Center')
-    if len(points) > 1:
-        ax2.scatter(rel[1:, 0], rel[1:, 2], color='darkorange', s=60, zorder=5,
-                    label='Extra scatterers')
-        for ii in range(1, len(points)):
-            ax2.annotate(f'P{ii}', (rel[ii, 0], rel[ii, 2]),
-                        textcoords='offset points', xytext=(5, 5), fontsize='small')
-    ax2.set_xlabel('$\\Delta$ along-track [m]'); ax2.set_ylabel('$\\Delta$ height [m]')
-    ax2.set_title('Side view'); ax2.grid()
-    ax2.legend(fontsize='small', loc='best')
+    for ax, (xi, yi, xlabel, ylabel, title) in zip(axes, panel_specs):
+        ax.scatter([0.0], [0.0], color='red', s=90, zorder=5, label='Center')
+        if len(points) > 1:
+            ax.scatter(rel[1:, xi], rel[1:, yi], color='darkorange', s=60, zorder=5,
+                       label='Extra scatterers')
+            for ii in range(1, len(points)):
+                ax.annotate(f'P{ii}', (rel[ii, xi], rel[ii, yi]),
+                            textcoords='offset points', xytext=(5, 5), fontsize=8)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        ax.set_title(title)
+        ax.grid()
+        ax.legend(fontsize=8, loc='best')
 
     fig.tight_layout()
     fig.savefig(os.path.join(_subdir(cfg, "scene_points"), f'plot_scene_points_Nrx{cfg.Nrx}.png'),

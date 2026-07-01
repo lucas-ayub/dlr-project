@@ -32,8 +32,12 @@ MAKE_PLOTS = True
 # Modern font, etc). Requires LaTeX + dvipng + Ghostscript on PATH -- see
 # sar_recon.plotting.enable_latex_fonts docstring. Leave False if you don't
 # have that toolchain installed.
-USE_LATEX_FONTS = False
+USE_LATEX_FONTS = True
 
+
+CHANNEL_NUMBERS = [2, 3, 4]
+CASES = ["topo_dxt0", "topo_dxt10", "topo_dxt20", "topo_dxt50", "topo_dxt100"]
+SCENE_NAMES = ["topo_ramp"]
 
 def run_case(cfg: sar.ExperimentConfig, make_plots: bool = True):
     """Full forward + reconstruction + (optional) diagnostics for one config."""
