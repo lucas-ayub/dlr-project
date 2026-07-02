@@ -254,7 +254,7 @@ SCENE_PRESETS = {
     ),
     "topo_ramp": tuple(
         (0.0, round(frac * 2000.0, 1), round(frac * 500.0, 1))
-        for frac in [0.10, 0.20, 0.30, 0.40, 0.50]
+        for frac in np.linspace(0.10, 1.0, 9)
     ),
 }
 
@@ -369,7 +369,7 @@ def make_topo_config(Nrx: int, base_dir: str, scene_name: str = "topo_ramp",
     scene = Scene(rDelay=0.0051115753, c0=system.c0, h0=0.0,
                   extra_offsets=SCENE_PRESETS[scene_name])
 
-    dx = 100.0          # along-track spacing 
+    dx = 100.0         # along-track spacing 
     array = ArrayGeometry.linear(Nrx, dx, dxt)   
 
     prf, PRF_op = prf_from_fixed(2000.0, Nrx)
@@ -392,6 +392,36 @@ def _make_topo_dxt(dxt_val):
     return factory
 
 
+def make_topo_dpca_config(Nrx: int, base_dir: str, scene_name: str = "topo_ramp",
+                          dxt: float = 0.0) -> ExperimentConfig:
+    """Topographic experiment with DPCA timing: h0=0, ramp scene, variable dxt."""
+    system = SystemParams()
+
+    scene = Scene(rDelay=0.0038659204080400003, c0=system.c0, h0=0.0,
+                  extra_offsets=SCENE_PRESETS[scene_name])
+
+    dx = 11.0
+    array = ArrayGeometry.linear(Nrx, dx, dxt)
+
+    prf, PRF_op = prf_from_dpca(system, Nrx, dx)
+    acq_time = 2.0 * integration_time(system, scene)
+    Na, Na_ch, ta = build_time_axis(prf, Nrx, acq_time)
+
+    plots_dir = _plots_subdir(
+        os.path.join(base_dir, "plots", f"topo_dpca_dxt{int(dxt)}"), scene_name
+    )
+
+    return ExperimentConfig(
+        name=f"topo_dpca_dxt{int(dxt)}", system=system, scene=scene, array=array,
+        prf=prf, PRF_op=PRF_op, Na=Na, Na_ch=Na_ch, ta=ta, plots_dir=plots_dir,
+    )
+
+
+def _make_topo_dpca_dxt(dxt_val):
+    def factory(Nrx, base_dir, scene_name="topo_ramp"):
+        return make_topo_dpca_config(Nrx, base_dir, scene_name, dxt=dxt_val)
+    return factory
+
 # Registry so the driver can iterate over named cases.
 # Each factory takes (Nrx, base_dir, scene_name="single").
 CONFIG_FACTORIES = {
@@ -403,4 +433,9 @@ CONFIG_FACTORIES = {
     "topo_dxt20": _make_topo_dxt(20.0),
     "topo_dxt50": _make_topo_dxt(50.0),
     "topo_dxt100":_make_topo_dxt(100.0),
+    "topo_dpca_dxt0":   _make_topo_dpca_dxt(0.0),
+    "topo_dpca_dxt10":  _make_topo_dpca_dxt(10.0),
+    "topo_dpca_dxt20":  _make_topo_dpca_dxt(20.0),
+    "topo_dpca_dxt50":  _make_topo_dpca_dxt(50.0),
+    "topo_dpca_dxt100": _make_topo_dpca_dxt(100.0),
 }
