@@ -33,6 +33,7 @@ MAKE_PLOTS = True
 # sar_recon.plotting.enable_latex_fonts docstring. Leave False if you don't
 # have that toolchain installed.
 USE_LATEX_FONTS = True
+SAVE_VECTOR = True
 
 
 CHANNEL_NUMBERS = [2, 3, 4, 5, 6]
@@ -42,7 +43,7 @@ CHANNEL_NUMBERS = [2, 3, 4, 5, 6]
 CASES = ["topo_dpca_dxt0", "topo_dpca_dxt10", "topo_dpca_dxt20", "topo_dpca_dxt50", "topo_dpca_dxt100"]
 SCENE_NAMES = ["topo_ramp"]
 
-def run_case(cfg: sar.ExperimentConfig, make_plots: bool = True):
+def run_case(cfg: sar.ExperimentConfig, make_plots: bool = True, save_vector: bool = False):
     """Full forward + reconstruction + (optional) diagnostics for one config."""
     print(f"r0 = {cfg.scene.r0}")
     print(f"y0 = {cfg.scene.y0}")
@@ -58,15 +59,16 @@ def run_case(cfg: sar.ExperimentConfig, make_plots: bool = True):
 
     res = sar.analyze(cfg, sref, srecN)
 
+
     if make_plots:
-        sar.plot_combined(cfg, res)
-        sar.plot_polyfit_diagnostic(cfg, tracks)
-        sar.plot_geometry_3d(cfg)
+        sar.plot_combined(cfg, res, vector=save_vector)
+        sar.plot_polyfit_diagnostic(cfg, tracks, vector=save_vector)
+        sar.plot_geometry_3d(cfg, vector=save_vector)
         # Scene-layout plots only add value when there's more than one point;
         # cheap either way, so just gate them on extra_offsets being set.
         if cfg.scene.extra_offsets:
-            sar.plot_scene_points(cfg)
-            sar.plot_scene_points_3d(cfg)
+            sar.plot_scene_points(cfg, vector=save_vector)
+            sar.plot_scene_points_3d(cfg, vector=save_vector)
 
     return res
 
@@ -83,7 +85,7 @@ def main():
                 cfg = sar.CONFIG_FACTORIES[case](Nrx, SCRIPT_DIR, scene_name)
                 print(f"\n=== case={case} | scene={scene_name} | Nrx={Nrx} | "
                       f"prf={cfg.prf:.1f} | PRF_op={cfg.PRF_op:.1f} ===")
-                run_case(cfg, make_plots=MAKE_PLOTS)
+                run_case(cfg, make_plots=MAKE_PLOTS, save_vector=SAVE_VECTOR)
     print("end")
 
 
