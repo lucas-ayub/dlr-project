@@ -26,7 +26,7 @@ CHANNEL_NUMBERS = list(range(2, 10))
 # "single" reproduces the original one-target behaviour. Add any other name
 # defined in sar_recon.config.SCENE_PRESETS to also run multi-point scenes,
 # e.g. SCENE_NAMES = ["single", "along_track_line", "varied_heights"].
-SCENE_NAMES = ["single", "along_track_line", "cross_track_patch", "varied_heights"]
+# SCENE_NAMES = ["single", "along_track_line", "cross_track_patch", "varied_heights"]
 MAKE_PLOTS = True
 # Set True to render all plot text through a real LaTeX install (Computer
 # Modern font, etc). Requires LaTeX + dvipng + Ghostscript on PATH -- see
@@ -37,11 +37,11 @@ SAVE_VECTOR = True
 
 
 CHANNEL_NUMBERS = [2, 3, 4, 5, 6]
-#CASES = ["topo_dxt0", "topo_dxt10", "topo_dxt20", "topo_dxt50", "topo_dxt100"]
-#SCENE_NAMES = ["topo_ramp"]
-
-CASES = ["topo_dpca_dxt0", "topo_dpca_dxt10", "topo_dpca_dxt20", "topo_dpca_dxt50", "topo_dpca_dxt100"]
+CASES = ["topo_dxt0", "topo_dxt10", "topo_dxt20", "topo_dxt50", "topo_dxt100"]
+CHANNEL_NUMBERS = [2]
+CASES = ["topo_dxt0"]
 SCENE_NAMES = ["topo_ramp"]
+# CASES = ["dpca"]
 
 def run_case(cfg: sar.ExperimentConfig, make_plots: bool = True, save_vector: bool = False):
     """Full forward + reconstruction + (optional) diagnostics for one config."""

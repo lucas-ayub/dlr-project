@@ -358,8 +358,8 @@ def plot_geometry_3d(
             label=f"Extra scatterers ({len(points) - 1})",
         )
 
-    ax3d.set_xlabel("Along-track [km]")
-    ax3d.set_ylabel("Cross-track [km]")
+    ax3d.set_xlabel("Azimuth [km]")
+    ax3d.set_ylabel("Range [km]")
     ax3d.set_zlabel("Altitude [km]")
     ax3d.set_title("Full geometry (km scale)", fontsize="medium")
     ax3d.legend(fontsize="small", loc="upper left", ncol=1)
@@ -397,8 +397,8 @@ def plot_geometry_3d(
     ax2d.set_xlim(all_bat.min() - margin, all_bat.max() + margin)
     ax2d.set_ylim(all_bxt.min() - margin, all_bxt.max() + margin)
 
-    ax2d.set_xlabel("$\\Delta$ along-track / $b_{at}$ [m]")
-    ax2d.set_ylabel("$\\Delta$ cross-track / $b_{xt}$ [m]")
+    ax2d.set_xlabel("Azimuth / $b_{at}$ (Along-Track baseline) [m]")
+    ax2d.set_ylabel("Range / $b_{xt}$ (Across-Track baseline) [m]")
     ax2d.set_title("Receiver array (metres, $t=0$)", fontsize="medium")
     ax2d.axhline(0, color="grey", lw=0.6, linestyle=":")
     ax2d.axvline(0, color="grey", lw=0.6, linestyle=":")
@@ -431,9 +431,9 @@ def plot_scene_points(cfg: ExperimentConfig, vector: bool = False):
     )
 
     panel_specs = [
-        (0, 1, "$\\Delta$ along-track [m]", "$\\Delta$ cross-track [m]", "Top-down (along $\\times$ cross)"),
-        (0, 2, "$\\Delta$ along-track [m]", "$\\Delta$ height [m]", "Side (along $\\times$ height)"),
-        (1, 2, "$\\Delta$ cross-track [m]", "$\\Delta$ height [m]", "Front (cross $\\times$ height)"),
+        (0, 1, "Azimuth [m]", "Range [m]", "Top-down (Azimuth $\\times$ Range)"),
+        (0, 2, "Azimuth [m]", "Altitude [m]", "Side (Azimuth $\\times$ Altitude)"),
+        (1, 2, "Range [m]", "Altitude [m]", "Front (Range $\\times$ Altitude)"),
     ]
 
     for ax, (xi, yi, xlabel, ylabel, title) in zip(axes, panel_specs):
@@ -484,7 +484,7 @@ def plot_scene_points_3d(cfg: ExperimentConfig, vector: bool = False):
     center = points[0]
     rel = points - center[np.newaxis, :]
 
-    fig = plt.figure(figsize=(8, 7))
+    fig = plt.figure(figsize=(10, 7))
     ax = fig.add_subplot(111, projection="3d")
 
     ax.scatter(
@@ -535,9 +535,9 @@ def plot_scene_points_3d(cfg: ExperimentConfig, vector: bool = False):
     ax.set_ylim(-span, span)
     ax.set_zlim(-span, span)
 
-    ax.set_xlabel("$\\Delta$ along-track [m]")
-    ax.set_ylabel("$\\Delta$ cross-track [m]")
-    ax.set_zlabel("$\\Delta$ height [m]")
+    ax.set_xlabel("Azimuth [m]", labelpad=10)
+    ax.set_ylabel("Range [m]", labelpad=10)
+    ax.set_zlabel("")  # native zlabel disabled, drawn manually below
 
     ax.set_title(
         f"Scene scatterers (3D, zoomed) | Nrx={cfg.Nrx} | "
@@ -548,7 +548,17 @@ def plot_scene_points_3d(cfg: ExperimentConfig, vector: bool = False):
     ax.legend(fontsize="small", loc="upper left")
     ax.view_init(elev=25, azim=-60)
 
-    fig.tight_layout()
+    fig.subplots_adjust(left=0.05, right=0.82, top=0.92, bottom=0.08)
+
+    # Manual altitude label, drawn as 2D figure text so it can't be
+    # clipped by the (buggy) 3D label bounding-box calculation.
+    fig.text(
+        0.78, 0.5, "Altitude [m]",
+        rotation=90,
+        va="center",
+        ha="center",
+        fontsize=plt.rcParams["axes.labelsize"],
+    )
 
     _savefig(
         fig,
