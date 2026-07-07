@@ -94,7 +94,7 @@ def plot_combined(cfg: ExperimentConfig, res: ReconResult, vector: bool = False)
     fig, axes = plt.subplots(2, 2, figsize=(12, 8), dpi=dpi_all)
     fig.suptitle(
         f"Numerical Reconstruction | Nrx={Nrx} | $\\mathrm{{PRF}}={prf:.1f}\\,\\mathrm{{Hz}}$ | "
-        f"$\\mathrm{{ABW}}={abw:.1f}\\,\\mathrm{{Hz}}$ | "
+        f"$\\mathrm{{B_{{a}}}}={abw:.1f}\\,\\mathrm{{Hz}}$ | "
         f"$\\Delta b_{{at}}={dx:.1f}\\,\\mathrm{{m}}$ | "
         f"$\\Delta b_{{xt}}={dxt:.1f}\\,\\mathrm{{m}}$"
     )
