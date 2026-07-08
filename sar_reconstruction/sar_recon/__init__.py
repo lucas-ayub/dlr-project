@@ -5,6 +5,7 @@ from .config import (
     integration_time, build_time_axis,
     prf_from_fixed, prf_from_dpca,
     make_large_bat_config, make_dpca_config, make_dpca_offset_config,
+    scene_ramp_angle_deg,
     CONFIG_FACTORIES, SCENE_PRESETS,
 )
 from .geometry import PlatformTracks, build_platform_tracks
@@ -22,6 +23,7 @@ __all__ = [
     "SystemParams", "Scene", "ArrayGeometry", "ExperimentConfig",
     "integration_time", "build_time_axis", "prf_from_fixed", "prf_from_dpca",
     "make_large_bat_config", "make_dpca_config", "make_dpca_offset_config",
+    "scene_ramp_angle_deg",
     "CONFIG_FACTORIES", "SCENE_PRESETS",
     "PlatformTracks", "build_platform_tracks",
     "getRawData1D", "generate_reference", "generate_channels",

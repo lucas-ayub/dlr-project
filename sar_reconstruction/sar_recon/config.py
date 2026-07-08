@@ -226,12 +226,74 @@ class ExperimentConfig:
 
 
 # ---------------------------------------------------------------------------
+# Topographic ramp: defined by elevation angle alpha, not by a direct
+# maximum dh. Points lie on a line passing through the center (dy=0, dh=0)
+# inclined at alpha degrees with respect to the horizontal plane:
+#
+#     dh = dy * tan(alpha)
+#
+# To change the ramp inclination, only modify TOPO_RAMP_ALPHA_DEG -- the
+# rest (signal generation, reconstruction, plots) adapts automatically.
+# ---------------------------------------------------------------------------
+TOPO_RAMP_ALPHA_DEG = 14.04    # ramp elevation angle [degrees]
+TOPO_RAMP_LENGTH = 2000.0      # cross-track extent of the ramp at frac=1.0 [m]
+TOPO_RAMP_N_POINTS = 9         # number of extra scatterers along the ramp
+
+
+def _make_topo_ramp(alpha_deg: float, length: float = TOPO_RAMP_LENGTH,
+                    n_points: int = TOPO_RAMP_N_POINTS) -> tuple:
+    """
+    Generate offsets (dx, dy, dh) on a line inclined at alpha_deg degrees,
+    passing through the central reconstruction point (dy=0, dh=0):
+
+        dy = frac * length
+        dh = dy * tan(alpha_deg)
+
+    n_points equally spaced from 10% to 100% of 'length'.
+    """
+    alpha = np.radians(alpha_deg)
+    tan_a = np.tan(alpha)
+    return tuple(
+        (0.0, round(frac * length, 2), round(frac * length * tan_a, 2))
+        for frac in np.linspace(0.10, 1.0, n_points)
+    )
+
+
+def scene_ramp_angle_deg(scene: "Scene") -> float | None:
+    """
+    Retrieves the ramp elevation angle (in degrees) from the extra_offsets
+    of a Scene, assuming they lie on a line passing through the origin in
+    the (cross-track, height) plane -- exactly what _make_topo_ramp produces.
+
+    Returns None if there are no extra_offsets or the angle cannot be
+    determined (e.g., dy=0). Used by scene plots to annotate alpha
+    directly from the scene, without needing to pass the angle separately.
+    """
+    if not scene.extra_offsets:
+        return None
+    _, dy, dh = scene.extra_offsets[-1]
+    if dy == 0.0:
+        return None
+    return float(np.degrees(np.arctan2(dh, dy)))
+
+def _alpha_tag(alpha_deg: float) -> str:
+    """Convert an angle to a filename/dict-safe string, e.g. 14.04 -> '14p04'."""
+    return f"{alpha_deg:g}".replace(".", "p").replace("-", "m")
+
+
+# List of ramp angles (degrees) to sweep as separate scenes.
+# Each value becomes a preset named "topo_ramp_alpha<tag>" registered in SCENE_PRESETS.
+TOPO_RAMP_ALPHA_VALUES_DEG = [5.0, 10.0, 15.0, 20.0, 30.0]
+
+# ---------------------------------------------------------------------------
 # Named multi-scatterer scene presets
 # ---------------------------------------------------------------------------
 # Each entry is a tuple of (dx, dy, dh) offsets [m] relative to the central
 # reconstruction point. "single" (the default) reproduces the original
 # one-target behaviour exactly. To add your own scene, just add a new entry
 # here -- nothing else in the pipeline needs to change.
+
+
 SCENE_PRESETS = {
     "single": (),
     "along_track_line": (
@@ -251,12 +313,12 @@ SCENE_PRESETS = {
         (-15.0, 5.0, 15.0),
         (15.0, -10.0, 3.0),
         (-15.0, -10.0, 25.0),
-    ),
-    "topo_ramp": tuple(
-        (0.0, round(frac * 2000.0, 1), round(frac * 500.0, 1))
-        for frac in np.linspace(0.10, 1.0, 9)
-    ),
+        ),
+    "topo_ramp": _make_topo_ramp(TOPO_RAMP_ALPHA_DEG, TOPO_RAMP_LENGTH, TOPO_RAMP_N_POINTS),
 }
+
+for _alpha in TOPO_RAMP_ALPHA_VALUES_DEG:
+    SCENE_PRESETS[f"topo_ramp_alpha{_alpha_tag(_alpha)}"] = _make_topo_ramp(_alpha)
 
 
 def _plots_subdir(base_plots_dir: str, scene_name: str) -> str:
@@ -421,6 +483,8 @@ def _make_topo_dpca_dxt(dxt_val):
     def factory(Nrx, base_dir, scene_name="topo_ramp"):
         return make_topo_dpca_config(Nrx, base_dir, scene_name, dxt=dxt_val)
     return factory
+
+
 
 # Registry so the driver can iterate over named cases.
 # Each factory takes (Nrx, base_dir, scene_name="single").

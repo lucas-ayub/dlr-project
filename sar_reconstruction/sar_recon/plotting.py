@@ -12,7 +12,7 @@ import shutil
 import numpy as np
 import matplotlib.pyplot as plt
 
-from .config import ExperimentConfig
+from .config import ExperimentConfig, scene_ramp_angle_deg
 from .geometry import PlatformTracks
 from .analysis import ReconResult
 
@@ -421,14 +421,17 @@ def plot_scene_points(cfg: ExperimentConfig, vector: bool = False):
     points = cfg.scene.points
     center = points[0]
     rel = points - center[np.newaxis, :]
+    alpha_deg = scene_ramp_angle_deg(cfg.scene)
 
     fig, axes = plt.subplots(1, 3, figsize=(16, 5))
 
-    fig.suptitle(
+    title = (
         f"Scene scatterers relative to reconstruction center "
-        f'({len(points)} point{"s" if len(points) != 1 else ""})',
-        fontsize=10,
+        f'({len(points)} point{"s" if len(points) != 1 else ""})'
     )
+    if alpha_deg is not None:
+        title += f"  |  $\\alpha$ = {alpha_deg:.2f}$^\\circ$"
+    fig.suptitle(title, fontsize=10)
 
     panel_specs = [
         (0, 1, "Azimuth [m]", "Range [m]", "Top-down (Azimuth $\\times$ Range)"),
@@ -463,6 +466,18 @@ def plot_scene_points(cfg: ExperimentConfig, vector: bool = False):
         ax.set_title(title)
         ax.grid()
         ax.legend(fontsize=8, loc="best")
+
+    if alpha_deg is not None and len(points) > 1:
+        ax_front = axes[2]   # panel (1, 2): Range x Altitude
+        y_max = rel[1:, 1].max()
+        h_max = rel[1:, 2].max()
+        ax_front.plot([0, y_max], [0, h_max], color="gray",
+                     linestyle="--", lw=1.0, zorder=1)
+        ax_front.annotate(
+            f"$\\alpha$ = {alpha_deg:.2f}$^\\circ$",
+            xy=(0.15 * y_max, 0.05 * h_max),
+            fontsize=9, color="dimgray",
+        )
 
     fig.tight_layout()
 
@@ -539,11 +554,14 @@ def plot_scene_points_3d(cfg: ExperimentConfig, vector: bool = False):
     ax.set_ylabel("Range [m]", labelpad=10)
     ax.set_zlabel("")  # native zlabel disabled, drawn manually below
 
-    ax.set_title(
+    alpha_deg = scene_ramp_angle_deg(cfg.scene)
+    title_3d = (
         f"Scene scatterers (3D, zoomed) | Nrx={cfg.Nrx} | "
-        f'{len(points)} point{"s" if len(points) != 1 else ""}',
-        fontsize="large",
+        f'{len(points)} point{"s" if len(points) != 1 else ""}'
     )
+    if alpha_deg is not None:
+        title_3d += f" | $\\alpha$ = {alpha_deg:.2f}$^\\circ$"
+    ax.set_title(title_3d, fontsize="large")
 
     ax.legend(fontsize="small", loc="upper left")
     ax.view_init(elev=25, azim=-60)
