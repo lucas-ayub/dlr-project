@@ -498,6 +498,7 @@ def plot_scene_points_3d(cfg: ExperimentConfig, vector: bool = False):
     points = cfg.scene.points
     center = points[0]
     rel = points - center[np.newaxis, :]
+    alpha_deg = scene_ramp_angle_deg(cfg.scene)
 
     fig = plt.figure(figsize=(10, 7))
     ax = fig.add_subplot(111, projection="3d")
@@ -554,7 +555,6 @@ def plot_scene_points_3d(cfg: ExperimentConfig, vector: bool = False):
     ax.set_ylabel("Range [m]", labelpad=10)
     ax.set_zlabel("")  # native zlabel disabled, drawn manually below
 
-    alpha_deg = scene_ramp_angle_deg(cfg.scene)
     title_3d = (
         f"Scene scatterers (3D, zoomed) | Nrx={cfg.Nrx} | "
         f'{len(points)} point{"s" if len(points) != 1 else ""}'

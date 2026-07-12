@@ -284,7 +284,6 @@ def _alpha_tag(alpha_deg: float) -> str:
 # List of ramp angles (degrees) to sweep as separate scenes.
 # Each value becomes a preset named "topo_ramp_alpha<tag>" registered in SCENE_PRESETS.
 TOPO_RAMP_ALPHA_VALUES_DEG = [5.0, 10.0, 15.0, 20.0, 30.0]
-
 # ---------------------------------------------------------------------------
 # Named multi-scatterer scene presets
 # ---------------------------------------------------------------------------
