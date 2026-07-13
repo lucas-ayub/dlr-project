@@ -28,6 +28,9 @@ __pycache__/
 .env.*
 
 # SAR reconstruction plots
-sar_reconstruction/plots/
+plots/
+**/plots/
 
+# Build artifacts
+*.egg-info/
 
