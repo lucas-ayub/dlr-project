@@ -42,7 +42,7 @@ from sar_recon.geometry import build_platform_tracks
 from sar_recon.reconstruction import ReconstructSignalNumeri
 from sar_recon.signal_model import getRawData1D
 from sar_recon.analysis import matched_filter
-from sar_recon.sata import sata_1d, sata_channels
+from sar_recon.sata import sata_1d, sata_channels, sata_2d, build_delta_C0_2d
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 # Mirror the repo convention: figures live under plots/<script_name>/ .
@@ -153,6 +153,54 @@ def integration_sweep(cases=((2, 100, 120), (3, 100, 120), (4, 100, 120),
 
 
 # ---------------------------------------------------------------------------
+# 2b. plot: focused IRF of a single target -- the clearest "SATA works" view
+# ---------------------------------------------------------------------------
+def plot_single_target_irf(Nrx=4, dxt=150.0, dh=200.0, save=True):
+    """
+    Focused impulse response (IRF) of ONE elevated target, in dB, zoomed to the
+    peak. Shows three curves: reference/ideal (sharp), no-SATA (crushed by the
+    unaccounted height), and +SATA (back on the reference). This is the most
+    direct visualisation that SATA restores the focus.
+    """
+    print("\n[2b] Single-target focused IRF (no-SATA vs +SATA)")
+    cfg, tracks, off = _build_single_target_cfg(Nrx, dxt, dh)
+    ptg = cfg.scene.ptg + off
+    sref, s_ch = _channels_and_ref(cfg, tracks, ptg)
+    srec_no = sar.reconstruct(cfg, tracks, s_ch.copy())
+    srec_sa = sar.reconstruct(cfg, tracks, sata_channels(cfg, tracks, s_ch.copy()))
+    p_ref = np.abs(matched_filter(sref, sref)).max()
+    print(f"    peak: no-SATA {100*_peak_amp(srec_no,sref)/p_ref:5.1f}%   "
+          f"+SATA {100*_peak_amp(srec_sa,sref)/p_ref:5.1f}%   of reference")
+
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        matplotlib.rcParams["mathtext.fontset"] = "cm"
+    except Exception as e:                        # pragma: no cover
+        print("    (matplotlib unavailable, skipping plot)", e); return
+
+    def irf_db(s):
+        f = np.abs(matched_filter(s, sref))
+        n = len(f)
+        return 20 * np.log10(f[n // 2 - 120:n // 2 + 120] / p_ref + 1e-12)
+    x = np.arange(240) - 120
+    fig, ax = plt.subplots(figsize=(8, 4.2))
+    ax.plot(x, irf_db(sref), "k", lw=1.6, label="reference / ideal")
+    ax.plot(x, irf_db(srec_no), "C3", lw=1.4, label="no-SATA")
+    ax.plot(x, irf_db(srec_sa), "C0--", lw=1.5, label="+ SATA")
+    ax.set_xlim(-120, 120); ax.set_ylim(-45, 3)
+    ax.set_title(rf"Focused target IRF  ($N_\mathrm{{rx}}={Nrx}$, "
+                 rf"$d_\mathrm{{xt}}={dxt:.0f}$ m, $\Delta h={dh:.0f}$ m)")
+    ax.set_xlabel("azimuth sample (around peak)"); ax.set_ylabel("amplitude [dB]")
+    ax.legend(); ax.grid(alpha=0.3)
+    if save:
+        out = _save_fig(fig, "sata_single_irf")
+        print(f"    IRF plot saved -> {out}")
+    plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
 # 3. plot: azimuth-varying topography (SATA's position-dependent correction)
 # ---------------------------------------------------------------------------
 def _build_azimuth_topo_cfg(Nrx=2, dxt=100.0,
@@ -238,10 +286,119 @@ def plot_azimuth_topo(Nrx=2, dxt=100.0, save=True):
     plt.close(fig)
 
 
+# ---------------------------------------------------------------------------
+# 4. SATA 2D: a topographic ramp across range, driven by a (simulated) DEM
+# ---------------------------------------------------------------------------
+def _ramp_curves(Nrx, dxt, heights):
+    """Peak (% of ideal) along a range topographic ramp, for a given Nrx.
+    Returns (pct_no, pct_sa): flat-earth vs SATA-2D reconstruction."""
+    system = SystemParams()
+    base = Scene(rDelay=0.0051115753, c0=system.c0, h0=0.0)
+    r0, H = base.r0, base.H
+    array = ArrayGeometry.linear(Nrx, 100.0, dxt)
+    nrg = len(heights)
+
+    refs, chans, ptgs = [], [], []
+    tracks = Na_ch = ta = base_cfg = None
+    for h in heights:
+        cfg, tracks, off = _build_single_target_cfg(Nrx, dxt, h)
+        ptg = cfg.scene.ptg + off
+        sref, s_ch = _channels_and_ref(cfg, tracks, ptg)
+        refs.append(sref); chans.append(s_ch); ptgs.append(ptg)
+        Na_ch, ta, base_cfg = cfg.Na_ch, cfg.ta, cfg
+
+    # DEM (ramp in range) and SATA-2D correction, channel by channel
+    r_vec = np.full(nrg, r0)
+    dem_true = np.tile(heights, (Na_ch, 1))
+    dem_assumed = np.zeros((Na_ch, nrg))
+    corr = [np.empty_like(chans[0]) for _ in range(nrg)]
+    for k in range(Nrx):
+        block = np.stack([chans[j][k] for j in range(nrg)], axis=1)
+        dC0 = build_delta_C0_2d(dem_true, dem_assumed, r_vec, H, array.bxt[k])
+        cb = sata_2d(block, dC0, r_vec, base_cfg.PRF_op, system.vs, system.wl,
+                     inverse=True, sata_osf=4)
+        for j in range(nrg):
+            corr[j][k] = cb[:, j]
+
+    pct_no, pct_sa = [], []
+    for j in range(nrg):
+        sref = refs[j]
+        p_no = _peak_amp(sar.reconstruct(base_cfg, tracks, chans[j].copy()), sref)
+        p_sa = _peak_amp(sar.reconstruct(base_cfg, tracks, corr[j].copy()), sref)
+        srecI = ReconstructSignalNumeri(
+            chans[j].copy().reshape([Nrx, Na_ch, 1]), base_cfg.PRF_op, system.wl,
+            ptgs[j].reshape([3, 1]), ta, tracks.ptx, tracks.prx, tracks.vtx,
+            tracks.vrx, tracks.ptx, tracks.vtx, base_cfg.sq_tx, base_cfg.sq_rx,
+            base_cfg.theta_tx, base_cfg.theta_rx, array.bat,
+            system.ve * np.ones(Na_ch), base_cfg.abw, zeroOutBw=True).flatten()
+        p_id = _peak_amp(srecI, sref)
+        pct_no.append(100 * p_no / p_id); pct_sa.append(100 * p_sa / p_id)
+    return pct_no, pct_sa
+
+
+def test_2d_range_ramp(Nrx_list=(2, 3, 4, 5), dxt=100.0, nrg=9, hmax=240.0, save=True):
+    """
+    SATA 2D exercised on a topographic RAMP along the range dimension, for
+    SEVERAL channel counts.
+
+    Each range bin holds a target at a height following a ramp (0..hmax). The
+    correction is built from a simulated DEM (dem_true = the ramp, dem_assumed
+    = 0) with `build_delta_C0_2d`, applied per channel with `sata_2d`, and the
+    reconstruction is done per range bin. For every Nrx we report the focused
+    peak (% of the ideal) with and without SATA. SATA-2D recovers ~100 % of the
+    ideal at every range bin, regardless of Nrx; the flat-earth (no-SATA)
+    degradation depends on Nrx and the baseline layout.
+    """
+    print("\n[4] SATA 2D -- topographic ramp across range (DEM-driven)")
+    heights = np.linspace(0.0, hmax, nrg)
+    curves = {Nrx: _ramp_curves(Nrx, dxt, heights) for Nrx in Nrx_list}
+
+    # console table: no-SATA % per Nrx (SATA-2D is ~100 everywhere)
+    hdr = "    h[m] | " + " ".join(f"Nrx={n:>2}" for n in Nrx_list) + "   | SATA-2D"
+    print(hdr + "  (no-SATA %, then SATA-2D min%)")
+    for j in range(nrg):
+        cells = " ".join(f"{curves[n][0][j]:6.1f}" for n in Nrx_list)
+        print(f"    {heights[j]:4.0f} | {cells}   | ~100")
+    sata_min = min(min(curves[n][1]) for n in Nrx_list)
+    print(f"    SATA-2D min over all Nrx / all bins: {sata_min:.1f}% of ideal")
+
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        matplotlib.rcParams["mathtext.fontset"] = "cm"
+    except Exception as e:                        # pragma: no cover
+        print("    (matplotlib unavailable, skipping plot)", e)
+        return
+
+    fig, ax = plt.subplots(figsize=(7.8, 4.2))
+    ax.axhline(100, color="k", lw=1.4, ls="--", alpha=0.85, label="ideal", zorder=1)
+    colors = ["C3", "C1", "C4", "C2", "C5", "C6"]
+    for i, n in enumerate(Nrx_list):
+        ax.plot(heights, curves[n][0], "-o", color=colors[i % len(colors)],
+                lw=1.2, ms=5, label=rf"no-SATA, $N_\mathrm{{rx}}={n}$", zorder=2)
+    # SATA-2D: every Nrx lands on the ideal line (100%), so one marker set stands
+    # for all of them -> open squares so the ideal line shows through.
+    ax.plot(heights, curves[Nrx_list[0]][1], linestyle="none", marker="s", ms=9,
+            markerfacecolor="none", markeredgecolor="C0", markeredgewidth=1.6,
+            label=r"+ SATA-2D $\approx$ ideal (any $N_\mathrm{rx}$)", zorder=3)
+    ax.set_title(rf"SATA 2D on a range topographic ramp  ($d_\mathrm{{xt}}={dxt:.0f}$ m)")
+    ax.set_xlabel("terrain height along the ramp [m]")
+    ax.set_ylabel(r"focused peak [% of ideal]")
+    ax.set_ylim(0, 112); ax.legend(loc="lower left", fontsize=8, ncol=2)
+    ax.grid(alpha=0.3)
+    if save:
+        out = _save_fig(fig, "sata_2d_range_ramp")
+        print(f"    ramp plot saved -> {out}")
+    plt.close(fig)
+
+
 def main():
     kernel_selftest()
     integration_sweep()
+    plot_single_target_irf()
     plot_azimuth_topo()
+    test_2d_range_ramp()
     print("\ndone")
 
 

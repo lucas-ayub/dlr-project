@@ -325,3 +325,109 @@ def sata_channels(cfg: ExperimentConfig, tracks: PlatformTracks,
             sata_osf=sata_osf, verbose=verbose,
         )
     return out
+
+
+# ===========================================================================
+# 2D SATA (skeleton) -- azimuth-only processing per range bin, DEM-driven
+# ===========================================================================
+# This is the range+azimuth generalisation. It follows the "1D azimuth
+# processing per range bin" strategy (matching sim2d.py): the SATA correction
+# is applied to each range line independently, with a range-dependent geometry
+# and a per-pixel height taken from a DEM.
+#
+# It does NOT (yet) implement range cell migration (RCMC) coupling nor DEM
+# back-geocoding -- those belong to the full thesis `sata` routine and are the
+# piece to complete with Nida. Everything here reuses the validated `sata_1d`.
+#
+# DEM convention (both arrays have shape [naz, nrg], slant-range/azimuth grid):
+#   dem_true    : the real terrain height at each (azimuth, range) pixel.
+#                 In a simulation this is the scene you generated the data from.
+#   dem_assumed : the height the reconstruction/MoCo assumed (a flat h0, a
+#                 smoothed DEM, or an external DEM with error). The SATA
+#                 correction is driven by the DIFFERENCE (dem_true - dem_assumed).
+
+def delta_C0_from_height(h_true, h_assumed, r0, H, dxt, wl=None):
+    """
+    Analytic residual range (delta_C0) [m] for a terrain height `h_true`
+    relative to the assumed height `h_assumed`, at slant range r0, for a channel
+    with cross-track baseline `dxt`.
+
+    Iso-range (constant slant range) small-dh limit, validated against the
+    numerical GetCoeffNu residual (scale factor k ~ -1):
+
+        sin(theta0) = y0 / r0,   y0 = sqrt(r0**2 - (H - h_assumed)**2)
+        B_perp      = dxt * cos(theta0)
+        delta_C0    = - B_perp * (h_true - h_assumed) / (r0 * sin(theta0))
+                    = - dxt * (h_true - h_assumed) / (r0 * tan(theta0))
+
+    Returns a scalar or array matching the shape of the height inputs.
+    """
+    h_true = np.asarray(h_true, dtype=np.float64)
+    h_assumed = np.asarray(h_assumed, dtype=np.float64)
+    y0 = np.sqrt(np.clip(r0 ** 2 - (H - h_assumed) ** 2, 0.0, None))
+    sin_t0 = y0 / r0
+    cos_t0 = (H - h_assumed) / r0
+    tan_t0 = np.where(sin_t0 > 0, sin_t0 / cos_t0, np.inf)
+    return -dxt * (h_true - h_assumed) / (r0 * tan_t0)
+
+
+def build_delta_C0_2d(dem_true, dem_assumed, r, H, dxt, wl=None):
+    """
+    Build the 2D residual-range map delta_C0[naz, nrg] from a DEM, for one
+    channel with cross-track baseline `dxt`.
+
+    Parameters
+    ----------
+    dem_true, dem_assumed : (naz, nrg) float -- terrain and assumed heights [m].
+    r : (nrg,) float -- slant range of each range bin [m].
+    H : float -- platform height [m].
+    dxt : float -- cross-track baseline of this channel [m].
+
+    Returns
+    -------
+    (naz, nrg) float : delta_C0 map, ready for `sata_2d`.
+    """
+    dem_true = np.asarray(dem_true, dtype=np.float64)
+    dem_assumed = np.asarray(dem_assumed, dtype=np.float64)
+    naz, nrg = dem_true.shape
+    dC0 = np.zeros((naz, nrg))
+    for j in range(nrg):
+        dC0[:, j] = delta_C0_from_height(dem_true[:, j], dem_assumed[:, j],
+                                         float(r[j]), H, dxt, wl=wl)
+    return dC0
+
+
+def sata_2d(data, delta_C0, r, prf, v, wl, squint=0.0,
+            inverse=False, sata_osf=1, verbose=False):
+    """
+    Apply SATA to a full range-azimuth block, one azimuth line per range bin.
+
+    Parameters
+    ----------
+    data : (naz, nrg) complex -- range-compressed data (before azimuth focus).
+    delta_C0 : (naz, nrg) float -- residual range map (from `build_delta_C0_2d`).
+    r : (nrg,) float -- slant range of each range bin [m] (range-dependent
+        geometry: the Doppler->position mapping uses r[j] for column j).
+    prf, v, wl, squint, sata_osf, inverse : as in `sata_1d`.
+
+    Returns
+    -------
+    (naz, nrg) complex : the SATA-corrected block.
+
+    Notes
+    -----
+    RCMC and DEM back-geocoding are not handled here; this assumes 1D azimuth
+    processing per range bin. The mid-swath range is used to size the
+    sub-aperture (rref), while each column uses its own r[j] for the mapping.
+    """
+    data = np.asarray(data, dtype=complex)
+    naz, nrg = data.shape
+    out = np.empty((naz, nrg), dtype=complex)
+    rref = float(np.mean(r))
+    for j in range(nrg):
+        out[:, j] = sata_1d(
+            data[:, j], delta_C0[:, j], rref=rref, prf=prf, v=v, wl=wl,
+            r=float(r[j]), squint=squint, inverse=inverse, sata_osf=sata_osf,
+            verbose=(verbose and j == nrg // 2),
+        )
+    return out

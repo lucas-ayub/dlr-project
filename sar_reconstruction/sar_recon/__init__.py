@@ -14,8 +14,8 @@ from .reconstruction import (
     GetCoeffNu, GetInversionFilters, ReconstructSignalNumeri, reconstruct,
 )
 from .analysis import ReconResult, zoom1Dpeak, matched_filter, analyze
-from .sata import (sata_1d, residual_C0, build_delta_C0_array, sata_channels)
-
+from .sata import (sata_1d, residual_C0, build_delta_C0_array, sata_channels,
+                   sata_2d, build_delta_C0_2d, delta_C0_from_height)
 from .plotting import (
     plot_combined, plot_polyfit_diagnostic, plot_geometry_3d,
     plot_scene_points, plot_scene_points_3d, enable_latex_fonts, set_font_size,
@@ -32,6 +32,7 @@ __all__ = [
     "GetCoeffNu", "GetInversionFilters", "ReconstructSignalNumeri", "reconstruct",
     "ReconResult", "zoom1Dpeak", "matched_filter", "analyze",
     "sata_1d", "residual_C0", "build_delta_C0_array", "sata_channels",
+    "sata_2d", "build_delta_C0_2d", "delta_C0_from_height",
     "plot_combined", "plot_polyfit_diagnostic", "plot_geometry_3d",
     "plot_scene_points", "plot_scene_points_3d", "enable_latex_fonts", "set_font_size",
 ]
