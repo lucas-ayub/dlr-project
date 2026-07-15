@@ -48,6 +48,12 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 # Mirror the repo convention: figures live under plots/<script_name>/ .
 PLOTS_DIR = os.path.join(SCRIPT_DIR, "plots", "run_sata")
 
+# Apply a Hamming taper when focusing the IRF plots. The antenna pattern in the
+# model is a hard rectangular window, which gives ~-13 dB sinc sidelobes; the
+# taper suppresses them to ~-40 dB (slightly wider mainlobe). Set False to see
+# the raw rectangular-aperture sidelobes.
+TAPER = False
+
 
 def _save_fig(fig, name, vector=True):
     """Save a figure to PLOTS_DIR as png (and pdf, for LaTeX inclusion)."""
@@ -100,6 +106,27 @@ def _channels_and_ref(cfg, tracks, ptg_true):
 def _peak_amp(srec, sref):
     f = matched_filter(srec, sref)
     return float(np.abs(f[np.argmax(np.abs(f))]))
+
+
+def _band_hamming(Na, prf, abw):
+    """Hamming window over the processed Doppler band |f| <= abw/2 (zeros
+    elsewhere), in FFT order. Used to taper the aperture and suppress the
+    rectangular-aperture sinc sidelobes (~-13 dB -> ~-40 dB)."""
+    fa = np.fft.fftshift(np.fft.fftfreq(Na, d=1.0 / prf))
+    w = np.zeros(Na)
+    band = np.abs(fa) <= abw / 2.0
+    w[band] = np.hamming(int(band.sum()))
+    return np.fft.ifftshift(w)
+
+
+def _focus_mag(sig, ref, prf=None, abw=None, taper=False):
+    """|azimuth-compressed signal|: matched filter of `sig` against the
+    single-target reference `ref`, optionally with a Hamming taper over the
+    processed band to suppress aperture sidelobes."""
+    S = np.fft.fft(sig) * np.conj(np.fft.fft(ref))
+    if taper and abw is not None:
+        S = S * _band_hamming(len(S), prf, abw)
+    return np.abs(np.roll(np.fft.ifft(S), len(ref) // 2))
 
 
 # ---------------------------------------------------------------------------
@@ -168,9 +195,11 @@ def plot_single_target_irf(Nrx=4, dxt=150.0, dh=200.0, save=True):
     sref, s_ch = _channels_and_ref(cfg, tracks, ptg)
     srec_no = sar.reconstruct(cfg, tracks, s_ch.copy())
     srec_sa = sar.reconstruct(cfg, tracks, sata_channels(cfg, tracks, s_ch.copy()))
-    p_ref = np.abs(matched_filter(sref, sref)).max()
-    print(f"    peak: no-SATA {100*_peak_amp(srec_no,sref)/p_ref:5.1f}%   "
-          f"+SATA {100*_peak_amp(srec_sa,sref)/p_ref:5.1f}%   of reference")
+    foc = lambda s: _focus_mag(s, sref, cfg.prf, cfg.abw, taper=TAPER)
+    f_ref = foc(sref); p_ref = f_ref.max()
+    print(f"    peak: no-SATA {100*foc(srec_no).max()/p_ref:5.1f}%   "
+          f"+SATA {100*foc(srec_sa).max()/p_ref:5.1f}%   of reference"
+          f"   (taper={TAPER})")
 
     try:
         import matplotlib
@@ -181,7 +210,7 @@ def plot_single_target_irf(Nrx=4, dxt=150.0, dh=200.0, save=True):
         print("    (matplotlib unavailable, skipping plot)", e); return
 
     def irf_db(s):
-        f = np.abs(matched_filter(s, sref))
+        f = foc(s)
         n = len(f)
         return 20 * np.log10(f[n // 2 - 120:n // 2 + 120] / p_ref + 1e-12)
     x = np.arange(240) - 120
@@ -228,15 +257,26 @@ def _build_azimuth_topo_cfg(Nrx=2, dxt=100.0,
     return cfg, build_platform_tracks(cfg)
 
 
-def plot_azimuth_topo(Nrx=2, dxt=100.0, save=True):
+def plot_azimuth_topo(Nrx=4, dxt=150.0, save=True):
     print("\n[3] Azimuth-varying topography (position-dependent SATA)")
-    cfg, tracks = _build_azimuth_topo_cfg(Nrx, dxt)
-    # generate only the elevated targets (exclude the flat reconstruction centre)
-    ptgs = cfg.scene.points[1:]
+    # Five targets at different azimuth positions and increasing heights (a ramp
+    # along azimuth). Default: a strong case (Nrx=4, dxt=150) so the effect shows.
+    specs = ((-400, 80), (-200, 160), (0, 240), (200, 320), (400, 400))
+    cfg, tracks = _build_azimuth_topo_cfg(Nrx, dxt, specs=specs)
     s = cfg.system
-    sref = getRawData1D(ptgs, tracks.ptx, tracks.ptx, tracks.vtx, tracks.vtx,
-                        cfg.ta, cfg.sq_tx, cfg.sq_tx, cfg.theta_tx, cfg.theta_tx,
-                        s.wl, cfg.prf)
+    ptgs = cfg.scene.points[1:]                       # the 5 elevated targets
+
+    # IMPORTANT: focus (azimuth-compress) with a SINGLE-point-target reference,
+    # not the multi-target signal -- otherwise the matched filter returns the
+    # autocorrelation of the scene (extra peaks at every target-to-target lag,
+    # which look like ambiguities but are not). A single-target reference gives a
+    # proper focused image: one clean peak per real target.
+    sref1 = getRawData1D(cfg.scene.ptg[None, :], tracks.ptx, tracks.ptx, tracks.vtx,
+                         tracks.vtx, cfg.ta, cfg.sq_tx, cfg.sq_tx, cfg.theta_tx,
+                         cfg.theta_tx, s.wl, cfg.prf)
+    sig_true = getRawData1D(ptgs, tracks.ptx, tracks.ptx, tracks.vtx, tracks.vtx,
+                            cfg.ta, cfg.sq_tx, cfg.sq_tx, cfg.theta_tx, cfg.theta_tx,
+                            s.wl, cfg.prf)             # ideal (monostatic) scene
     s_ch = np.zeros([cfg.Nrx, cfg.Na_ch], complex)
     for ii in range(cfg.Nrx):
         s_ch[ii] = getRawData1D(ptgs, tracks.ptx, tracks.prx[ii], tracks.vtx,
@@ -246,20 +286,16 @@ def plot_azimuth_topo(Nrx=2, dxt=100.0, save=True):
     srec_no = sar.reconstruct(cfg, tracks, s_ch.copy())
     srec_sa = sar.reconstruct(cfg, tracks, sata_channels(cfg, tracks, s_ch.copy()))
 
-    def stats(sig):
-        f = np.abs(matched_filter(sig, sref))
-        return f, f.max(), float(np.sum(f ** 2))
-    f_ref, pk_ref, en_ref = stats(sref)
-    f_no, pk_no, en_no = stats(srec_no)
-    f_sa, pk_sa, en_sa = stats(srec_sa)
-    print(f"    peak   : no-SATA {100*pk_no/pk_ref:5.1f}%   SATA {100*pk_sa/pk_ref:5.1f}%  of reference")
-    print(f"    energy : no-SATA {100*en_no/en_ref:5.1f}%   SATA {100*en_sa/en_ref:5.1f}%  of reference")
+    focus = lambda sig: _focus_mag(sig, sref1, cfg.prf, cfg.abw, taper=TAPER)
+    f_ref = focus(sig_true); pmax = f_ref.max()
+    f_no, f_sa = focus(srec_no), focus(srec_sa)
+    print(f"    tallest-target peak: no-SATA {100*f_no.max()/pmax:5.1f}%   "
+          f"SATA {100*f_sa.max()/pmax:5.1f}%  of reference   (taper={TAPER})")
 
     try:
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
-        # mathtext (renders $...$ without a LaTeX install)
         matplotlib.rcParams["text.usetex"] = False
         matplotlib.rcParams["mathtext.fontset"] = "cm"
     except Exception as e:                       # pragma: no cover
@@ -267,22 +303,23 @@ def plot_azimuth_topo(Nrx=2, dxt=100.0, save=True):
         return
 
     n = len(f_ref)
-    w = slice(n // 2 - 260, n // 2 + 260)
-    db = lambda z: 20 * np.log10(z / f_ref.max() + 1e-12)
-    fig, ax = plt.subplots(figsize=(8.5, 4))
-    ax.plot(db(f_ref)[w], "k", lw=1.0, label="reference")
-    ax.plot(db(f_no)[w], "C3", lw=1.0, label="reconstruction (no SATA)")
-    ax.plot(db(f_sa)[w], "C0", lw=1.0, label="reconstruction + SATA")
-    ax.set_title(rf"Azimuth-varying topography  $N_\mathrm{{rx}}={Nrx}$,  "
-                 rf"$d_\mathrm{{xt}}={dxt:.0f}$ m")
-    ax.set_xlabel("azimuth sample")
+    w = slice(n // 2 - 300, n // 2 + 300)
+    x = np.arange(600) - 300
+    db = lambda z: 20 * np.log10(z / pmax + 1e-12)
+    fig, ax = plt.subplots(figsize=(8.7, 4.3))
+    ax.plot(x, db(f_ref)[w], "k", lw=1.3, label="reference")
+    ax.plot(x, db(f_no)[w], "C3", lw=1.0, label="reconstruction (no SATA)")
+    ax.plot(x, db(f_sa)[w], "C0--", lw=1.3, label="reconstruction + SATA")
+    ax.set_title(rf"Azimuth-varying topography  ($N_\mathrm{{rx}}={Nrx}$, "
+                 rf"$d_\mathrm{{xt}}={dxt:.0f}$ m) -- focused image")
+    ax.set_xlabel("azimuth sample (around scene centre)")
     ax.set_ylabel(r"amplitude [dB]")
-    ax.set_ylim(-50, 2)
+    ax.set_ylim(-40, 3)
     ax.legend()
     ax.grid(alpha=0.3)
     if save:
         out = _save_fig(fig, "sata_azimuth_topo")
-        print(f"    IRF plot saved -> {out}")
+        print(f"    focused-image plot saved -> {out}")
     plt.close(fig)
 
 
@@ -371,17 +408,21 @@ def test_2d_range_ramp(Nrx_list=(2, 3, 4, 5), dxt=100.0, nrg=9, hmax=240.0, save
         print("    (matplotlib unavailable, skipping plot)", e)
         return
 
-    fig, ax = plt.subplots(figsize=(7.8, 4.2))
+    fig, ax = plt.subplots(figsize=(8.0, 4.4))
     ax.axhline(100, color="k", lw=1.4, ls="--", alpha=0.85, label="ideal", zorder=1)
     colors = ["C3", "C1", "C4", "C2", "C5", "C6"]
+    # no-SATA: one solid (filled circle) curve per Nrx -- these differ.
     for i, n in enumerate(Nrx_list):
         ax.plot(heights, curves[n][0], "-o", color=colors[i % len(colors)],
                 lw=1.2, ms=5, label=rf"no-SATA, $N_\mathrm{{rx}}={n}$", zorder=2)
-    # SATA-2D: every Nrx lands on the ideal line (100%), so one marker set stands
-    # for all of them -> open squares so the ideal line shows through.
-    ax.plot(heights, curves[Nrx_list[0]][1], linestyle="none", marker="s", ms=9,
-            markerfacecolor="none", markeredgecolor="C0", markeredgewidth=1.6,
-            label=r"+ SATA-2D $\approx$ ideal (any $N_\mathrm{rx}$)", zorder=3)
+    # +SATA: every Nrx lands on the ideal line, so draw them all in ONE neutral
+    # colour (blue open squares) -- reads as a single "SATA result", clearly
+    # distinct from the coloured no-SATA lines. Only one gets a legend entry.
+    for i, n in enumerate(Nrx_list):
+        lbl = r"+ SATA-2D $=$ ideal (all $N_\mathrm{rx}$)" if i == 0 else None
+        ax.plot(heights, curves[n][1], linestyle="none", marker="s", ms=8,
+                markerfacecolor="none", markeredgecolor="C0",
+                markeredgewidth=1.6, label=lbl, zorder=4)
     ax.set_title(rf"SATA 2D on a range topographic ramp  ($d_\mathrm{{xt}}={dxt:.0f}$ m)")
     ax.set_xlabel("terrain height along the ramp [m]")
     ax.set_ylabel(r"focused peak [% of ideal]")
