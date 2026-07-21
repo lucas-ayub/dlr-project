@@ -70,9 +70,17 @@ def _annot(ax, xs, ys, dy, color, fmt="{:.1f}", fs=5.5):
 
 def _mpl():
     import matplotlib
-    matplotlib.use("Agg")
+    matplotlib.use("pgf")                       # real LaTeX text via pdflatex
     import matplotlib.pyplot as plt
-    matplotlib.rcParams["mathtext.fontset"] = "cm"
+    matplotlib.rcParams.update({
+        "pgf.texsystem": "pdflatex",
+        "text.usetex": True,
+        "font.family": "serif",
+        "pgf.rcfonts": False,
+        "pgf.preamble": r"\usepackage{amsmath,amssymb}",
+        "axes.titlesize": 11,
+        "font.size": 11,
+    })
     return plt
 
 
@@ -121,7 +129,7 @@ def plot_xtrack_sweep(Nrx_list=(3, 4, 6), dh=200.0,
         ax[1].plot(dxt_arr, as_, "-", color=c, lw=2.2)
     ax[0].axhline(100, color="k", lw=0.7, ls=":")
     ax[0].set_xlabel(r"cross-track baseline $b_{xt}$ [m]")
-    ax[0].set_ylabel("peak recovery [% of ideal]")
+    ax[0].set_ylabel("peak recovery [\% of ideal]")
     ax[0].set_title("Peak recovery vs cross-track baseline")
     ax[0].set_ylim(0, 115); ax[0].grid(alpha=0.3); ax[0].legend(fontsize=7, ncol=1)
     ax[1].set_xlabel(r"cross-track baseline $b_{xt}$ [m]")
@@ -175,7 +183,7 @@ def plot_large_stress(Nrx=4, dh=200.0,
         ax.text(bad.min(), 20, " reconstruction\n ill-conditioned",
                 fontsize=8, color="#a15c00")
     ax.set_xlabel(r"cross-track baseline $b_{xt}$ [m]  (normal operating range is $\lesssim$ 300 m)")
-    ax.set_ylabel("peak recovery [% of reference]")
+    ax.set_ylabel("peak recovery [\% of reference]")
     ax.set_title(f"Large-baseline stress test  (Nrx={Nrx}, dh={dh:.0f} m)")
     ax.set_ylim(0, 120); ax.grid(alpha=0.3); ax.legend(fontsize=9)
     fig.tight_layout(); _save(fig, "base_large_stress"); plt.close(fig)
@@ -212,7 +220,7 @@ def plot_atrack_sweep(Nrx=4, dxt=100.0, dh=200.0,
     ax.axvline(11, color="#1f77b4", lw=1.0, ls="--")
     ax.text(11.5, 10, "DPCA\nspacing", fontsize=8, color="#1f77b4")
     ax.set_xlabel(r"along-track spacing $dx$ [m]")
-    ax.set_ylabel("peak recovery [% of ideal]")
+    ax.set_ylabel("peak recovery [\% of ideal]")
     ax.set_title(f"Along-track (DPCA) spacing sweep  (Nrx={Nrx}, "
                  rf"$b_{{xt}}$={dxt:.0f} m, dh={dh:.0f} m)")
     ax.set_ylim(0, 120); ax.grid(alpha=0.3); ax.legend(fontsize=9)
@@ -244,7 +252,7 @@ def plot_height_family(Nrx=4, dxt_list=(50, 100, 200, 300),
     ax.plot([], [], "k-", lw=1.2, label="+SATA (all baselines)")
     ax.axhline(100, color="k", lw=0.7, ls=":")
     ax.set_xlabel(r"target height $\Delta h$ [m]")
-    ax.set_ylabel("peak recovery [% of ideal]")
+    ax.set_ylabel("peak recovery [\% of ideal]")
     ax.set_title(f"Peak recovery vs height, family of cross-track baselines  (Nrx={Nrx})")
     ax.set_ylim(0, 115); ax.grid(alpha=0.3); ax.legend(fontsize=8, ncol=2)
     fig.tight_layout(); _save(fig, "base_height_family"); plt.close(fig)
@@ -286,7 +294,7 @@ def plot_irf_gallery(dh=200.0, save=True):
         ax.plot(x[sl], db(f_no)[sl], color="#d62728", lw=1.1, alpha=0.8, label="no-SATA")
         ax.plot(x[sl], db(f_sa)[sl], color="#2ca02c", lw=1.3, label="+SATA")
         rec = 100 * f_sa.max() / foc(ideal).max()
-        ax.set_title(f"{title}\n+SATA peak {rec:.0f}% of ideal", fontsize=9)
+        ax.set_title(f"{title}\n+SATA peak {rec:.0f}\% of ideal", fontsize=9)
         ax.set_ylim(-60, 3); ax.grid(alpha=0.3)
         ax.set_xlabel("azimuth [samples]", fontsize=8)
         ax.set_ylabel("[dB]", fontsize=8)
@@ -337,7 +345,7 @@ def plot_nonuniform(dh=200.0, save=True):
         ax.text(i + w/2, min(b, 140) + 2, f"{b:.0f}", ha="center", fontsize=7)
     ax.axhline(100, color="k", lw=0.7, ls=":")
     ax.set_xticks(x); ax.set_xticklabels(labels, fontsize=8)
-    ax.set_ylabel("peak recovery [% of ideal]")
+    ax.set_ylabel("peak recovery [\% of ideal]")
     ax.set_ylim(0, 130)
     ax.set_title(f"Non-uniform / arbitrary arrays  (dh={dh:.0f} m)")
     ax.legend(fontsize=9); ax.grid(axis="y", alpha=0.3)

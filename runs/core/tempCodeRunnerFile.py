@@ -61,18 +61,6 @@ PLOTS_DIR = os.path.join(SCRIPT_DIR, "plots", "run_sata")
 TAPER = False
 
 
-def _use_latex(matplotlib):
-    """Render all plot text through a real LaTeX install (pgf backend + pdflatex),
-    matching the reconstruction pipeline's typography (usetex, serif)."""
-    matplotlib.rcParams.update({
-        "pgf.texsystem": "pdflatex",
-        "text.usetex": True,
-        "font.family": "serif",
-        "pgf.rcfonts": False,
-        "pgf.preamble": r"\usepackage{amsmath,amssymb}",
-    })
-
-
 def _save_fig(fig, name, subdir="", vector=True):
     """Save a figure to PLOTS_DIR/<subdir>/ as png (and pdf)."""
     outdir = os.path.join(PLOTS_DIR, subdir) if subdir else PLOTS_DIR
@@ -274,9 +262,9 @@ def plot_single_target_irf(Nrx=4, dxt=150.0, dh=200.0, save=True):
 
     try:
         import matplotlib
-        matplotlib.use("pgf")
+        matplotlib.use("Agg")
         import matplotlib.pyplot as plt
-        _use_latex(matplotlib)
+        matplotlib.rcParams["mathtext.fontset"] = "cm"
     except Exception as e:                        # pragma: no cover
         print("    (matplotlib unavailable, skipping plot)", e); return
 
@@ -332,16 +320,16 @@ def _plot_4panel(cfg, sref, srec_no, srec_sa, fname, extra_title="", subdir="irf
 
     try:
         import matplotlib
-        matplotlib.use("pgf"); import matplotlib.pyplot as plt
-        _use_latex(matplotlib)
+        matplotlib.use("Agg"); import matplotlib.pyplot as plt
+        matplotlib.rcParams["mathtext.fontset"] = "cm"
     except Exception as e:                        # pragma: no cover
         print("    (matplotlib unavailable)", e); return
 
     dbat = cfg.array.bat[1] - cfg.array.bat[0] if Nrx > 1 else 0.0
     dbxt = cfg.array.bxt[1] - cfg.array.bxt[0] if Nrx > 1 else 0.0
     fig, ax = plt.subplots(2, 2, figsize=(12, 8))
-    fig.suptitle(rf"SATA reconstruction, Nrx={Nrx}, PRF={cfg.prf:.0f} Hz, "
-                 rf"$B_a$={cfg.abw:.0f} Hz, $\Delta b_{{at}}$={dbat:.0f} m, "
+    fig.suptitle(rf"SATA reconstruction | Nrx={Nrx} | PRF={cfg.prf:.0f} Hz | "
+                 rf"$B_a$={cfg.abw:.0f} Hz | $\Delta b_{{at}}$={dbat:.0f} m | "
                  rf"$\Delta b_{{xt}}$={dbxt:.0f} m" + extra_title)
     C = dict(ref="k", no="C3", sa="C0")
 
@@ -386,7 +374,7 @@ def plot_irf_4panel(Nrx=4, dxt=150.0, dh=200.0, save=True):
     srec_no = sar.reconstruct(cfg, tracks, s_ch.copy())
     srec_sa = sar.reconstruct(cfg, tracks, sata_channels(cfg, tracks, s_ch.copy()))
     _plot_4panel(cfg, sref, srec_no, srec_sa, "sata_irf_4panel",
-                 extra_title=rf", $\Delta h$={dh:.0f} m (single target)")
+                 extra_title=rf" | $\Delta h$={dh:.0f} m (single target)")
 
 
 def plot_toporamp_4panel(Nrx=4, dxt=100.0, save=True):
@@ -407,7 +395,7 @@ def plot_toporamp_4panel(Nrx=4, dxt=100.0, save=True):
     srec_no = sar.reconstruct(cfg, tracks, s_ch.copy())
     srec_sa = sar.reconstruct(cfg, tracks, sata_channels(cfg, tracks, s_ch.copy()))
     _plot_4panel(cfg, sref, srec_no, srec_sa, "sata_toporamp_4panel",
-                 extra_title=", topo ramp scene", subdir="topography")
+                 extra_title=" | topo_ramp scene", subdir="topography")
 
 
 
@@ -477,9 +465,10 @@ def plot_azimuth_topo(Nrx=4, dxt=150.0, save=True):
 
     try:
         import matplotlib
-        matplotlib.use("pgf")
+        matplotlib.use("Agg")
         import matplotlib.pyplot as plt
-        _use_latex(matplotlib)
+        matplotlib.rcParams["text.usetex"] = False
+        matplotlib.rcParams["mathtext.fontset"] = "cm"
     except Exception as e:                       # pragma: no cover
         print("    (matplotlib unavailable, skipping plot)", e)
         return
@@ -503,52 +492,6 @@ def plot_azimuth_topo(Nrx=4, dxt=150.0, save=True):
         out = _save_fig(fig, "sata_azimuth_topo", subdir="topography")
         print(f"    focused-image plot saved -> {out}")
     plt.close(fig)
-
-
-def plot_range_ramp_scene_4panel(Nrx=4, dxt=100.0, save=True):
-    """The S3 range-ramp scene (targets at DIFFERENT ranges, growing height,
-    dx=0) in the 4-panel format. Five scatterers spread along range, each a bit
-    higher -- reconstructed together, then the standard amplitude / dB / IRF /
-    spectral-phase diagnostic."""
-    print("\n[3h] Range-ramp scene 4-panel (targets at different ranges)")
-    system = SystemParams()
-    # (dy offset [m], height dh [m]) -- growing height across range, all at dx=0
-    specs = [(300.0, 60.0), (700.0, 120.0), (1100.0, 180.0),
-             (1500.0, 240.0), (1900.0, 300.0)]
-    extra = tuple((0.0, dy, dh) for dy, dh in specs)
-    scene = Scene(rDelay=0.0051115753, c0=system.c0, h0=0.0, extra_offsets=extra)
-    array = ArrayGeometry.linear(Nrx, 100.0, dxt)
-    prf, PRF_op = prf_from_fixed(2000.0, Nrx)
-    Na, Nc, ta = build_time_axis(prf, Nrx, 2.0 * integration_time(system, scene))
-    cfg = sar.ExperimentConfig(name="range_ramp_scene", system=system, scene=scene,
-                               array=array, prf=prf, PRF_op=PRF_op, Na=Na,
-                               Na_ch=Nc, ta=ta, plots_dir=None)
-    tracks = build_platform_tracks(cfg)
-    sref = sar.generate_reference(cfg, tracks)
-    s_ch = sar.generate_channels(cfg, tracks)
-    srec_no = sar.reconstruct(cfg, tracks, s_ch.copy())
-    srec_sa = sar.reconstruct(cfg, tracks, sata_channels(cfg, tracks, s_ch.copy()))
-    _plot_4panel(cfg, sref, srec_no, srec_sa, "sata_range_ramp_scene_4panel",
-                 extra_title=", range ramp (targets at different ranges)",
-                 subdir="topography")
-
-
-def plot_azimuth_topo_4panel(Nrx=4, dxt=150.0, save=True):
-    """The azimuth-spread ramp in the S1/S2/S3 4-panel format: five targets at
-    DIFFERENT azimuth positions, each at a different height (a ramp along
-    azimuth). Same diagnostic as the other 4-panels (amplitude / dB / IRF /
-    spectral phase). Here SATA's per-position correction has a lever (each target
-    is at its own azimuth pixel), so it partially recovers -- unlike S2."""
-    print("\n[3g] Azimuth-topography 4-panel (ramp spread in azimuth)")
-    specs = ((-400, 80), (-200, 160), (0, 240), (200, 320), (400, 400))
-    cfg, tracks = _build_azimuth_topo_cfg(Nrx, dxt, specs=specs)
-    sref = sar.generate_reference(cfg, tracks)
-    s_ch = sar.generate_channels(cfg, tracks)
-    srec_no = sar.reconstruct(cfg, tracks, s_ch.copy())
-    srec_sa = sar.reconstruct(cfg, tracks, sata_channels(cfg, tracks, s_ch.copy()))
-    _plot_4panel(cfg, sref, srec_no, srec_sa, "sata_azimuth_topo_4panel",
-                 extra_title=", azimuth ramp (targets spread in azimuth)",
-                 subdir="topography")
 
 
 # ---------------------------------------------------------------------------
@@ -596,8 +539,8 @@ def plot_zoom_vs_wide(Nrx=4, dxt=150.0, save=True):
 
     try:
         import matplotlib
-        matplotlib.use("pgf"); import matplotlib.pyplot as plt
-        _use_latex(matplotlib)
+        matplotlib.use("Agg"); import matplotlib.pyplot as plt
+        matplotlib.rcParams["mathtext.fontset"] = "cm"
     except Exception as e:                        # pragma: no cover
         print("    (matplotlib unavailable)", e); return
 
@@ -646,8 +589,8 @@ def plot_range_ramp_1d(Nrx=4, dxt=100.0, nrg=9, hmax=300.0, save=True):
 
     try:
         import matplotlib
-        matplotlib.use("pgf"); import matplotlib.pyplot as plt
-        _use_latex(matplotlib)
+        matplotlib.use("Agg"); import matplotlib.pyplot as plt
+        matplotlib.rcParams["mathtext.fontset"] = "cm"
     except Exception as e:                        # pragma: no cover
         print("    (matplotlib unavailable)", e); return
 
@@ -661,7 +604,7 @@ def plot_range_ramp_1d(Nrx=4, dxt=100.0, nrg=9, hmax=300.0, save=True):
     a1.plot(heights, pct_no, "C3o-", lw=1.3, label="no-SATA")
     a1.plot(heights, pct_sa, "C0s-", lw=1.3, label="+ SATA")
     _lab(a1, heights, pct_no, -9, "C3"); _lab(a1, heights, pct_sa, 5, "C0")
-    a1.set_xlabel("terrain height at the range bin [m]"); a1.set_ylabel("focused peak [\% of ideal]")
+    a1.set_xlabel("terrain height at the range bin [m]"); a1.set_ylabel("focused peak [% of ideal]")
     a1.set_ylim(0, 115); a1.set_title("Peak recovery per range bin"); a1.legend(); a1.grid(alpha=0.3)
     a2.plot(heights, am_no, "C3o-", lw=1.3, label="no-SATA")
     a2.plot(heights, am_sa, "C0s-", lw=1.3, label="+ SATA")
@@ -677,63 +620,6 @@ def plot_range_ramp_1d(Nrx=4, dxt=100.0, nrg=9, hmax=300.0, save=True):
     fig.tight_layout()
     if save:
         print(f"    range-ramp-1D plot -> {_save_fig(fig, 'sata_range_ramp_1d', subdir='topography')}")
-    plt.close(fig)
-
-
-def plot_range_ramp_4panel(Nrx=4, dxt=100.0, dh=200.0, save=True):
-    """S3 in the S1/S2 4-panel format: ONE range bin of the range ramp (a single
-    target at height dh, processed independently). Same diagnostic as the
-    single-target and topo_ramp 4-panels (amplitude / dB / IRF / spectral phase),
-    so S3 can be shown next to S1 and S2."""
-    print("\n[3f] Range-ramp 4-panel (S3, one representative range bin)")
-    cfg, tracks, off = _build_single_target_cfg(Nrx, dxt, dh)
-    ptg = cfg.scene.ptg + off
-    sref, s_ch = _channels_and_ref(cfg, tracks, ptg)
-    srec_no = sar.reconstruct(cfg, tracks, s_ch.copy())
-    srec_sa = sar.reconstruct(cfg, tracks, sata_channels(cfg, tracks, s_ch.copy()))
-    _plot_4panel(cfg, sref, srec_no, srec_sa, "sata_range_ramp_4panel",
-                 extra_title=rf", range ramp: one bin ($\Delta h$={dh:.0f} m)",
-                 subdir="topography")
-
-
-def plot_range_ramp_irf(Nrx=4, dxt=100.0,
-                        heights=(0.0, 60.0, 120.0, 180.0, 240.0, 300.0), save=True):
-    """The IRF view of S3: each range bin is a SINGLE target at its own height,
-    processed independently, so it has its own focused impulse response. Small
-    multiples of the focused IRF (dB, wide window) over a few heights, each with
-    reference / no-SATA / +SATA. Shows the per-bin IRF degrade (no-SATA) and be
-    restored (+SATA) as the terrain height grows across the swath."""
-    print("\n[3e] Range-ramp IRFs (S3): one target per range bin, swept in height")
-    try:
-        import matplotlib
-        matplotlib.use("pgf"); import matplotlib.pyplot as plt
-        _use_latex(matplotlib)
-    except Exception as e:                        # pragma: no cover
-        print("    (matplotlib unavailable)", e); return
-    fig, axes = plt.subplots(2, 3, figsize=(13, 7))
-    for ax, h in zip(axes.flat, heights):
-        cfg, ref, no, sa, ideal = _recon_elevated(Nrx, dxt, float(h))
-        foc = lambda s: _focus_mag(s, ref, cfg.prf, cfg.abw, taper=TAPER)
-        f_ref, f_no, f_sa = foc(ref), foc(no), foc(sa)
-        p = f_ref.max()
-        db = lambda f: 20 * np.log10(np.maximum(f / p, 1e-6))
-        i0 = int(np.argmax(f_ref)); n = len(f_ref); x = np.arange(n) - i0
-        w = 1800; sl = slice(max(0, i0 - w), min(n, i0 + w))
-        ax.plot(x[sl], db(f_ref)[sl], "k", lw=1.2, label="reference")
-        ax.plot(x[sl], db(f_no)[sl], "C3", lw=1.0, alpha=0.85, label="no-SATA")
-        ax.plot(x[sl], db(f_sa)[sl], "C0", lw=1.2, ls="--", label="+SATA")
-        rec = 100 * f_sa.max() / foc(ideal).max()
-        ax.set_title(rf"$\Delta h$={h:.0f} m  (+SATA {rec:.0f}\% of ideal)", fontsize=10)
-        ax.set_ylim(-60, 3); ax.grid(alpha=0.3)
-        ax.set_xlabel("azimuth sample", fontsize=9)
-        ax.set_ylabel("[dB]", fontsize=9)
-        ax.tick_params(labelsize=8)
-    axes.flat[0].legend(fontsize=8, loc="lower right")
-    fig.suptitle(rf"Range-ramp IRFs (S3): one target per range bin "
-                 rf"($N_\mathrm{{rx}}={Nrx}$, $b_\mathrm{{xt}}={dxt:.0f}$ m)", fontsize=12)
-    fig.tight_layout(rect=[0, 0, 1, 0.96])
-    if save:
-        print(f"    range-ramp-IRF plot -> {_save_fig(fig, 'sata_range_ramp_irf', subdir='topography')}")
     plt.close(fig)
 
 
@@ -762,8 +648,8 @@ def plot_channel_aliasing(Nrx=4, save=True):
 
     try:
         import matplotlib
-        matplotlib.use("pgf"); import matplotlib.pyplot as plt
-        _use_latex(matplotlib)
+        matplotlib.use("Agg"); import matplotlib.pyplot as plt
+        matplotlib.rcParams["mathtext.fontset"] = "cm"
     except Exception as e:                        # pragma: no cover
         print("    (matplotlib unavailable)", e); return
 
@@ -778,8 +664,8 @@ def plot_channel_aliasing(Nrx=4, save=True):
     a1.set_ylim(-50, 3); a1.set_ylabel("dB"); a1.legend(fontsize=8, loc="upper right")
     a2.plot(fa_c, 20 * np.log10(S_c + 1e-6), "C3", lw=0.8)
     a2.axvline(-cfg.PRF_op / 2, color="gray", ls=":"); a2.axvline(cfg.PRF_op / 2, color="gray", ls=":")
-    a2.set_title(rf"One channel at PRF$_{{\mathrm{{op}}}}$={cfg.PRF_op:.0f} Hz: band ({s.abw:.0f} Hz) "
-                 rf"$>$ PRF$_{{\mathrm{{op}}}}$ $\Rightarrow$ ALIASED (spectrum folded/filled)")
+    a2.set_title(rf"One channel at PRF_op={cfg.PRF_op:.0f} Hz: band ({s.abw:.0f} Hz) "
+                 rf"> PRF_op $\Rightarrow$ ALIASED (spectrum folded/filled)")
     a2.set_ylim(-50, 3); a2.set_ylabel("dB"); a2.set_xlabel("Doppler frequency [Hz]")
     fig.tight_layout()
     if save:
@@ -811,8 +697,8 @@ def plot_ambiguities(Nrx=4, dh=200.0, dxt_show=50.0,
 
     try:
         import matplotlib
-        matplotlib.use("pgf"); import matplotlib.pyplot as plt
-        _use_latex(matplotlib)
+        matplotlib.use("Agg"); import matplotlib.pyplot as plt
+        matplotlib.rcParams["mathtext.fontset"] = "cm"
     except Exception as e:                        # pragma: no cover
         print("    (matplotlib unavailable)", e); return
 
@@ -894,8 +780,8 @@ def plot_baseline_robustness(save=True):
 
     try:
         import matplotlib
-        matplotlib.use("pgf"); import matplotlib.pyplot as plt
-        _use_latex(matplotlib)
+        matplotlib.use("Agg"); import matplotlib.pyplot as plt
+        matplotlib.rcParams["mathtext.fontset"] = "cm"
     except Exception as e:                        # pragma: no cover
         print("    (matplotlib unavailable)", e); return
 
@@ -905,7 +791,7 @@ def plot_baseline_robustness(save=True):
     a1.bar(xpos + wbar / 2, np.clip(pk_sa, 0, 140), wbar, color="C0", label="+ SATA")
     a1.axhline(100, color="k", ls="--", lw=0.8)
     a1.set_ylim(0, 145)
-    a1.set_ylabel("focused peak [\% of ideal]"); a1.set_title("Peak recovery")
+    a1.set_ylabel("focused peak [% of ideal]"); a1.set_title("Peak recovery")
     a1.set_xticks(xpos); a1.set_xticklabels(labels, rotation=35, ha="right", fontsize=8)
     a1.legend(fontsize=8); a1.grid(alpha=0.3, axis="y")
     # flag any bar that was clipped (e.g. ill-conditioned reconstruction)
@@ -950,8 +836,8 @@ def baseline_grid(Nrx_list=(2, 3, 4, 5, 6), dxt_list=(0, 20, 50, 100, 150, 200, 
 
     try:
         import matplotlib
-        matplotlib.use("pgf"); import matplotlib.pyplot as plt
-        _use_latex(matplotlib)
+        matplotlib.use("Agg"); import matplotlib.pyplot as plt
+        matplotlib.rcParams["mathtext.fontset"] = "cm"
     except Exception as e:                        # pragma: no cover
         print("    (matplotlib unavailable)", e); return
 
