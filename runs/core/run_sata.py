@@ -42,26 +42,33 @@ from sar_recon.geometry import build_platform_tracks
 from sar_recon.reconstruction import ReconstructSignalNumeri
 from sar_recon.signal_model import getRawData1D
 from sar_recon.analysis import matched_filter
-from sar_recon.sata import sata_1d, sata_channels, sata_2d, build_delta_C0_2d
+from sar_recon.sata import sata_1d, sata_channels
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-# Mirror the repo convention: figures live under plots/<script_name>/ .
+# Figures live under plots/run_sata/<category>/ to keep the tree tidy.
 PLOTS_DIR = os.path.join(SCRIPT_DIR, "plots", "run_sata")
 
 # Apply a Hamming taper when focusing the IRF plots. The antenna pattern in the
 # model is a hard rectangular window, which gives ~-13 dB sinc sidelobes; the
 # taper suppresses them to ~-40 dB (slightly wider mainlobe). Set False to see
 # the raw rectangular-aperture sidelobes.
+#
+# NOTE: the sar_recon reconstruction/analysis pipeline does NOT apply any
+# amplitude taper (matched_filter is a pure correlation). To keep every figure
+# faithful to the real pipeline, TAPER is False: all plots show the raw
+# rectangular-aperture sinc IRF (-13 dB sidelobes), exactly what the code
+# produces.
 TAPER = False
 
 
-def _save_fig(fig, name, vector=True):
-    """Save a figure to PLOTS_DIR as png (and pdf, for LaTeX inclusion)."""
-    os.makedirs(PLOTS_DIR, exist_ok=True)
-    png = os.path.join(PLOTS_DIR, name + ".png")
+def _save_fig(fig, name, subdir="", vector=True):
+    """Save a figure to PLOTS_DIR/<subdir>/ as png (and pdf)."""
+    outdir = os.path.join(PLOTS_DIR, subdir) if subdir else PLOTS_DIR
+    os.makedirs(outdir, exist_ok=True)
+    png = os.path.join(outdir, name + ".png")
     fig.savefig(png, dpi=150, bbox_inches="tight")
     if vector:
-        fig.savefig(os.path.join(PLOTS_DIR, name + ".pdf"), bbox_inches="tight")
+        fig.savefig(os.path.join(outdir, name + ".pdf"), bbox_inches="tight")
     return png
 
 
@@ -129,6 +136,55 @@ def _focus_mag(sig, ref, prf=None, abw=None, taper=False):
     return np.abs(np.roll(np.fft.ifft(S), len(ref) // 2))
 
 
+def _recon_elevated(Nrx, dxt, dh, dx=100.0, bat_offset=0.0, array=None):
+    """Reconstruct ONE elevated iso-range target three ways.
+    `array` overrides the (linear) array geometry -- pass an ArrayGeometry with
+    custom bat/bxt to test non-uniform / arbitrary baselines.
+    Returns (cfg, ref, srec_no, srec_sa, srec_ideal)."""
+    system = SystemParams()
+    base = Scene(rDelay=0.0051115753, c0=system.c0, h0=0.0)
+    r0, H, y0 = base.r0, base.H, base.y0
+    y_t = np.sqrt(r0 ** 2 - (H - dh) ** 2)
+    off = (0.0, float(y_t - y0), float(dh))
+    scene = Scene(rDelay=0.0051115753, c0=system.c0, h0=0.0, extra_offsets=(off,))
+    if array is None:
+        array = ArrayGeometry.linear(Nrx, dx, dxt, bat_offset=bat_offset)
+    Nrx = array.Nrx
+    prf, PRF_op = prf_from_fixed(2000.0, Nrx)
+    Na, Nc, ta = build_time_axis(prf, Nrx, 2.0 * integration_time(system, scene))
+    cfg = sar.ExperimentConfig(name="c", system=system, scene=scene, array=array,
+                               prf=prf, PRF_op=PRF_op, Na=Na, Na_ch=Nc, ta=ta,
+                               plots_dir=None)
+    tr = build_platform_tracks(cfg)
+    ptg = scene.ptg + np.array(off)
+    ref = getRawData1D(ptg[None, :], tr.ptx, tr.ptx, tr.vtx, tr.vtx, ta,
+                       cfg.sq_tx, cfg.sq_tx, cfg.theta_tx, cfg.theta_tx, system.wl, prf)
+    s_ch = np.zeros([Nrx, Nc], complex)
+    for i in range(Nrx):
+        s_ch[i] = getRawData1D(ptg[None, :], tr.ptx, tr.prx[i], tr.vtx, tr.vrx[i],
+                               ta, cfg.sq_tx, cfg.sq_tx, cfg.theta_tx, cfg.theta_tx,
+                               system.wl, prf)[::Nrx]
+    no = sar.reconstruct(cfg, tr, s_ch.copy())
+    sa = sar.reconstruct(cfg, tr, sata_channels(cfg, tr, s_ch.copy()))
+    ideal = ReconstructSignalNumeri(
+        s_ch.copy().reshape([Nrx, Nc, 1]), PRF_op, system.wl, ptg.reshape([3, 1]),
+        ta, tr.ptx, tr.prx, tr.vtx, tr.vrx, tr.ptx, tr.vtx, cfg.sq_tx, cfg.sq_rx,
+        cfg.theta_tx, cfg.theta_rx, array.bat, system.ve * np.ones(Nc), cfg.abw,
+        zeroOutBw=True).flatten()
+    return cfg, ref, no, sa, ideal
+
+
+def _ambiguity_db(f, mask=100):
+    """Worst replica level [dB below peak] of a focused signal |f|, ignoring the
+    mainlobe (+/-mask samples). Azimuth ambiguities sit far from the mainlobe."""
+    f = f / f.max()
+    n = len(f)
+    i0 = int(np.argmax(f))
+    m = np.ones(n, bool)
+    m[max(0, i0 - mask):i0 + mask] = False
+    return 20.0 * np.log10(f[m].max())
+
+
 # ---------------------------------------------------------------------------
 # 1. kernel self-test
 # ---------------------------------------------------------------------------
@@ -184,22 +240,25 @@ def integration_sweep(cases=((2, 100, 120), (3, 100, 120), (4, 100, 120),
 # ---------------------------------------------------------------------------
 def plot_single_target_irf(Nrx=4, dxt=150.0, dh=200.0, save=True):
     """
-    Focused impulse response (IRF) of ONE elevated target, in dB, zoomed to the
-    peak. Shows three curves: reference/ideal (sharp), no-SATA (crushed by the
-    unaccounted height), and +SATA (back on the reference). This is the most
-    direct visualisation that SATA restores the focus.
+    Focused impulse response (IRF) of ONE elevated target, in dB, as TWO panels:
+      left  -- ZOOM: mainlobe + sinc sidelobes (the familiar IRF look);
+      right -- WIDE: the whole aperture, where the azimuth AMBIGUITY replicas
+               show up (no-SATA has strong ones; SATA suppresses them).
+    Three curves each: reference/ideal, no-SATA (crushed + ambiguities), +SATA.
+    No taper, so the real sinc structure and the ambiguities are both visible.
     """
-    print("\n[2b] Single-target focused IRF (no-SATA vs +SATA)")
+    print("\n[2b] Single-target focused IRF (zoom + wide)")
     cfg, tracks, off = _build_single_target_cfg(Nrx, dxt, dh)
     ptg = cfg.scene.ptg + off
     sref, s_ch = _channels_and_ref(cfg, tracks, ptg)
     srec_no = sar.reconstruct(cfg, tracks, s_ch.copy())
     srec_sa = sar.reconstruct(cfg, tracks, sata_channels(cfg, tracks, s_ch.copy()))
-    foc = lambda s: _focus_mag(s, sref, cfg.prf, cfg.abw, taper=TAPER)
-    f_ref = foc(sref); p_ref = f_ref.max()
-    print(f"    peak: no-SATA {100*foc(srec_no).max()/p_ref:5.1f}%   "
-          f"+SATA {100*foc(srec_sa).max()/p_ref:5.1f}%   of reference"
-          f"   (taper={TAPER})")
+    foc = lambda s: _focus_mag(s, sref, cfg.prf, cfg.abw, taper=False)  # raw sinc IRF
+    f_ref, f_no, f_sa = foc(sref), foc(srec_no), foc(srec_sa)
+    p_ref = f_ref.max()
+    a_no, a_sa = _ambiguity_db(f_no), _ambiguity_db(f_sa)
+    print(f"    peak: no-SATA {100*f_no.max()/p_ref:.0f}%  +SATA {100*f_sa.max()/p_ref:.0f}%"
+          f"   | worst ambiguity: no-SATA {a_no:.0f} dB  +SATA {a_sa:.0f} dB")
 
     try:
         import matplotlib
@@ -209,24 +268,136 @@ def plot_single_target_irf(Nrx=4, dxt=150.0, dh=200.0, save=True):
     except Exception as e:                        # pragma: no cover
         print("    (matplotlib unavailable, skipping plot)", e); return
 
-    def irf_db(s):
-        f = foc(s)
-        n = len(f)
-        return 20 * np.log10(f[n // 2 - 120:n // 2 + 120] / p_ref + 1e-12)
-    x = np.arange(240) - 120
-    fig, ax = plt.subplots(figsize=(8, 4.2))
-    ax.plot(x, irf_db(sref), "k", lw=1.6, label="reference / ideal")
-    ax.plot(x, irf_db(srec_no), "C3", lw=1.4, label="no-SATA")
-    ax.plot(x, irf_db(srec_sa), "C0--", lw=1.5, label="+ SATA")
-    ax.set_xlim(-120, 120); ax.set_ylim(-45, 3)
-    ax.set_title(rf"Focused target IRF  ($N_\mathrm{{rx}}={Nrx}$, "
-                 rf"$d_\mathrm{{xt}}={dxt:.0f}$ m, $\Delta h={dh:.0f}$ m)")
-    ax.set_xlabel("azimuth sample (around peak)"); ax.set_ylabel("amplitude [dB]")
-    ax.legend(); ax.grid(alpha=0.3)
+    n = len(f_ref); i0 = n // 2
+    db = lambda f: 20 * np.log10(f / p_ref + 1e-12)
+    # replica location (for the wide-panel annotation)
+    mm = np.ones(n, bool); mm[i0 - 100:i0 + 100] = False
+    rep = int(np.argmax(f_no * mm)) - i0
+
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(12, 4.3))
+    for W, ax, ttl in ((120, a1, "Zoom: mainlobe + sinc sidelobes"),
+                       (1800, a2, "Wide: azimuth ambiguities")):
+        w = slice(i0 - W, i0 + W); x = np.arange(2 * W) - W
+        ax.plot(x, db(f_ref)[w], "k", lw=1.2, label="reference / ideal")
+        ax.plot(x, db(f_no)[w], "C3", lw=0.9, label="no-SATA")
+        ax.plot(x, db(f_sa)[w], "C0--", lw=1.1, label="+ SATA")
+        ax.set_ylim(-50, 6); ax.set_xlabel("azimuth sample (around target)")
+        ax.set_title(ttl, fontsize=10); ax.grid(alpha=0.3)
+        ax.legend(loc="upper right", fontsize=8)
+    a1.set_ylabel("amplitude [dB]")
+    for xa in (rep, -rep):
+        a2.annotate("ambiguity", xy=(xa, db(f_no)[i0 + xa]), xytext=(xa, 3),
+                    ha="center", fontsize=8, color="C3",
+                    arrowprops=dict(arrowstyle="->", color="C3"))
+    fig.suptitle(rf"Single-target IRF  ($N_\mathrm{{rx}}={Nrx}$, "
+                 rf"$d_\mathrm{{xt}}={dxt:.0f}$ m, $\Delta h={dh:.0f}$ m)  --  "
+                 rf"ambiguity no-SATA {a_no:.0f} dB $\rightarrow$ +SATA {a_sa:.0f} dB",
+                 fontsize=11)
+    fig.tight_layout()
     if save:
-        out = _save_fig(fig, "sata_single_irf")
+        out = _save_fig(fig, "sata_single_irf", subdir="irf")
         print(f"    IRF plot saved -> {out}")
     plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# 2c. 4-panel reconstruction diagnostic (repo style: amp / dB / IRF / phase)
+# ---------------------------------------------------------------------------
+def _plot_4panel(cfg, sref, srec_no, srec_sa, fname, extra_title="", subdir="irf"):
+    """Repo-style 2x2 diagnostic (amplitude / dB over aperture / zoomed IRF /
+    spectral phase) comparing reference / no-SATA / +SATA. Shared by the
+    single-target and topo_ramp 4-panel plots."""
+    Nrx = cfg.Nrx
+    res_no = sar.analyze(cfg, sref, srec_no)
+    res_sa = sar.analyze(cfg, sref, srec_sa)
+    ta = cfg.ta
+
+    def dph(res):
+        d = np.angle(np.fft.fft(res.srecNF) * np.conjugate(np.fft.fft(res.srefF)), deg=True)
+        d[res.abw_idx] = 0.0
+        return d
+    ndb = lambda x: 20.0 * np.log10(np.abs(x) / np.max(np.abs(x)) + 1e-12)
+
+    try:
+        import matplotlib
+        matplotlib.use("Agg"); import matplotlib.pyplot as plt
+        matplotlib.rcParams["mathtext.fontset"] = "cm"
+    except Exception as e:                        # pragma: no cover
+        print("    (matplotlib unavailable)", e); return
+
+    dbat = cfg.array.bat[1] - cfg.array.bat[0] if Nrx > 1 else 0.0
+    dbxt = cfg.array.bxt[1] - cfg.array.bxt[0] if Nrx > 1 else 0.0
+    fig, ax = plt.subplots(2, 2, figsize=(12, 8))
+    fig.suptitle(rf"SATA reconstruction | Nrx={Nrx} | PRF={cfg.prf:.0f} Hz | "
+                 rf"$B_a$={cfg.abw:.0f} Hz | $\Delta b_{{at}}$={dbat:.0f} m | "
+                 rf"$\Delta b_{{xt}}$={dbxt:.0f} m" + extra_title)
+    C = dict(ref="k", no="C3", sa="C0")
+
+    ax[0, 0].plot(ta, np.abs(sref), C["ref"], lw=1.0, label="reference")
+    ax[0, 0].plot(ta, np.abs(srec_no), C["no"], lw=0.8, label="no-SATA")
+    ax[0, 0].plot(ta, np.abs(srec_sa), C["sa"], lw=0.8, ls="--", label="+SATA")
+    ax[0, 0].set_xlabel("Time [s]"); ax[0, 0].set_ylabel("Amplitude"); ax[0, 0].grid(alpha=0.3)
+    ax[0, 0].legend(fontsize="small")
+
+    ax[0, 1].plot(ta, ndb(res_no.srefF), C["ref"], lw=0.7, label="reference")
+    ax[0, 1].plot(ta, ndb(res_no.srecNF), C["no"], lw=0.7, label="no-SATA")
+    ax[0, 1].plot(ta, ndb(res_sa.srecNF), C["sa"], lw=0.7, ls="--", label="+SATA")
+    ax[0, 1].set_xlabel("Time [s]"); ax[0, 1].set_ylabel("[dB]")
+    ax[0, 1].set_ylim([-100, 2]); ax[0, 1].grid(alpha=0.3); ax[0, 1].legend(fontsize="small")
+    ax[0, 1].set_title("ambiguities (no-SATA) vs suppressed (+SATA)", fontsize=9)
+
+    ax[1, 0].plot(res_no.taz * 1e3, ndb(res_no.u_refFocC), C["ref"], lw=1.2, label="reference")
+    ax[1, 0].plot(res_no.taz * 1e3, ndb(res_no.u_interpFocCN), C["no"], lw=0.9, label="no-SATA")
+    ax[1, 0].plot(res_sa.taz * 1e3, ndb(res_sa.u_interpFocCN), C["sa"], lw=1.1, ls="--", label="+SATA")
+    ax[1, 0].set_xlabel("Time [ms]"); ax[1, 0].set_ylabel("[dB]")
+    ax[1, 0].set_ylim([-45, 2]); ax[1, 0].grid(alpha=0.3); ax[1, 0].legend(fontsize="small")
+    ax[1, 0].set_title("zoomed IRF", fontsize=9)
+
+    ax[1, 1].plot(res_no.fa, dph(res_no), C["no"], lw=0.7, label="no-SATA")
+    ax[1, 1].plot(res_sa.fa, dph(res_sa), C["sa"], lw=0.9, label="+SATA")
+    ax[1, 1].axvline(cfg.abw / 2, color="r", ls="-."); ax[1, 1].axvline(-cfg.abw / 2, color="r", ls="-.")
+    ax[1, 1].set_xlabel("Doppler freq [Hz]"); ax[1, 1].set_ylabel("[deg]")
+    ax[1, 1].grid(alpha=0.3); ax[1, 1].legend(fontsize="small")
+    ax[1, 1].set_title("spectral phase error", fontsize=9)
+
+    fig.tight_layout()
+    print(f"    4-panel plot saved -> {_save_fig(fig, fname, subdir=subdir)}")
+    plt.close(fig)
+
+
+def plot_irf_4panel(Nrx=4, dxt=150.0, dh=200.0, save=True):
+    """Single-target 4-panel diagnostic (repo style)."""
+    print("\n[2c] Single-target 4-panel diagnostic (amp / dB / IRF / phase)")
+    cfg, tracks, off = _build_single_target_cfg(Nrx, dxt, dh)
+    ptg = cfg.scene.ptg + off
+    sref, s_ch = _channels_and_ref(cfg, tracks, ptg)
+    srec_no = sar.reconstruct(cfg, tracks, s_ch.copy())
+    srec_sa = sar.reconstruct(cfg, tracks, sata_channels(cfg, tracks, s_ch.copy()))
+    _plot_4panel(cfg, sref, srec_no, srec_sa, "sata_irf_4panel",
+                 extra_title=rf" | $\Delta h$={dh:.0f} m (single target)")
+
+
+def plot_toporamp_4panel(Nrx=4, dxt=100.0, save=True):
+    """topo_ramp 4-panel diagnostic (the scene you used before), repo style."""
+    print("\n[3c] topo_ramp 4-panel diagnostic (amp / dB / IRF / phase)")
+    from sar_recon.config import SCENE_PRESETS
+    system = SystemParams()
+    scene = Scene(rDelay=0.0051115753, c0=system.c0, h0=0.0,
+                  extra_offsets=SCENE_PRESETS["topo_ramp"])
+    array = ArrayGeometry.linear(Nrx, 100.0, dxt)
+    prf, PRF_op = prf_from_fixed(2000.0, Nrx)
+    Na, Nc, ta = build_time_axis(prf, Nrx, 2.0 * integration_time(system, scene))
+    cfg = sar.ExperimentConfig(name="topo_ramp", system=system, scene=scene, array=array,
+                               prf=prf, PRF_op=PRF_op, Na=Na, Na_ch=Nc, ta=ta, plots_dir=None)
+    tracks = build_platform_tracks(cfg)
+    sref = sar.generate_reference(cfg, tracks)
+    s_ch = sar.generate_channels(cfg, tracks)
+    srec_no = sar.reconstruct(cfg, tracks, s_ch.copy())
+    srec_sa = sar.reconstruct(cfg, tracks, sata_channels(cfg, tracks, s_ch.copy()))
+    _plot_4panel(cfg, sref, srec_no, srec_sa, "sata_toporamp_4panel",
+                 extra_title=" | topo_ramp scene", subdir="topography")
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -318,128 +489,392 @@ def plot_azimuth_topo(Nrx=4, dxt=150.0, save=True):
     ax.legend()
     ax.grid(alpha=0.3)
     if save:
-        out = _save_fig(fig, "sata_azimuth_topo")
+        out = _save_fig(fig, "sata_azimuth_topo", subdir="topography")
         print(f"    focused-image plot saved -> {out}")
     plt.close(fig)
 
 
 # ---------------------------------------------------------------------------
-# 4. SATA 2D: a topographic ramp across range, driven by a (simulated) DEM
+# 3b. "SATA looks worse in a zoom" pitfall -- zoom vs wide view
 # ---------------------------------------------------------------------------
-def _ramp_curves(Nrx, dxt, heights):
-    """Peak (% of ideal) along a range topographic ramp, for a given Nrx.
-    Returns (pct_no, pct_sa): flat-earth vs SATA-2D reconstruction."""
-    system = SystemParams()
-    base = Scene(rDelay=0.0051115753, c0=system.c0, h0=0.0)
-    r0, H = base.r0, base.H
-    array = ArrayGeometry.linear(Nrx, 100.0, dxt)
-    nrg = len(heights)
+def plot_zoom_vs_wide(Nrx=4, dxt=150.0, save=True):
+    """Register a common pitfall: in a narrow zoom the multi-target SATA image
+    can LOOK worse than no-SATA (higher pedestal), but that pedestal is RECOVERED
+    energy. no-SATA only looks clean at the centre because its energy fled to the
+    far azimuth ambiguities. SATA is better by every metric (peak, focused energy,
+    scattered energy) -- the zoom just hides where the energy went."""
+    print("\n[3b] Zoom vs wide view (why SATA can look worse in a zoom)")
+    specs = ((-400, 80), (-200, 160), (0, 240), (200, 320), (400, 400))
+    cfg, tracks = _build_azimuth_topo_cfg(Nrx, dxt, specs=specs)
+    s = cfg.system
+    ptgs = cfg.scene.points[1:]
+    sref1 = getRawData1D(cfg.scene.ptg[None, :], tracks.ptx, tracks.ptx, tracks.vtx,
+                         tracks.vtx, cfg.ta, cfg.sq_tx, cfg.sq_tx, cfg.theta_tx,
+                         cfg.theta_tx, s.wl, cfg.prf)
+    sig = getRawData1D(ptgs, tracks.ptx, tracks.ptx, tracks.vtx, tracks.vtx, cfg.ta,
+                       cfg.sq_tx, cfg.sq_tx, cfg.theta_tx, cfg.theta_tx, s.wl, cfg.prf)
+    s_ch = np.zeros([cfg.Nrx, cfg.Na_ch], complex)
+    for ii in range(cfg.Nrx):
+        s_ch[ii] = getRawData1D(ptgs, tracks.ptx, tracks.prx[ii], tracks.vtx,
+                                tracks.vrx[ii], cfg.ta, cfg.sq_tx, cfg.sq_tx,
+                                cfg.theta_tx, cfg.theta_tx, s.wl, cfg.prf)[::cfg.Nrx]
+    no = sar.reconstruct(cfg, tracks, s_ch.copy())
+    sa = sar.reconstruct(cfg, tracks, sata_channels(cfg, tracks, s_ch.copy()))
+    fr = _focus_mag(sig, sref1, cfg.prf, cfg.abw, taper=TAPER)
+    fn = _focus_mag(no, sref1, cfg.prf, cfg.abw, taper=TAPER)
+    fs = _focus_mag(sa, sref1, cfg.prf, cfg.abw, taper=TAPER)
+    pref = fr.max(); n = len(fr); i0 = n // 2
 
-    refs, chans, ptgs = [], [], []
-    tracks = Na_ch = ta = base_cfg = None
-    for h in heights:
-        cfg, tracks, off = _build_single_target_cfg(Nrx, dxt, h)
-        ptg = cfg.scene.ptg + off
-        sref, s_ch = _channels_and_ref(cfg, tracks, ptg)
-        refs.append(sref); chans.append(s_ch); ptgs.append(ptg)
-        Na_ch, ta, base_cfg = cfg.Na_ch, cfg.ta, cfg
-
-    # DEM (ramp in range) and SATA-2D correction, channel by channel
-    r_vec = np.full(nrg, r0)
-    dem_true = np.tile(heights, (Na_ch, 1))
-    dem_assumed = np.zeros((Na_ch, nrg))
-    corr = [np.empty_like(chans[0]) for _ in range(nrg)]
-    for k in range(Nrx):
-        block = np.stack([chans[j][k] for j in range(nrg)], axis=1)
-        dC0 = build_delta_C0_2d(dem_true, dem_assumed, r_vec, H, array.bxt[k])
-        cb = sata_2d(block, dC0, r_vec, base_cfg.PRF_op, system.vs, system.wl,
-                     inverse=True, sata_osf=4)
-        for j in range(nrg):
-            corr[j][k] = cb[:, j]
-
-    pct_no, pct_sa = [], []
-    for j in range(nrg):
-        sref = refs[j]
-        p_no = _peak_amp(sar.reconstruct(base_cfg, tracks, chans[j].copy()), sref)
-        p_sa = _peak_amp(sar.reconstruct(base_cfg, tracks, corr[j].copy()), sref)
-        srecI = ReconstructSignalNumeri(
-            chans[j].copy().reshape([Nrx, Na_ch, 1]), base_cfg.PRF_op, system.wl,
-            ptgs[j].reshape([3, 1]), ta, tracks.ptx, tracks.prx, tracks.vtx,
-            tracks.vrx, tracks.ptx, tracks.vtx, base_cfg.sq_tx, base_cfg.sq_rx,
-            base_cfg.theta_tx, base_cfg.theta_rx, array.bat,
-            system.ve * np.ones(Na_ch), base_cfg.abw, zeroOutBw=True).flatten()
-        p_id = _peak_amp(srecI, sref)
-        pct_no.append(100 * p_no / p_id); pct_sa.append(100 * p_sa / p_id)
-    return pct_no, pct_sa
-
-
-def test_2d_range_ramp(Nrx_list=(2, 3, 4, 5), dxt=100.0, nrg=9, hmax=240.0, save=True):
-    """
-    SATA 2D exercised on a topographic RAMP along the range dimension, for
-    SEVERAL channel counts.
-
-    Each range bin holds a target at a height following a ramp (0..hmax). The
-    correction is built from a simulated DEM (dem_true = the ramp, dem_assumed
-    = 0) with `build_delta_C0_2d`, applied per channel with `sata_2d`, and the
-    reconstruction is done per range bin. For every Nrx we report the focused
-    peak (% of the ideal) with and without SATA. SATA-2D recovers ~100 % of the
-    ideal at every range bin, regardless of Nrx; the flat-earth (no-SATA)
-    degradation depends on Nrx and the baseline layout.
-    """
-    print("\n[4] SATA 2D -- topographic ramp across range (DEM-driven)")
-    heights = np.linspace(0.0, hmax, nrg)
-    curves = {Nrx: _ramp_curves(Nrx, dxt, heights) for Nrx in Nrx_list}
-
-    # console table: no-SATA % per Nrx (SATA-2D is ~100 everywhere)
-    hdr = "    h[m] | " + " ".join(f"Nrx={n:>2}" for n in Nrx_list) + "   | SATA-2D"
-    print(hdr + "  (no-SATA %, then SATA-2D min%)")
-    for j in range(nrg):
-        cells = " ".join(f"{curves[n][0][j]:6.1f}" for n in Nrx_list)
-        print(f"    {heights[j]:4.0f} | {cells}   | ~100")
-    sata_min = min(min(curves[n][1]) for n in Nrx_list)
-    print(f"    SATA-2D min over all Nrx / all bins: {sata_min:.1f}% of ideal")
+    # metrics
+    pk = [i for i in range(1, n - 1) if fr[i] > 0.5 * pref and fr[i] > fr[i - 1] and fr[i] > fr[i + 1]]
+    mlobe = np.zeros(n, bool)
+    for i in pk:
+        mlobe[i - 8:i + 8] = True
+    def focused(f):   return 100 * np.sum(f[mlobe] ** 2) / np.sum(f ** 2)
+    def scattered(f): return 100 * (1 - np.sum(f[i0 - 600:i0 + 600] ** 2) / np.sum(f ** 2))
+    m = (f"peak {100*fn.max()/pref:.0f}%->{100*fs.max()/pref:.0f}% | "
+         f"focused {focused(fn):.0f}%->{focused(fs):.0f}% | "
+         f"scattered {scattered(fn):.0f}%->{scattered(fs):.0f}%")
+    print("    no-SATA -> +SATA:  " + m)
 
     try:
         import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
+        matplotlib.use("Agg"); import matplotlib.pyplot as plt
         matplotlib.rcParams["mathtext.fontset"] = "cm"
     except Exception as e:                        # pragma: no cover
-        print("    (matplotlib unavailable, skipping plot)", e)
-        return
+        print("    (matplotlib unavailable)", e); return
 
-    fig, ax = plt.subplots(figsize=(8.0, 4.4))
-    ax.axhline(100, color="k", lw=1.4, ls="--", alpha=0.85, label="ideal", zorder=1)
-    colors = ["C3", "C1", "C4", "C2", "C5", "C6"]
-    # no-SATA: one solid (filled circle) curve per Nrx -- these differ.
-    for i, n in enumerate(Nrx_list):
-        ax.plot(heights, curves[n][0], "-o", color=colors[i % len(colors)],
-                lw=1.2, ms=5, label=rf"no-SATA, $N_\mathrm{{rx}}={n}$", zorder=2)
-    # +SATA: every Nrx lands on the ideal line, so draw them all in ONE neutral
-    # colour (blue open squares) -- reads as a single "SATA result", clearly
-    # distinct from the coloured no-SATA lines. Only one gets a legend entry.
-    for i, n in enumerate(Nrx_list):
-        lbl = r"+ SATA-2D $=$ ideal (all $N_\mathrm{rx}$)" if i == 0 else None
-        ax.plot(heights, curves[n][1], linestyle="none", marker="s", ms=8,
-                markerfacecolor="none", markeredgecolor="C0",
-                markeredgewidth=1.6, label=lbl, zorder=4)
-    ax.set_title(rf"SATA 2D on a range topographic ramp  ($d_\mathrm{{xt}}={dxt:.0f}$ m)")
-    ax.set_xlabel("terrain height along the ramp [m]")
-    ax.set_ylabel(r"focused peak [% of ideal]")
-    ax.set_ylim(0, 112); ax.legend(loc="lower left", fontsize=8, ncol=2)
-    ax.grid(alpha=0.3)
+    db = lambda f: 20 * np.log10(f / pref + 1e-12)
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(12, 4.3))
+    for W, ax, ttl in ((300, a1, "ZOOM (+/-300): SATA looks worse (higher pedestal)"),
+                       (2000, a2, "WIDE (+/-2000): no-SATA energy went to the ambiguities")):
+        w = slice(i0 - W, i0 + W); x = np.arange(2 * W) - W
+        ax.plot(x, db(fn)[w], "C3", lw=0.7, label="no SATA")
+        ax.plot(x, db(fs)[w], "C0", lw=0.7, label="+ SATA")
+        ax.set_ylim(-55, 12); ax.set_xlabel("azimuth sample"); ax.set_title(ttl, fontsize=10)
+        ax.grid(alpha=0.3); ax.legend(loc="upper right", fontsize=8)
+    a1.set_ylabel("amplitude [dB]")
+    a2.annotate("ambiguities", xy=(-1620, -6), xytext=(-1500, 7), fontsize=8, color="C3",
+                arrowprops=dict(arrowstyle="->", color="C3"))
+    fig.suptitle("SATA is NOT worse -- " + m, fontsize=11)
+    fig.tight_layout()
     if save:
-        out = _save_fig(fig, "sata_2d_range_ramp")
-        print(f"    ramp plot saved -> {out}")
+        print(f"    zoom-vs-wide plot -> {_save_fig(fig, 'sata_zoom_vs_wide', subdir='topography')}")
+    plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# 3d. RANGE ramp handled 1D, per range bin -- where SATA clearly improves
+# ---------------------------------------------------------------------------
+def plot_range_ramp_1d(Nrx=4, dxt=100.0, nrg=9, hmax=300.0, save=True):
+    """A topographic ramp along RANGE, processed the 1D way: each range bin is an
+    INDEPENDENT azimuth line with a single target at a height that grows with
+    range. 1D SATA (sata_channels) is applied per bin. Unlike the topo_ramp scene
+    (all heights stacked in ONE azimuth cell -> 1D cannot separate them), here
+    each bin has a single dominant height, so SATA recovers each one. This is the
+    honest 1D way to treat a range ramp and shows a clear improvement.
+    Two panels: peak recovery and worst ambiguity vs terrain height."""
+    print("\n[3d] Range ramp, 1D per range bin (peak %% / ambiguity vs height)")
+    heights = np.linspace(0.0, hmax, nrg)
+    pct_no, pct_sa, am_no, am_sa = [], [], [], []
+    for h in heights:
+        cfg, ref, no, sa, ideal = _recon_elevated(Nrx, dxt, float(h))
+        fi = _focus_mag(ideal, ref, cfg.prf, cfg.abw, taper=TAPER).max()
+        fn = _focus_mag(no, ref, cfg.prf, cfg.abw, taper=TAPER)
+        fs = _focus_mag(sa, ref, cfg.prf, cfg.abw, taper=TAPER)
+        pct_no.append(100 * fn.max() / fi); pct_sa.append(100 * fs.max() / fi)
+        am_no.append(_ambiguity_db(fn)); am_sa.append(_ambiguity_db(fs))
+        print(f"    h={h:5.0f} m | peak no/SATA {pct_no[-1]:5.0f}/{pct_sa[-1]:5.0f}%"
+              f"   ambig no/SATA {am_no[-1]:6.1f}/{am_sa[-1]:6.1f} dB")
+
+    try:
+        import matplotlib
+        matplotlib.use("Agg"); import matplotlib.pyplot as plt
+        matplotlib.rcParams["mathtext.fontset"] = "cm"
+    except Exception as e:                        # pragma: no cover
+        print("    (matplotlib unavailable)", e); return
+
+    def _lab(ax, xs, ys, dy, color, fmt="{:.1f}"):
+        for xi, yi in zip(xs, ys):
+            ax.annotate(fmt.format(yi), (xi, yi), textcoords="offset points",
+                        xytext=(0, dy), ha="center", fontsize=5.5, color=color)
+
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(11, 4))
+    a1.axhline(100, color="k", ls="--", lw=0.8, label="ideal")
+    a1.plot(heights, pct_no, "C3o-", lw=1.3, label="no-SATA")
+    a1.plot(heights, pct_sa, "C0s-", lw=1.3, label="+ SATA")
+    _lab(a1, heights, pct_no, -9, "C3"); _lab(a1, heights, pct_sa, 5, "C0")
+    a1.set_xlabel("terrain height at the range bin [m]"); a1.set_ylabel("focused peak [% of ideal]")
+    a1.set_ylim(0, 115); a1.set_title("Peak recovery per range bin"); a1.legend(); a1.grid(alpha=0.3)
+    a2.plot(heights, am_no, "C3o-", lw=1.3, label="no-SATA")
+    a2.plot(heights, am_sa, "C0s-", lw=1.3, label="+ SATA")
+    _lab(a2, heights, am_no, -9, "C3", fmt="{:.0f}"); _lab(a2, heights, am_sa, 6, "C0", fmt="{:.0f}")
+    a2.set_xlabel("terrain height at the range bin [m]"); a2.set_ylabel("worst ambiguity [dB below peak]")
+    # inverted axis (0 dB at bottom) with headroom above the -43 dB floor so the
+    # +SATA value labels do not collide with the title.
+    lo = min(min(am_no), min(am_sa))
+    a2.set_ylim(3, lo - 7)
+    a2.set_title("Ambiguity suppression per range bin"); a2.legend(loc="center right"); a2.grid(alpha=0.3)
+    fig.suptitle(rf"Range ramp handled 1D per bin ($N_\mathrm{{rx}}={Nrx}$, $d_\mathrm{{xt}}={dxt:.0f}$ m)",
+                 fontsize=12)
+    fig.tight_layout()
+    if save:
+        print(f"    range-ramp-1D plot -> {_save_fig(fig, 'sata_range_ramp_1d', subdir='topography')}")
+    plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# 1b. per-channel sub-Nyquist aliasing (the premise of the reconstruction)
+# ---------------------------------------------------------------------------
+def plot_channel_aliasing(Nrx=4, save=True):
+    """Show that each receiver channel is sub-Nyquist: the azimuth Doppler band
+    (abw) is wider than the per-channel PRF_op, so a single channel's spectrum
+    is aliased (folded). The reconstruction is what unfolds the Nrx channels."""
+    print("\n[1b] Per-channel sub-Nyquist aliasing")
+    cfg, tracks, off = _build_single_target_cfg(Nrx, 0.0, 0.0)
+    s = cfg.system
+    ptg = cfg.scene.ptg
+    sref = getRawData1D(ptg[None, :], tracks.ptx, tracks.ptx, tracks.vtx, tracks.vtx,
+                        cfg.ta, cfg.sq_tx, cfg.sq_tx, cfg.theta_tx, cfg.theta_tx, s.wl, cfg.prf)
+    ch = getRawData1D(ptg[None, :], tracks.ptx, tracks.prx[0], tracks.vtx, tracks.vrx[0],
+                      cfg.ta, cfg.sq_tx, cfg.sq_tx, cfg.theta_tx, cfg.theta_tx, s.wl, cfg.prf)[::Nrx]
+    print(f"    abw = {s.abw:.0f} Hz,  PRF_op = {cfg.PRF_op:.0f} Hz  ->  "
+          f"aliasing factor abw/PRF_op = {s.abw/cfg.PRF_op:.2f}x")
+
+    def spec(x, fs):
+        X = np.abs(np.fft.fftshift(np.fft.fft(x)))
+        fa = np.fft.fftshift(np.fft.fftfreq(len(x), d=1.0 / fs))
+        return fa, X / X.max()
+
+    try:
+        import matplotlib
+        matplotlib.use("Agg"); import matplotlib.pyplot as plt
+        matplotlib.rcParams["mathtext.fontset"] = "cm"
+    except Exception as e:                        # pragma: no cover
+        print("    (matplotlib unavailable)", e); return
+
+    fa_r, S_r = spec(sref, cfg.prf)
+    fa_c, S_c = spec(ch, cfg.PRF_op)
+    fig, (a1, a2) = plt.subplots(2, 1, figsize=(8.5, 5), sharex=False)
+    a1.plot(fa_r, 20 * np.log10(S_r + 1e-6), "k", lw=0.8)
+    a1.axvspan(-s.abw / 2, s.abw / 2, color="C2", alpha=0.15, label="Doppler band (abw)")
+    a1.axvline(-cfg.prf / 2, color="gray", ls=":"); a1.axvline(cfg.prf / 2, color="gray", ls=":")
+    a1.set_title(rf"Full PRF (reference): band fits inside $\pm$PRF/2  "
+                 rf"(PRF={cfg.prf:.0f} Hz)")
+    a1.set_ylim(-50, 3); a1.set_ylabel("dB"); a1.legend(fontsize=8, loc="upper right")
+    a2.plot(fa_c, 20 * np.log10(S_c + 1e-6), "C3", lw=0.8)
+    a2.axvline(-cfg.PRF_op / 2, color="gray", ls=":"); a2.axvline(cfg.PRF_op / 2, color="gray", ls=":")
+    a2.set_title(rf"One channel at PRF_op={cfg.PRF_op:.0f} Hz: band ({s.abw:.0f} Hz) "
+                 rf"> PRF_op $\Rightarrow$ ALIASED (spectrum folded/filled)")
+    a2.set_ylim(-50, 3); a2.set_ylabel("dB"); a2.set_xlabel("Doppler frequency [Hz]")
+    fig.tight_layout()
+    if save:
+        print(f"    aliasing plot saved -> {_save_fig(fig, 'sata_channel_aliasing', subdir='sub_nyquist')}")
+    plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# 5. azimuth ambiguities: appear WITHOUT SATA, suppressed WITH SATA
+# ---------------------------------------------------------------------------
+def plot_ambiguities(Nrx=4, dh=200.0, dxt_show=50.0,
+                     dxt_sweep=(0, 10, 20, 50, 100, 150), save=True):
+    """The topographic residual corrupts the multichannel unmixing, so the
+    per-channel aliasing re-appears as azimuth AMBIGUITY replicas far from the
+    target. SATA removes the residual and suppresses them.
+    Two figures: (a) worst ambiguity vs cross-track baseline; (b) a wide IRF
+    showing the replicas for one dxt."""
+    print("\n[5] Azimuth ambiguities (no-SATA vs SATA)")
+
+    # (a) ambiguity level vs dxt
+    A_no, A_sa = [], []
+    for dxt in dxt_sweep:
+        cfg, ref, no, sa, _ = _recon_elevated(Nrx, float(dxt), dh)
+        fn = _focus_mag(no, ref, cfg.prf, cfg.abw, taper=TAPER)
+        fs = _focus_mag(sa, ref, cfg.prf, cfg.abw, taper=TAPER)
+        A_no.append(_ambiguity_db(fn)); A_sa.append(_ambiguity_db(fs))
+        print(f"    dxt={dxt:4d} m | worst ambiguity  no-SATA {A_no[-1]:6.1f} dB   "
+              f"SATA {A_sa[-1]:6.1f} dB")
+
+    try:
+        import matplotlib
+        matplotlib.use("Agg"); import matplotlib.pyplot as plt
+        matplotlib.rcParams["mathtext.fontset"] = "cm"
+    except Exception as e:                        # pragma: no cover
+        print("    (matplotlib unavailable)", e); return
+
+    fig, ax = plt.subplots(figsize=(7.5, 4))
+    ax.plot(dxt_sweep, A_no, "C3o-", lw=1.3, label="no-SATA")
+    ax.plot(dxt_sweep, A_sa, "C0s-", lw=1.3, label="+ SATA")
+    ax.set_xlabel(r"cross-track baseline $d_\mathrm{xt}$ [m]")
+    ax.set_ylabel("worst azimuth ambiguity [dB below peak]")
+    ax.set_title(rf"Ambiguity vs baseline ($N_\mathrm{{rx}}={Nrx}$, $\Delta h={dh:.0f}$ m)")
+    ax.invert_yaxis(); ax.legend(); ax.grid(alpha=0.3)
+    if save:
+        print(f"    ambiguity-vs-dxt plot -> {_save_fig(fig, 'sata_ambiguity_vs_dxt', subdir='ambiguity')}")
+    plt.close(fig)
+
+    # (b) wide IRF showing the replicas for one dxt
+    cfg, ref, no, sa, _ = _recon_elevated(Nrx, dxt_show, dh)
+    fr = _focus_mag(ref, ref, cfg.prf, cfg.abw, taper=TAPER)
+    fn = _focus_mag(no, ref, cfg.prf, cfg.abw, taper=TAPER)
+    fs = _focus_mag(sa, ref, cfg.prf, cfg.abw, taper=TAPER)
+    n = len(fr); i0 = n // 2
+    # locate the strongest replica (for the annotation / window)
+    m = np.ones(n, bool); m[i0 - 100:i0 + 100] = False
+    rep = int(np.argmax(fn * m))
+    W = int(min(2.2 * abs(rep - i0) + 300, n // 2 - 1))
+    w = slice(i0 - W, i0 + W); x = np.arange(2 * W) - W
+    db = lambda f: 20 * np.log10(f / fr.max() + 1e-12)
+    fig, ax = plt.subplots(figsize=(9.5, 4.2))
+    ax.plot(x, db(fr)[w], "k", lw=0.9, label="reference")
+    ax.plot(x, db(fn)[w], "C3", lw=0.9, label="no SATA")
+    ax.plot(x, db(fs)[w], "C0--", lw=1.1, label="+ SATA")
+    for xa in (rep - i0, i0 - rep):
+        ax.annotate("ambiguity", xy=(xa, db(fn)[i0 + xa]), xytext=(xa, 12),
+                    ha="center", fontsize=8, color="C3",
+                    arrowprops=dict(arrowstyle="->", color="C3"))
+    ax.set_ylim(-55, 18); ax.set_xlabel("azimuth sample (around target)")
+    ax.set_ylabel("amplitude [dB]")
+    ax.set_title(rf"Azimuth ambiguities ($N_\mathrm{{rx}}={Nrx}$, "
+                 rf"$d_\mathrm{{xt}}={dxt_show:.0f}$ m, $\Delta h={dh:.0f}$ m)")
+    ax.legend(loc="upper right"); ax.grid(alpha=0.3)
+    if save:
+        print(f"    ambiguity IRF plot   -> {_save_fig(fig, 'sata_ambiguity_irf', subdir='ambiguity')}")
+    plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# 6. baseline robustness: SATA across many array configurations
+# ---------------------------------------------------------------------------
+def plot_baseline_robustness(save=True):
+    """Run SATA over a range of baseline configurations and show it recovers the
+    peak and suppresses ambiguities in all the realistic ones."""
+    print("\n[6] Baseline robustness (peak %% of ideal, worst ambiguity dB)")
+    # a deliberately non-uniform (irregular) array to stress the algorithm
+    nonunif = ArrayGeometry(bat=np.array([0., 70., 190., 360.]),
+                            bxt=np.array([-120., -30., 40., 130.]))
+    # (label, Nrx, dx, dxt, bat_offset, array_override)
+    cases = [
+        ("dxt=50",       4, 100, 50,  0.0,    None),
+        ("dxt=150",      4, 100, 150, 0.0,    None),
+        ("dxt=300",      4, 100, 300, 0.0,    None),
+        ("DPCA dx=11",   4, 11,  100, 0.0,    None),
+        ("DPCA offset",  4, 11,  100, 11 / 2, None),
+        ("large dx=200", 4, 200, 100, 0.0,    None),
+        ("non-uniform",  4, 0,   0,   0.0,    nonunif),
+        ("Nrx=2",        2, 100, 100, 0.0,    None),
+        ("Nrx=6",        6, 100, 100, 0.0,    None),
+    ]
+    labels, pk_no, pk_sa, am_no, am_sa = [], [], [], [], []
+    for lbl, Nrx, dx, dxt, boff, arr in cases:
+        cfg, ref, no, sa, ideal = _recon_elevated(Nrx, dxt, 200.0, dx=dx,
+                                                  bat_offset=boff, array=arr)
+        fi = _focus_mag(ideal, ref, cfg.prf, cfg.abw, taper=TAPER)
+        fn = _focus_mag(no, ref, cfg.prf, cfg.abw, taper=TAPER)
+        fs = _focus_mag(sa, ref, cfg.prf, cfg.abw, taper=TAPER)
+        labels.append(lbl)
+        pk_no.append(100 * fn.max() / fi.max()); pk_sa.append(100 * fs.max() / fi.max())
+        am_no.append(_ambiguity_db(fn)); am_sa.append(_ambiguity_db(fs))
+        print(f"    {lbl:<12} | peak no/SATA {pk_no[-1]:5.0f}/{pk_sa[-1]:5.0f}%   "
+              f"ambig no/SATA {am_no[-1]:6.1f}/{am_sa[-1]:6.1f} dB")
+
+    try:
+        import matplotlib
+        matplotlib.use("Agg"); import matplotlib.pyplot as plt
+        matplotlib.rcParams["mathtext.fontset"] = "cm"
+    except Exception as e:                        # pragma: no cover
+        print("    (matplotlib unavailable)", e); return
+
+    xpos = np.arange(len(labels)); wbar = 0.38
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(11, 4))
+    a1.bar(xpos - wbar / 2, np.clip(pk_no, 0, 140), wbar, color="C3", label="no-SATA")
+    a1.bar(xpos + wbar / 2, np.clip(pk_sa, 0, 140), wbar, color="C0", label="+ SATA")
+    a1.axhline(100, color="k", ls="--", lw=0.8)
+    a1.set_ylim(0, 145)
+    a1.set_ylabel("focused peak [% of ideal]"); a1.set_title("Peak recovery")
+    a1.set_xticks(xpos); a1.set_xticklabels(labels, rotation=35, ha="right", fontsize=8)
+    a1.legend(fontsize=8); a1.grid(alpha=0.3, axis="y")
+    # flag any bar that was clipped (e.g. ill-conditioned reconstruction)
+    for k, (pn, ps) in enumerate(zip(pk_no, pk_sa)):
+        if pn > 140 or ps > 140:
+            a1.text(k, 141, "off-scale\n(recon.\nill-cond.)", ha="center", va="top",
+                    fontsize=6, color="C3")
+    a2.bar(xpos - wbar / 2, am_no, wbar, color="C3", label="no-SATA")
+    a2.bar(xpos + wbar / 2, am_sa, wbar, color="C0", label="+ SATA")
+    a2.set_ylabel("worst ambiguity [dB below peak]"); a2.set_title("Ambiguity suppression")
+    a2.set_xticks(xpos); a2.set_xticklabels(labels, rotation=35, ha="right", fontsize=8)
+    a2.legend(fontsize=8); a2.grid(alpha=0.3, axis="y")
+    fig.suptitle("SATA robustness across baseline configurations", fontsize=12)
+    fig.tight_layout()
+    if save:
+        print(f"    robustness plot -> {_save_fig(fig, 'sata_baseline_robustness', subdir='baselines')}")
+    plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# 7. exhaustive baseline grid: SATA over the whole (Nrx x dxt) space
+# ---------------------------------------------------------------------------
+def baseline_grid(Nrx_list=(2, 3, 4, 5, 6), dxt_list=(0, 20, 50, 100, 150, 200, 300),
+                  dh=200.0, save=True):
+    """Exhaustive sweep: reconstruct one elevated target for every (Nrx, dxt)
+    pair and record the worst azimuth ambiguity with and without SATA. Two
+    heatmaps: no-SATA (ambiguities grow with dxt and Nrx) vs +SATA (flat, deep).
+    Proves the 1D algorithm across the whole baseline space."""
+    print("\n[7] Exhaustive baseline grid (Nrx x dxt) -- worst ambiguity [dB]")
+    A_no = np.full((len(Nrx_list), len(dxt_list)), np.nan)
+    A_sa = np.full_like(A_no, np.nan)
+    for i, Nrx in enumerate(Nrx_list):
+        row = []
+        for j, dxt in enumerate(dxt_list):
+            cfg, ref, no, sa, _ = _recon_elevated(Nrx, float(dxt), dh)
+            fn = _focus_mag(no, ref, cfg.prf, cfg.abw, taper=TAPER)
+            fs = _focus_mag(sa, ref, cfg.prf, cfg.abw, taper=TAPER)
+            A_no[i, j] = _ambiguity_db(fn); A_sa[i, j] = _ambiguity_db(fs)
+            row.append(f"{A_no[i,j]:5.0f}/{A_sa[i,j]:4.0f}")
+        print(f"    Nrx={Nrx}: " + " ".join(row))
+    print("    (each cell: no-SATA / +SATA worst ambiguity in dB)")
+
+    try:
+        import matplotlib
+        matplotlib.use("Agg"); import matplotlib.pyplot as plt
+        matplotlib.rcParams["mathtext.fontset"] = "cm"
+    except Exception as e:                        # pragma: no cover
+        print("    (matplotlib unavailable)", e); return
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.2))
+    vmin, vmax = -50, 0
+    for ax, A, ttl in ((axes[0], A_no, "no-SATA"), (axes[1], A_sa, "+ SATA")):
+        im = ax.imshow(A, aspect="auto", origin="lower", cmap="RdYlGn_r",
+                       vmin=vmin, vmax=vmax)
+        ax.set_xticks(range(len(dxt_list))); ax.set_xticklabels(dxt_list)
+        ax.set_yticks(range(len(Nrx_list))); ax.set_yticklabels(Nrx_list)
+        ax.set_xlabel(r"cross-track baseline $d_\mathrm{xt}$ [m]")
+        ax.set_ylabel(r"$N_\mathrm{rx}$"); ax.set_title(ttl)
+        for i in range(len(Nrx_list)):
+            for j in range(len(dxt_list)):
+                ax.text(j, i, f"{A[i,j]:.0f}", ha="center", va="center", fontsize=7)
+        fig.colorbar(im, ax=ax, label="worst ambiguity [dB]")
+    fig.suptitle("SATA over the baseline grid: no-SATA (bad, red) vs +SATA (good, green)",
+                 fontsize=12)
+    fig.tight_layout()
+    if save:
+        print(f"    baseline-grid plot -> {_save_fig(fig, 'sata_baseline_grid', subdir='baselines')}")
     plt.close(fig)
 
 
 def main():
     kernel_selftest()
+    plot_channel_aliasing()
     integration_sweep()
     plot_single_target_irf()
+    plot_irf_4panel()
+    plot_toporamp_4panel()
     plot_azimuth_topo()
-    test_2d_range_ramp()
+    plot_range_ramp_1d()
+    plot_zoom_vs_wide()
+    plot_ambiguities()
+    plot_baseline_robustness()
+    baseline_grid()
     print("\ndone")
 
 

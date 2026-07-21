@@ -34,6 +34,10 @@ MAKE_PLOTS = True
 # have that toolchain installed.
 USE_LATEX_FONTS = True
 SAVE_VECTOR = True
+# Apply SATA (topography correction) to each channel before reconstruction.
+# See sar_recon.sata / runs/core/run_sata.py.
+USE_SATA = False
+SATA_OSF = 4
 
 
 CHANNEL_NUMBERS = [2, 3, 4, 5, 6]
@@ -43,7 +47,8 @@ CASES = ["topo_dxt0"]
 SCENE_NAMES = ["topo_ramp"]
 # CASES = ["dpca"]
 
-def run_case(cfg: sar.ExperimentConfig, make_plots: bool = True, save_vector: bool = False):
+def run_case(cfg: sar.ExperimentConfig, make_plots: bool = True, save_vector: bool = False,
+             use_sata: bool = USE_SATA, sata_osf: int = SATA_OSF):
     """Full forward + reconstruction + (optional) diagnostics for one config."""
     print(f"r0 = {cfg.scene.r0}")
     print(f"y0 = {cfg.scene.y0}")
@@ -54,6 +59,12 @@ def run_case(cfg: sar.ExperimentConfig, make_plots: bool = True, save_vector: bo
 
     sref = sar.generate_reference(cfg, tracks)
     s_channel = sar.generate_channels(cfg, tracks)
+
+    # SATA: remove the per-channel topographic residual C0 (proportional to
+    # Dh*d_xt) before reconstruction. No-op when the scene has no topography.
+    if use_sata:
+        print("SATA: pre-conditioning channels before reconstruction")
+        s_channel = sar.sata_channels(cfg, tracks, s_channel, sata_osf=sata_osf)
 
     srecN = sar.reconstruct(cfg, tracks, s_channel, zeroOutBw=True)
 

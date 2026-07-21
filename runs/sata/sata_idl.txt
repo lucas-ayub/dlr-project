@@ -1,0 +1,740 @@
+; docformat = 'rst'
+;+
+; Performs SATA (subaperture topography- and aperture-dependent motion compensation)
+;
+; :Author: Pau Prats
+; :Categories: algorithms
+;
+; :Params:
+;   data: required, in, type=complexarr
+;     The input data. Format = [range,azimuth].
+;   pos : in, required, type="dblarr(nazimuth,4)"
+;     the real sensor positions (in SAR coordinates)
+;   ref : in, required, type="dblarr(nazimuth,4)"
+;     the reference positons (in SAR coordinates)
+;   dem: in, required, type="fltarr(nrange,nazimuth)"
+;     the real altitude above ground considering the external DEM
+;   demsmoothed: in, required, type="fltarr(nrange,nazimuth)"
+;     smoothed version of the external DEM used during second order MoCo
+;   rref: required,in, type="double"
+;     The reference range, usually in the middle of the swath [m].
+;   prf: required, in, type="double"
+;     Pulse repetition frequency [Hz]
+;   v: required, in, type="double"
+;     Forward velocity [m/s].
+;   squint: required, in, type="double"
+;     The processing squint [rad].
+;   terrain: required, in, type="double"
+;     Mean reference height
+;   lambda: required, in, type="double"
+;     Wavelength [m].
+;   r: required, in, type="dblarr(N)"
+;     The range vector.
+;
+; :Keywords:
+;    direction : in, optional, type=boolean
+;       choose left/right looking antenna (default = -1 = left?)
+;    norcmc: in, optional, type=flag
+;       indicates that SATA is being applied before the range cell migration
+;       correction
+;    sata_osf: in, optional, type=flag
+;       oversampling factor for the synthetic aperture. set > 1 to increase
+;       the block margin to cope with large shifts and IRF changes.
+;-
+pro sata,data,pos,ref,dem,demsmoothed,rref,prf,v,squint,terrain,lambda,r,DIRECTION=direction, NORCMC=norcmc, INVERSE=inverse, SATA_OSF=sata_osf
+  compile_opt idl2
+
+  j = complex(0,1)
+  
+  dimr = (size(data))[1]
+  dimx = (size(data))[2]
+  
+  rps = (r[dimr-1]-r[0])/(dimr-1)
+
+;-----------------------------------------------------------------------------
+; STEP 1: SATA pre-computations
+;-----------------------------------------------------------------------------
+  dy    = ref[*,2]-pos[*,2]     ; moco  y
+  dz    = ref[*,3]-pos[*,3]     ; moco  z
+
+  ; SATA specific 
+  ; computing sub-aperture optimum size
+  deltax = sqrt(lambda*rref/2.) ; this formula comes from the best resolution of SATA. Ask Pau for demonstration.
+  Tsubeff = round(deltax*prf/v*0.5)*2.
+ 
+  ; block sizes     
+  if not keyword_set(sata_osf) then $
+     sata_osf = 1
+  Nzp      = 2.^ceil(alog10(Tsubeff)/alog10(2))*sata_osf
+  Tovl     = Tsubeff*0.5        ;overlap
+  Tovlhalf = Tovl*0.5
+  Tsub     = Tsubeff*0.5        ;assuming 50% overlap
+  Nsub     = long(dimx/Tsub)
+  marg_az  = round(0.5*(1+Nzp-Tsubeff))
+
+  print
+  print, 'SATA: resolution in the accommodation of the topography at mid range: ',strtrim(deltax,1)
+  print, 'SATA: sub-aperture length: ',strtrim(long(Tsubeff),1),' zero padded to ',strtrim(long(Nzp),1),' with margin ',strtrim(marg_az,1)
+
+  if (Tsubeff le 2) then begin
+     print, 'SATA: sub-aperture length very small, no correction needed'
+     return
+  end
+            
+  ; weighting (50% assumed)
+  rightweight = dindgen(Tovl)/(Tovl-1)
+  rightweight = (rightweight>0)<1
+  leftweight = reverse(rightweight)
+  
+  rightweight = rightweight##(fltarr(dimr)+1.)
+  leftweight = leftweight##(fltarr(dimr)+1.)
+
+  ; frequency axis of the subaperture
+  fc             = 2*v/lambda*sin(squint)
+  pfc            = round((fc mod prf)*Nzp/prf) ; Doppler centroid in pixels
+  dfc            = round(fc*Nzp/prf)*prf/Nzp ; Doppler centroid rounded to sample resolution
+  fsub           = dindgen(Nzp)*prf/float(Nzp)-prf*0.5+dfc ; frequency axis in sub-aperture
+  fsub[0]        = prf*0.5+dfc  ; correcting small error due to previous line
+  fsub           = shift(fsub,+Nzp/2+pfc) ; shifting to be aligned with data
+
+  ; angles            
+  betasub= asin(lambda*fsub/(2.*v))
+  betasub = betasub##(fltarr(dimr)+1.)
+      
+  rm = r#(fltarr(Nzp)+1.)
+  azpos = rm*(tan(betasub)-tan(squint))/v*prf
+  posvector = dindgen(dimr)#(fltarr(Nzp)+1.)
+
+  if (keyword_set(norcmc)) then begin
+     ; correct DEM lookup tables if no RCMC preformed...
+     azpos *= cos(betasub)
+     posrange = rm*cos(betasub)
+     for m=0,Nzp-1 do $
+        posvector[*,m] = interpol(dindgen(dimr),r,posrange[*,m],/spline)
+     posvector = ((posvector>0)<(dimr-1))
+
+     ; range indices into zero-doppler DEM
+     h_ind = (r*cos(squint)-r[0])/rps
+     h_ind = (h_ind>0)<(dimr-1)
+  end
+
+  rmtanbetasub2 = (rm*tan(betasub))^2
+  rm_cosbetasub = rm/cos(betasub)
+
+  ; for non-rcm corrected data...
+  rmsinbetasub2 = (rm*sin(betasub))^2
+  rm_invcos2    = (rm*cos(betasub))^2
+  r_cossq2      = (r*cos(squint))^2
+  r_sinsq2      = (r*sin(squint))^2
+
+;-----------------------------------------------------------------------------
+; STEP 2: loop to perform SATA
+;-----------------------------------------------------------------------------
+  progress,'SATA'
+  max_ph = 0.0
+  temp = complexarr(dimr,2*Tsub)
+  for m=0, Nsub-1 do begin
+     progress,Nsub,m
+         
+     if m eq Nsub-1 then begin
+        posix = (m+0.5)*Tsub
+        aux = data[*,m*Tsub:*]
+        Tsubeff = dimx - m*Tsub
+     endif else begin
+        posix = (m+1)*Tsub
+        in_lim = posix+[-Nzp/2,Nzp/2-1]
+        in_lim -= in_lim[0]<0
+        in_lim[1] <= dimx-1
+        aux = shift(data[*,in_lim[0]:in_lim[1]],[0,in_lim[0]-m*Tsub])
+     endelse
+   
+     ; zero padding
+     Csubeff = (size(aux,/dim))[1]
+     if Nzp ne Csubeff then begin
+        aux = [[aux],[complexarr(dimr,Nzp-Tsubeff)]]   
+     endif 
+         
+     fftw,aux,dimension=2,-1
+
+     ; obtaining heights
+     ; checking positions do not lie outside the image
+     posaux = long(azpos+(m+1)*Tsub)
+     posaux = (posaux>0)<(dimx-1)
+         
+     ; altitude above ground
+     heights = ref[posix,3]-dem[posaux*dimr+posvector]
+   
+     ; computing correction applied with smoothed DEM during second order MoCo
+
+     if (keyword_set(norcmc)) then begin
+        h0    = ref[posix,3]-demsmoothed[h_ind,posix]
+            
+        ; computing correction applied with smoothed DEM during second order MoCo
+        y0    = sqrt(r_cossq2 - h0^2) - direction * dy[posix]
+        rreal = sqrt((h0-dz[posix])^2 + y0^2 + r_sinsq2)
+        corrsmootheddem = (rreal - r)#(fltarr(Nzp)+1)
+               
+        ; computing new correction with DEM
+        y0    = sqrt(rm_invcos2 - heights^2) - direction * dy[posix]
+        rreal = sqrt( (heights-dz[posix])^2 + y0^2 + rmsinbetasub2)
+        dr    = (rreal - rm)
+     end else begin
+        h0    = ref[posix,3]-demsmoothed[*,posix]
+
+        ; computing correction applied with smoothed DEM during second order MoCo
+        y0    = sqrt(r^2 - h0^2) - direction * dy[posix]
+        rreal = sqrt((h0-dz[posix])^2 + y0^2+(r*tan(squint))^2)
+        dr    = (rreal - r/cos(squint))
+        corrsmootheddem = dr#(fltarr(Nzp)+1.)
+        
+        ; computing new correction with DEM
+        y0    = sqrt(rm^2 - heights^2) - direction * dy[posix]
+        rreal = sqrt( (heights-dz[posix])^2 + y0^2+rmtanbetasub2)
+        dr    = (rreal - rm_cosbetasub)
+     end
+
+     ; obtaining final correction
+     ph = 4.*!pi/lambda*(dr-corrsmootheddem)
+     posaux = where(finite(ph,/nan) or finite(ph,/inf),nn)
+     if nn gt 0 then ph[posaux]=0.
+     max_ph >= 2*max(mean(abs(ph),dim=2))
+
+     ; applying correction 
+     if (keyword_set(inverse)) then begin
+        aux = complex(aux*exp(-j*ph))
+     end else begin
+        aux = complex(aux*exp(j*ph))
+     end
+
+     fftw,aux,dimension=2,1
+
+     ;assuming 50% overlap
+     aux[*,0:Tsub-1] = temp[*,Tsub:*]*leftweight+aux[*,0:Tsub-1]*rightweight
+     case m of
+        0: data[*,0:Tsub-1]=temp[*,0:Tsub-1]
+        else:data[*,(m-1)*Tsub:m*Tsub-1]=temp[*,0:Tsub-1]
+     endcase
+     temp = aux
+  endfor
+
+  ; last block
+  data[*,(m-1)*Tsub:*]=temp[*,0:dimx-(m-1)*Tsub-1]
+
+  print
+  print, 'SATA: maximum peak-to-peak phase correction: ',strtrim(!radeg*max_ph,1),' deg'
+  min_osf = sata_osf+ceil(2*(0.5*max_ph/!pi-marg_az)*(sata_osf/Nzp))
+  if (min_osf gt sata_osf) then begin
+     print, 'WARNING: margin is insufficient for corrections of this magnitude!'
+     print, 'WARNING: image probably contains artefacts.'
+     print, 'WARNING: increase sata_osf from ',strtrim(sata_osf,1),' to ',strtrim(min_osf,1), ' to avoid this.'
+  end
+  print
+
+end
+
+
+
+
+; docformat = 'rst'
+;+
+; Performs "1.5D SATA" (subaperture topography- and aperture-dependent motion
+; compensation in range and azimuth): 1D SATA is repeatedly called on range
+; sub-looks to provide accurate MoCo accross the processed range bandwidth. In
+; comparison to SATA2D below, this approach does not correct for any residual
+; range shifts (which leads to phase and slight position inaccuracy...), it is
+; usually slower but it has a better range resolution and naturally reverts to
+; 1D SATA for low bandwidth/squint scenarios.
+;
+; This needs to run _before_ RCMC takes place.
+;
+;
+; :Author: Marc Jaeger
+; :Categories: algorithms
+;
+; :Params:
+;   data: required, in, type=complexarr
+;     The input data. Format = [range,azimuth].
+;   pos : in, required, type="dblarr(nazimuth,4)"
+;     the real sensor positions (in SAR coordinates)
+;   ref : in, required, type="dblarr(nazimuth,4)"
+;     the reference positons (in SAR coordinates)
+;   dem: in, required, type="fltarr(nrange,nazimuth)"
+;     the real altitude above ground considering the external DEM
+;   demsmoothed: in, required, type="fltarr(nrange,nazimuth)"
+;     smoothed version of the external DEM used during second order MoCo
+;   rref: required,in, type="double"
+;     The reference range, usually in the middle of the swath [m].
+;   prf: required, in, type="double"
+;     Pulse repetition frequency [Hz]
+;   v: required, in, type="double"
+;     Forward velocity [m/s].
+;   squint: required, in, type="double"
+;     The processing squint [rad].
+;   c0: required, in, type="double"
+;     the speed of light [m/s].
+;   f0: required, in, type="double"
+;     the center frequency [s^-1].
+;   rsf: required, in, type="double"
+;     the range sampling frequency [s^-1].
+;   r: required, in, type="dblarr(N)"
+;     The range vector.
+;
+; :Keywords:
+;    direction : in, optional, type=boolean
+;       choose left/right looking antenna (default = -1 = left?)
+;    sata_osf: in, optional, type=flag
+;       oversampling factor for the synthetic aperture. set > 1 to increase
+;       the block margin to cope with large shifts and IRF changes.
+;
+;-
+pro sata1_5d,data,pos,ref,dem,demsmoothed,rref,prf,v,squint,c0,f0,rsf,cbw,r,DIRECTION=direction, SATA_OSF=sata_osf
+   compile_opt idl2
+   ;; a simple range sub-look approximation to sata2d: slower than sata2d but
+   ;; usually better range resolution
+
+   dimr = (size(data,/dim))[0]
+   dimx = (size(data,/dim))[1]
+
+   lam = c0/(f0+cbw*[-0.5,0.5])
+   fc = 2*v/lam*sin(squint)
+   f_frac = abs(fc[0]-fc[1])
+
+   blk_n = 2*long(round(f_frac/(0.1*prf)))
+   blk_n += 1 - (blk_n mod 2)
+
+   print
+   print, 'SATA: Splitting SATA1D over '+strtrim(blk_n,2)+' wavelength(s)...'
+
+   if (blk_n le 1) then begin
+      sata,data,pos,ref,dem,demsmoothed,rref,prf,v,squint,terrain,c0/f0,r,DIRECTION=direction, /NORCMC, sata_osf=sata_osf
+      return
+   end
+      
+   ; frequency offset and frequency step
+   f_offset = f0 - 0.5*rsf
+   f_step = rsf/float(dimr)
+
+   ; assume 50% overlap between blocks...
+   rstep = long(ceil(dimr/(blk_n+1))) ; range step between overlapping blocks
+   rstep += rstep mod 2
+   rblk = 2*rstep ; block length
+   rzp = optimise_fftsize(rblk,maxprime=13) ; block length after zero padding
+   weight = (fltarr(dimx)+1)##(1-2*abs(findgen(rblk)-0.5*(rblk-1))/rblk) ; weight for combining overlap
+
+   ; 'presum' DEMs and range vector
+   rwin = long(ceil(dimr/float(rzp)))
+   h_sub = congrid(smooth(dem,[rwin,1]),rzp,dimx)
+   h_sub_smooth = congrid(smooth(demsmoothed,[rwin,1]),rzp,dimx)
+   r_sub = congrid(r,rzp)
+   
+   ; loop over range spectral blocks...
+   fftw, data, -1, dim=1
+   data = shift(data,dimr/2,0)
+
+   rlim_next = [0,rblk-1]<(dimr-1)
+   data_sub_next = data[0:rlim_next[1],*]
+   data[0:rblk/2-1,*] = 0
+   for n=0,blk_n-1 do begin
+      rlim_curr = rlim_next
+      data_sub = data_sub_next
+      rlim_next = (rlim_curr+rstep)<(dimr-1)
+      if (n lt blk_n-1) then begin ; save block for next iteration
+         data_sub_next = data[rlim_next[0]:rlim_next[1],*]
+         data[rlim_next[0]:rlim_curr[1],*] = 0
+      end else $
+         data[rlim_next[0]:*,*] = 0
+
+      clen = (size(data_sub,/dim))[0]
+      if (clen ne rzp) then begin ; zero padding
+         data_sub = [data_sub,complexarr(rzp-clen,dimx)]
+         f_shift = clen/2
+      end else begin
+         f_shift = rzp/2
+      end
+      f_ind = rlim_curr[0] + f_shift
+
+      data_sub = shift(data_sub,[-f_shift,0])
+      lam_sub = c0/(f_offset+f_ind*f_step)
+      
+      print
+      print, 'SATA Wavelength: '+strtrim(lam_sub,2)+'m'
+
+      fftw, data_sub, +1, dim=1
+      sata,data_sub,pos,ref,h_sub,h_sub_smooth,rref,prf,v,squint,terrain,lam_sub,r_sub,DIRECTION=direction,/NORCMC, sata_osf=sata_osf
+      fftw, data_sub, -1, dim=1
+
+      data_sub = shift(data_sub,[f_shift,0])
+
+      case n of
+         0:       data_sub[rblk/2:rblk-1,*] *= weight[rblk/2:rblk-1,*]
+         blk_n-1: data_sub[0:rblk/2-1,*] *= weight[0:rblk/2-1,*]
+         else:    data_sub[0:rblk-1,*] *= weight
+      end
+      data[rlim_curr[0]:rlim_curr[1],*] += data_sub[0:rlim_curr[1]-rlim_curr[0],*]
+   end
+   
+   data = shift(data,-dimr/2,0)
+   fftw, data, +1, dim=1
+end
+
+
+
+
+; docformat = 'rst'
+;+
+; Performs 2D SATA (subaperture topography- and aperture-dependent motion
+; compensation in range and azimuth). This approach is needed for very high
+; squint angles / very high relative bandwidth, where the doppler centroid
+; varies significantly over the processed range bandwidth. It has a limited
+; range resolution, but effectively performs any residual range interpolation
+; on top of the phase corrections. It also takes into account the difference
+; between squint angles as derived from the real and reference tracks
+; (i.e. the instantaneous squint). 
+;
+; This needs to run _before_ RCMC takes place.
+;
+; :Author: Marc Jaeger
+; :Categories: algorithms
+;
+; :Params:
+;   data: required, in, type=complexarr
+;     The input data. Format = [range,azimuth].
+;   pos : in, required, type="dblarr(nazimuth,4)"
+;     the real sensor positions (in SAR coordinates)
+;   ref : in, required, type="dblarr(nazimuth,4)"
+;     the reference positons (in SAR coordinates)
+;   dem: in, required, type="fltarr(nrange,nazimuth)"
+;     the real altitude above ground considering the external DEM
+;   demsmoothed: in, required, type="fltarr(nrange,nazimuth)"
+;     smoothed version of the external DEM used during second order MoCo
+;   rref: required,in, type="double"
+;     The reference range, usually in the middle of the swath [m].
+;   prf: required, in, type="double"
+;     Pulse repetition frequency [Hz]
+;   v: required, in, type="double"
+;     Forward velocity [m/s].
+;   squint: required, in, type="double"
+;     The processing squint [rad].
+;   c0: required, in, type="double"
+;     the speed of light [m/s].
+;   f0: required, in, type="double"
+;     the center frequency [s^-1].
+;   rsf: required, in, type="double"
+;     the range sampling frequency [s^-1].
+;   r: required, in, type="dblarr(N)"
+;     The range vector.
+;
+; :Keywords:
+;    direction : in, optional, type=boolean
+;       choose left/right looking antenna (default = -1 = left?)
+;    sata_osf: in, optional, type=flag
+;       oversampling factor for the synthetic aperture. set > 1 to increase
+;       the block margin to cope with large shifts and IRF changes.
+;
+;-
+pro sata2d,data,pos,ref,dem,demsmoothed,rref,prf,v,squint,c0,f0,rsf,r,MOCO1=moco1,DIRECTION=direction, SATA_OSF=sata_osf
+   compile_opt idl2
+
+   j = complex(0,1)
+
+   dimr = (size(data,/dim))[0]
+   dimx = (size(data,/dim))[1]
+   dimr_dem = (size(dem,/dim))[0]
+
+;-----------------------------------------------------------------------------
+; STEP 1: SATA pre-computations
+;-----------------------------------------------------------------------------
+   dy    = ref[*,2]-pos[*,2]    ; moco  y
+   dz    = ref[*,3]-pos[*,3]    ; moco  z
+
+   rps = (r[dimr-1]-r[0])/(dimr-1)
+
+   ; SATA specific computing sub-aperture optimum size
+   deltax = sqrt(rref*(c0/f0)/2.) ; this formula comes from the best resolution of SATA. Ask Pau for demonstration.
+   Tsubeff = round(deltax*prf/v*0.5)*2.
+ 
+   if (Tsubeff le 2) then begin
+      print, 'SATA: sub-aperture length very small, no correction needed'
+      return
+   end      
+
+   if not keyword_set(sata_osf) then $
+      sata_osf = 1
+
+   ; block sizes (azimuth)
+   Nzp_az   = 2.^ceil(alog10(Tsubeff)/alog10(2))*sata_osf
+   Tovl     = Tsubeff*0.5       ;overlap
+   Tovlhalf = Tovl*0.5
+   Tsub     = Tsubeff*0.5       ;assuming 50% overlap
+   Nsub_az  = long(dimx/Tsub)
+   marg_az  = round(0.5*(1+Nzp_az-Tsubeff))
+
+   ; block sizes (range)
+   Nzp_rg  = 32
+   marg_rg = 5 ;+(sata_osf-1)*Nzp_rg/2 ; the number of samples to discard
+   olap_rg = 5                       ; the size of averaged overlap region
+   ;Nzp_rg *= sata_osf
+   Nsub_rg  = long(dimr/(Nzp_rg-2*marg_rg-olap_rg))
+   rg_last = Nzp_rg*Nsub_rg - 1
+
+   print
+   print, 'SATA: resolution in the accommodation of the topography at mid range: ',strtrim(deltax,1)
+   print, 'SATA2D: azimuth sub-aperture length: ',strtrim(long(Tsubeff),1),' zero padded to ',strtrim(long(Nzp_az),1),' with margin ',strtrim(marg_az,1)
+   print, 'SATA2D: range sub-aperture length: ',strtrim(long(Nzp_rg),2),' with margin ',strtrim(long(marg_rg),2)
+
+   ; azimuth frequency axis of the subaperture as a function of range frequency
+   fr = f0 + shift(rsf*(dindgen(Nzp_rg) - Nzp_rg/2)/Nzp_rg,-Nzp_rg/2)
+   lambda = (dblarr(Nzp_az)+1)##(c0/fr)
+   fc = 2*v/lambda*sin(squint)
+
+   if (max(fc[*,0])-min(fc[*,0]) gt prf) then begin
+      print, 'SATA: Error: Doppler centroid is wrapped within the bandwidth. Giving up!'
+      return
+   end
+
+   fc_wrap = long(floor(fc[0,0]/prf))
+   fsub = ((fc_wrap+dindgen(Nzp_az)/float(Nzp_az))*prf)##(dblarr(Nzp_rg)+1)
+   df = fsub - fc
+   fsub += prf*(df lt -prf/2)
+   fsub -= prf*(df gt  prf/2)
+
+   ; squint angles            
+   betamat= asin(lambda*fsub/(2.*v))
+   betasub = betamat
+   for n=0,Nsub_rg-2 do betasub = [betasub,betamat]
+
+   ; wavelength in blocks
+   lambdasub = lambda
+   for n=0,Nsub_rg-2 do lambdasub = [lambdasub,lambda]
+
+   ; beam-centre moco offsets and doppler shifts
+   r_sub_start = lindgen(Nsub_rg)*(Nzp_rg-2*marg_rg-olap_rg) - marg_rg
+   r_sub = r[r_sub_start + Nzp_rg/2] - rps/2
+   r_cossq2      = (r_sub*cos(squint))^2
+   r_sinsq2      = (r_sub*sin(squint))^2
+
+   h_ind = (r_sub*cos(squint) - r[0])/rps ; zero-doppler range indices for DEM
+   h_ind = (h_ind>0)<(dimr_dem-1)
+   drind = lindgen(rg_last+1)/Nzp_rg
+
+   dr_bc = dblarr(Nsub_rg,dimx)
+   dfa = dblarr(Nsub_rg,dimx)
+   progress, 'SATA2D: beam centre (BC) offsets'
+   for m=0,dimx-1 do begin 
+      progress,dimx,m
+      if (keyword_set(moco1)) then $
+         h0    = ref[m,3]-dem[h_ind,m] $
+      else $
+         h0    = ref[m,3]-demsmoothed[h_ind,m]
+      y0    = sqrt(r_cossq2 - h0^2) - direction * dy[m]
+      rreal = sqrt((h0-dz[m])^2 + y0^2 + r_sinsq2)
+      dr_bc[*,m] = (rreal - r_sub)
+      dfa[*,m] = 2*v*(r_sub*sin(squint)/(r_sub-dr_bc[*,m]) - sin(squint))*(f0/c0)
+      if (keyword_set(moco1)) then dr_bc[*,m] -= moco1[m]
+   end  
+   dfa *= (2*!pi/prf*findgen(dimx))##(fltarr(Nsub_rg)+1)
+   dfa = exp(complex(0,dfa))
+   rmnanq, dfa
+
+   ; pad input in range (taking into account bc offsets...)
+   progress, 'SATA2D: range padding'
+   data_ = data
+   data = complexarr(rg_last+1,dimx)
+   for n=0,Nsub_rg-1 do begin
+      progress,Nsub_rg,n
+      in_ind = r_sub_start[n] + [0,Nzp_rg-1]
+      out_ind = [n,n+1]*Nzp_rg+[0,-1]
+
+      if (keyword_set(moco1)) then begin
+         ; shift to account for bc moco offsets (pixel accurate)
+         for m=0,dimx-1 do begin
+            s_ind = in_ind + round(dr_bc[n,m]/rps)
+            s_corr = [(-s_ind[0])>0,(dimr-1-s_ind[1])<0]
+            s_ind += s_corr
+            os_ind = out_ind+s_corr
+            data[os_ind[0]:os_ind[1],m] = data_[s_ind[0]:s_ind[1],m]
+         end
+      end else begin
+         in_corr = [(-in_ind[0])>0,(dimr-1-in_ind[1])<0]
+         in_ind += in_corr
+         out_ind += in_corr
+         data[out_ind[0]:out_ind[1],*] = data_[in_ind[0]:in_ind[1],*]
+      end
+   end
+   r_sub = r_sub[drind]
+   dimr = rg_last+1
+
+;-----------------------------------------------------------------------------
+; STEP 2: BC phase correction
+;-----------------------------------------------------------------------------
+   if (keyword_set(moco1)) then begin
+      ; phase corrections and phase interpolation indices
+      progress, 'SATA2D: BC phase correction'
+      ph = 4*!pi*dr_bc*(f0/c0)
+      rmnanq, ph
+      ph_ind = findgen(rg_last+1)
+      ph_ind -= ((2*marg_rg+olap_rg)*lindgen(Nsub_rg))[drind]
+      ph_ind = (ph_ind-0.5*(Nzp_rg-1))/(Nzp_rg-2*marg_rg-olap_rg)
+      for m=0,dimx-1 do begin
+         progress,dimx,m
+         data[*,m] *= exp(j*interpolate(ph[*,m],ph_ind,missing=0,cubic=-0.5))
+      end
+   end
+
+;-----------------------------------------------------------------------------
+; STEP 3: short-time range FFTs
+;-----------------------------------------------------------------------------
+   progress, 'SATA2D: range FFTs'
+   for n=0,Nsub_rg-1 do begin
+      progress,Nsub_rg,n
+      aux = data[n*Nzp_rg:(n+1)*Nzp_rg-1,*] * (dfa[n,*]##(fltarr(Nzp_rg)+1))
+      fftw, aux, -1, dimension=1
+      data[n*Nzp_rg:(n+1)*Nzp_rg-1,*] = aux
+   end
+
+;-----------------------------------------------------------------------------
+; STEP 3: residual BC moco
+;-----------------------------------------------------------------------------
+   if (keyword_set(moco1)) then begin
+      progress, 'SATA2D: residual BC shifts'
+      ramp = 2*!pi*j*(findgen(Nzp_rg)-Nzp_rg/2)/Nzp_rg
+      ramp = reform((fltarr(Nsub_rg)+1)##shift(ramp,[-Nzp_rg/2]),dimr)
+      for m=0,dimx-1 do begin
+         progress,dimx,m
+         ; residual sub-pixel shifts
+         data[*,m] *= exp(ramp*(dr_bc[*,m]/rps-round(dr_bc[*,m]/rps))[drind])
+      end
+   end
+
+   ; weighting (50% assumed)
+   rightweight = dindgen(Tovl)/(Tovl-1)
+   rightweight = (rightweight>0)<1
+   leftweight = reverse(rightweight)
+   
+   rightweight = rightweight##(fltarr(dimr)+1.)
+   leftweight = leftweight##(fltarr(dimr)+1.)
+
+   ; SATA specific matrices...
+   rm = r_sub#(dblarr(Nzp_az)+1.)
+
+   ; DEM lookup tables assuming no RCMC...
+   azpos = rm*cos(betasub)*(tan(betasub)-tan(squint))/v*prf
+   posrange = rm*cos(betasub)
+   posvector = (posrange-r[0])/rps
+   posvector = ((posvector>0)<(dimr-1))
+
+   ; shortcuts for MoCo formulas...
+   rmsinbetasub2 = (rm*sin(betasub))^2
+   rm_invcos2    = (rm*cos(betasub))^2
+
+;-----------------------------------------------------------------------------
+; STEP 3: loop to perform SATA
+;-----------------------------------------------------------------------------
+   progress,'SATA2D: sub-aperture moco'
+   max_ph = 0.0
+   max_dr = 0.0
+   temp = complexarr(rg_last+1,2*Tsub)
+   for m=0, Nsub_az-1 do begin
+      progress,Nsub_az,m
+
+      if m eq Nsub_az-1 then begin
+         posix = (m+0.5)*Tsub
+         aux = data[0:rg_last,m*Tsub:*]
+         av_dr_bc = mean(dr_bc[*,m*Tsub:*],dim=2)
+         if (keyword_set(moco1)) then av_dr_bc += mean(moco1[m*Tsub:*])
+         Tsubeff = dimx - m*Tsub
+      endif else begin
+         posix = (m+1)*Tsub
+         in_lim = posix+[-Nzp_az/2,Nzp_az/2-1]
+         in_lim -= in_lim[0]<0
+         in_lim[1] <= dimx-1
+         aux = shift(data[0:rg_last,in_lim[0]:in_lim[1]],[0,in_lim[0]-m*Tsub])
+         av_dr_bc = mean(dr_bc[*,in_lim[0]:in_lim[1]],dim=2)
+         if (keyword_set(moco1)) then av_dr_bc += mean(moco1[in_lim[0]:in_lim[1]])
+      endelse
+      
+      ; zero padding
+      Csubeff = (size(aux,/dim))[1]
+      if Nzp_az ne Csubeff then begin
+         aux = [[aux],[complexarr(rg_last+1,Nzp_az-Csubeff)]]   
+      endif 
+
+      ; obtaining heights
+      posaux = long(azpos+posix)
+      posaux = (posaux>0)<(dimx-1)
+
+      heights = ref[posix,3]-dem[posaux*dimr_dem+posvector] ; altitude above ground
+
+      corrsmootheddem = (fltarr(Nzp_az)+1)##av_dr_bc[drind]
+
+      ; computing new correction with DEM
+      y0    = sqrt(rm_invcos2 - heights^2) - direction * dy[posix]
+      rreal = sqrt( (heights-dz[posix])^2 + y0^2 + rmsinbetasub2)
+      dr    = (rreal - rm)
+
+      ; obtaining final correction
+      ph = 4.*!pi*(dr-corrsmootheddem)/lambdasub
+      rmnanq, ph
+      max_ph >= 2*max(mean(abs(ph),dim=2))
+      max_dr >= max(abs(dr-corrsmootheddem),/nan)/rps
+
+      fftw,aux,dimension=2,-1
+      aux = complex(aux*exp(j*ph))
+      fftw,aux,dimension=2,+1
+
+      ;assuming 50% overlap
+      aux[*,0:Tsub-1] = temp[*,Tsub:*]*leftweight+aux[*,0:Tsub-1]*rightweight
+      case m of
+         0:   data[0:rg_last,0:Tsub-1]=temp[*,0:Tsub-1]
+         else:data[0:rg_last,(m-1)*Tsub:m*Tsub-1]=temp[*,0:Tsub-1]
+      endcase
+      temp = aux[*,0:2*Tsub-1]
+   endfor
+   data[0:rg_last,(m-1)*Tsub:*]=temp[*,0:dimx-(m-1)*Tsub-1] ; last block
+
+;-----------------------------------------------------------------------------
+; STEP 4: short-time range IFFTs
+;-----------------------------------------------------------------------------
+   progress, 'SATA2D: range IFFTs'
+   dfa = conj(dfa)
+   for n=0,Nsub_rg-1 do begin
+      progress,Nsub_rg,n
+      aux = data[n*Nzp_rg:(n+1)*Nzp_rg-1,*]
+      fftw, aux, +1, dimension=1
+      data[n*Nzp_rg:(n+1)*Nzp_rg-1,*] = aux * (dfa[n,*]##(fltarr(Nzp_rg)+1))
+   end
+
+   ; de-pad input in range
+   weight = fltarr(Nzp_rg-2*marg_rg)+1
+   weight[0:2*olap_rg-1] = abs(findgen(2*olap_rg)-(olap_rg-0.5))/olap_rg
+   weight = shift(weight,-olap_rg)#(fltarr(dimx)+1)
+
+   progress, 'SATA2D: range de-padding'
+   data_[*] = 0
+   o_dim = size(data_,/dim)
+   for n=0,Nsub_rg-1 do begin
+      progress,Nsub_rg,n
+      in_ind = Nzp_rg*[n,n+1]+[marg_rg,-marg_rg-1]
+      up_ind = n*(Nzp_rg-2*marg_rg-olap_rg) + [0,Nzp_rg-2*marg_rg-1]
+      if (n ge Nsub_rg-1) then begin
+         clip_rg = (1+up_ind[1]-o_dim[0])>0
+         up_ind[1] -= clip_rg
+         in_ind[1] -= clip_rg
+      end
+      data_[up_ind[0]:up_ind[1],*] += weight*data[in_ind[0]:in_ind[1],*]
+   end
+   data = data_
+   data_ = 0
+
+   print
+   print, 'SATA2D: maximum residual range shift: ',strtrim(max_dr,1),' pix'
+   print, 'SATA2D: maximum peak-to-peak phase correction: ',strtrim(!radeg*max_ph,1),' deg'
+   min_osf = sata_osf+ceil(2*(0.5*max_ph/!pi-marg_az)*(sata_osf/Nzp_az))
+   if (min_osf gt sata_osf) then begin
+      print, 'WARNING: margin is insufficient for corrections of this magnitude!'
+      print, 'WARNING: image probably contains artefacts.'
+      print, 'WARNING: increase sata_osf from ',strtrim(sata_osf,1),' to ',strtrim(min_osf,1), ' to avoid this.'
+   end
+   print
+
+end
