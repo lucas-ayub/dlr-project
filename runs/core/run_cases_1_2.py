@@ -52,8 +52,11 @@ RDELAY = 0.0051115753
 sysp = SystemParams(); V = sysp.vs; WL = sysp.wl
 _base = Scene(rDelay=RDELAY, c0=sysp.c0, h0=0.0)
 R0, H, Y0 = _base.r0, _base.H, _base.y0
-XAMB = WL * R0 / (2 * V) * (2000.0 / 4)      # azimuth ambiguity position [m]
-SAMP = V / 2000.0                            # focused-sample spacing [m]
+PRF = 2000.0                                 # total (fixed) PRF [Hz]
+NRX = 4                                       # number of receive channels
+PRF_OP = PRF / NRX                            # per-channel operational PRF [Hz]
+XAMB = WL * R0 / (2 * V) * PRF_OP             # azimuth ambiguity position [m]
+SAMP = V / PRF                                # focused-sample spacing [m] = v / PRF
 RED, GREEN, BLUE, GRAY = "#d1372e", "#2ca02c", "#1f5fa0", "#555555"
 
 
@@ -68,7 +71,7 @@ def build(specs, Nrx=4, dxt=150.0):
         extra.append((float(dxm), float(y_t - Y0), float(dh)))
     scene = Scene(rDelay=RDELAY, c0=sysp.c0, h0=0.0, extra_offsets=tuple(extra))
     array = ArrayGeometry.linear(Nrx, 100.0, float(dxt))
-    prf, PRFop = prf_from_fixed(2000.0, Nrx)
+    prf, PRFop = prf_from_fixed(PRF, Nrx)
     Na, Nc, ta = build_time_axis(prf, Nrx, 2.0 * integration_time(sysp, scene))
     cfg = sar.ExperimentConfig(name="case", system=sysp, scene=scene, array=array,
                                prf=prf, PRF_op=PRFop, Na=Na, Na_ch=Nc, ta=ta,

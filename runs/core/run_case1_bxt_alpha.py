@@ -58,7 +58,7 @@ PRF = 2000.0                             # total (fixed) PRF [Hz]
 
 # --- target-spacing (dx) sweep: increasing spacing, unrelated to the ambiguity ---
 SAMP = sysp.vs / PRF                     # focused-sample spacing [m] = v / PRF
-DX_SPACING = [100, 300, 600, 1000]       # spacing between adjacent targets [samples]
+DX_SPACING = [50, 100, 300, 600, 1000]   # spacing between adjacent targets [samples]
 DX_BXT = 20.0                            # fixed cross-track baseline [m]
 DX_ALPHA = 20.0                          # fixed ramp inclination [deg]
 
