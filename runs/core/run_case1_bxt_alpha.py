@@ -54,6 +54,14 @@ DXS = np.array([-400, -200, 0, 200, 400.0])   # azimuth positions [m]
 BXT = [5, 10, 15, 20]        # cross-track baseline [m]
 ALPHA = [5, 10, 15, 20]      # ramp inclination [deg]
 
+PRF = 2000.0                             # total (fixed) PRF [Hz]
+
+# --- target-spacing (dx) sweep: increasing spacing, unrelated to the ambiguity ---
+SAMP = sysp.vs / PRF                     # focused-sample spacing [m] = v / PRF
+DX_SPACING = [100, 300, 600, 1000]       # spacing between adjacent targets [samples]
+DX_BXT = 20.0                            # fixed cross-track baseline [m]
+DX_ALPHA = 20.0                          # fixed ramp inclination [deg]
+
 
 def build(alpha, bxt, Nrx=4):
     hts = (DXS + 400) * np.tan(np.deg2rad(alpha))
@@ -63,7 +71,7 @@ def build(alpha, bxt, Nrx=4):
         extra.append((float(dxm), float(y_t - Y0), float(dh)))
     scene = Scene(rDelay=RDELAY, c0=sysp.c0, h0=0.0, extra_offsets=tuple(extra))
     array = ArrayGeometry.linear(Nrx, 100.0, float(bxt))
-    prf, PRFop = prf_from_fixed(2000.0, Nrx)
+    prf, PRFop = prf_from_fixed(PRF, Nrx)
     Na, Nc, ta = build_time_axis(prf, Nrx, 2.0 * integration_time(sysp, scene))
     cfg = sar.ExperimentConfig(name="c1", system=sysp, scene=scene, array=array,
                                prf=prf, PRF_op=PRFop, Na=Na, Na_ch=Nc, ta=ta, plots_dir=None)
@@ -120,9 +128,74 @@ def panel(alpha, bxt):
     fig.tight_layout(); fig.savefig(f"{OUT}/sata_c1_a{alpha}_b{bxt}.png", dpi=120); plt.close(fig)
 
 
+def dx_panel(S_samp):
+    """Case 1 with fixed b_xt=DX_BXT, alpha=DX_ALPHA; the 5 targets are spaced by
+    S_samp samples (heights unchanged). Increasing spacing separates the targets
+    and makes the ambiguity replicas clearer (no relation to the ambiguity grid)."""
+    Sm = S_samp * SAMP
+    pos = np.array([-2, -1, 0, 1, 2]) * Sm
+    hts = np.array([0, 200, 400, 600, 800]) * np.tan(np.deg2rad(DX_ALPHA))
+    extra = []
+    for dxm, dh in zip(pos, hts):
+        y_t = np.sqrt(R0 ** 2 - (H - dh) ** 2)
+        extra.append((float(dxm), float(y_t - Y0), float(dh)))
+    scene = Scene(rDelay=RDELAY, c0=sysp.c0, h0=0.0, extra_offsets=tuple(extra))
+    array = ArrayGeometry.linear(4, 100.0, DX_BXT); prf, PRFop = prf_from_fixed(PRF, 4)
+    Na, Nc, ta = build_time_axis(prf, 4, 2.0 * integration_time(sysp, scene))
+    cfg = sar.ExperimentConfig(name="c1dx", system=sysp, scene=scene, array=array,
+                               prf=prf, PRF_op=PRFop, Na=Na, Na_ch=Nc, ta=ta, plots_dir=None)
+    tr = build_platform_tracks(cfg); s = cfg.system; abw = cfg.abw
+    ptgs = cfg.scene.points[1:]
+    sref1 = getRawData1D(cfg.scene.ptg[None, :], tr.ptx, tr.ptx, tr.vtx, tr.vtx, cfg.ta,
+                         cfg.sq_tx, cfg.sq_tx, cfg.theta_tx, cfg.theta_tx, s.wl, cfg.prf)
+    sig = getRawData1D(ptgs, tr.ptx, tr.ptx, tr.vtx, tr.vtx, cfg.ta, cfg.sq_tx, cfg.sq_tx,
+                       cfg.theta_tx, cfg.theta_tx, s.wl, cfg.prf)
+    s_ch = np.zeros([4, Nc], complex)
+    for ii in range(4):
+        s_ch[ii] = getRawData1D(ptgs, tr.ptx, tr.prx[ii], tr.vtx, tr.vrx[ii], cfg.ta, cfg.sq_tx,
+                                cfg.sq_tx, cfg.theta_tx, cfg.theta_tx, s.wl, cfg.prf)[::4]
+    no = sar.reconstruct(cfg, tr, s_ch.copy()); sa = sar.reconstruct(cfg, tr, sata_channels(cfg, tr, s_ch.copy()))
+    fc = lambda x: np.roll(np.fft.ifft(np.fft.fft(x) * np.conj(np.fft.fft(sref1))), Na // 2)
+    Fr, Fn, Fs = fc(sig), fc(no), fc(sa); pmax = np.abs(Fr).max()
+    ndb = lambda z: 20 * np.log10(np.abs(z) / pmax + 1e-12)
+    fa = np.roll((np.arange(Na) / Na - 0.5) * prf, Na // 2); band = np.abs(fa) <= 0.5 * abw
+    def dph(x):
+        d = np.angle(np.fft.fft(x) * np.conj(np.fft.fft(sig)), deg=True); d[~band] = np.nan; return d
+    c = Na // 2; tsamp = [c + int(round(p / SAMP)) for p in pos]; ax0 = np.arange(Na) - c
+    mask = np.ones(Na, bool)
+    for i in tsamp: mask[max(0, i - 160):i + 160] = False
+    amb_no = ndb(Fn)[mask].max(); amb_sa = ndb(Fs)[mask].max()
+    fig, ax = plt.subplots(2, 2, figsize=(12, 8))
+    fig.suptitle(r"SATA reconstruction, $N_{rx}=4$, PRF=%.0f Hz, $B_a$=%.0f Hz, "
+                 r"$\Delta b_{xt}$=%.0f m, $\alpha=%d^\circ$, target spacing $=%d$ samples ($%.0f$ m)"
+                 % (prf, abw, DX_BXT, DX_ALPHA, S_samp, S_samp * SAMP), fontsize=10)
+    ax[0, 0].plot(ta, np.abs(sig), "k", lw=1.0, label="reference (5 targets)")
+    ax[0, 0].plot(ta, np.abs(no), "C3", lw=0.8, label="no-SATA"); ax[0, 0].plot(ta, np.abs(sa), "C0", lw=0.8, ls="--", label="+SATA")
+    ax[0, 0].set_xlabel("Time [s]"); ax[0, 0].set_ylabel("Amplitude"); ax[0, 0].grid(alpha=0.3); ax[0, 0].legend(fontsize="small")
+    ax[0, 1].plot(ta, ndb(Fr), "k", lw=0.7, label="reference"); ax[0, 1].plot(ta, ndb(Fn), "C3", lw=0.7, label="no-SATA")
+    ax[0, 1].plot(ta, ndb(Fs), "C0", lw=0.8, ls="--", label="+SATA")
+    for i in tsamp: ax[0, 1].axvline(ta[i], color="C2", ls=":", lw=0.5)
+    ax[0, 1].set_ylim([-60, 3]); ax[0, 1].set_xlabel("Time [s]"); ax[0, 1].set_ylabel("[dB]")
+    ax[0, 1].grid(alpha=0.3); ax[0, 1].legend(fontsize="small")
+    ax[0, 1].set_title(r"focused image (dotted = targets; worst amb: no-SATA %.1f dB, +SATA %.1f dB)" % (amb_no, amb_sa), fontsize=8)
+    Nz = int(16 * prf / abw); zpf = 64; taz = (np.arange(2 * Nz * zpf) - Nz * zpf) / prf / zpf * 1e3
+    zpk = np.abs(zoom1Dpeak(Fr, Nz, zpf)).max(); zdb = lambda F: 20 * np.log10(np.abs(zoom1Dpeak(F, Nz, zpf)) / zpk + 1e-12)
+    ax[1, 0].plot(taz, zdb(Fr), "k", lw=1.2, label="reference"); ax[1, 0].plot(taz, zdb(Fn), "C3", lw=0.9, label="no-SATA")
+    ax[1, 0].plot(taz, zdb(Fs), "C0", lw=1.1, ls="--", label="+SATA")
+    ax[1, 0].set_xlim(-12, 12); ax[1, 0].set_ylim([-45, 2]); ax[1, 0].set_xlabel("Time [ms]"); ax[1, 0].set_ylabel("[dB]")
+    ax[1, 0].grid(alpha=0.3); ax[1, 0].legend(fontsize="small"); ax[1, 0].set_title("zoomed IRF (central target)", fontsize=9)
+    ax[1, 1].plot(fa, dph(no), "C3", lw=0.7, label="no-SATA"); ax[1, 1].plot(fa, dph(sa), "C0", lw=0.9, label="+SATA")
+    ax[1, 1].axvline(abw / 2, color="r", ls="-."); ax[1, 1].axvline(-abw / 2, color="r", ls="-.")
+    ax[1, 1].set_xlabel("Doppler freq [Hz]"); ax[1, 1].set_ylabel("[deg]"); ax[1, 1].grid(alpha=0.3); ax[1, 1].legend(fontsize="small")
+    ax[1, 1].set_title("spectral phase error (multi-target)", fontsize=9)
+    fig.tight_layout(); fig.savefig(f"{OUT}/sata_c1_dx{S_samp}.png", dpi=120); plt.close(fig)
+
+
 if __name__ == "__main__":
     print("output ->", os.path.abspath(OUT))
     for a in ALPHA:
         for b in BXT:
             panel(a, b); print(f"  sata_c1_a{a}_b{b}.png")
+    for S in DX_SPACING:
+        dx_panel(S); print(f"  sata_c1_dx{S}.png")
     print("done.")
