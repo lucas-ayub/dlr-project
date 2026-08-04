@@ -41,7 +41,7 @@ from sar_recon.config import (SystemParams, Scene, ArrayGeometry,
 from sar_recon.geometry import build_platform_tracks
 from sar_recon.reconstruction import ReconstructSignalNumeri
 from sar_recon.signal_model import getRawData1D
-from sar_recon.analysis import matched_filter
+from sar_recon.analysis import matched_filter, zoom1Dpeak
 from sar_recon.sata import sata_1d, sata_channels
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -539,16 +539,94 @@ def plot_azimuth_topo_4panel(Nrx=4, dxt=150.0, save=True):
     azimuth). Same diagnostic as the other 4-panels (amplitude / dB / IRF /
     spectral phase). Here SATA's per-position correction has a lever (each target
     is at its own azimuth pixel), so it partially recovers -- unlike S2."""
-    print("\n[3g] Azimuth-topography 4-panel (ramp spread in azimuth)")
+    print("\n[3g] Azimuth-topography 4-panel (multi-target, single-point focus)")
     specs = ((-400, 80), (-200, 160), (0, 240), (200, 320), (400, 400))
     cfg, tracks = _build_azimuth_topo_cfg(Nrx, dxt, specs=specs)
-    sref = sar.generate_reference(cfg, tracks)
+    s = cfg.system
+    ptgs = cfg.scene.points[1:]                       # the 5 elevated targets
+    # Single-target reference (central point) -> focus everything against ONE
+    # point, so the focused image is a clean sum of one IRF per target (no scene
+    # autocorrelation cross-terms).
+    sref1 = getRawData1D(cfg.scene.ptg[None, :], tracks.ptx, tracks.ptx, tracks.vtx,
+                         tracks.vtx, cfg.ta, cfg.sq_tx, cfg.sq_tx, cfg.theta_tx,
+                         cfg.theta_tx, s.wl, cfg.prf)
+    # Ideal monostatic 5-target scene -> the "reference" image (also 5 peaks).
+    sig_true = getRawData1D(ptgs, tracks.ptx, tracks.ptx, tracks.vtx, tracks.vtx,
+                            cfg.ta, cfg.sq_tx, cfg.sq_tx, cfg.theta_tx,
+                            cfg.theta_tx, s.wl, cfg.prf)
     s_ch = sar.generate_channels(cfg, tracks)
     srec_no = sar.reconstruct(cfg, tracks, s_ch.copy())
     srec_sa = sar.reconstruct(cfg, tracks, sata_channels(cfg, tracks, s_ch.copy()))
-    _plot_4panel(cfg, sref, srec_no, srec_sa, "sata_azimuth_topo_4panel",
-                 extra_title=", azimuth ramp (targets spread in azimuth)",
-                 subdir="topography")
+
+    Na, prf, abw, ta = cfg.Na, cfg.prf, cfg.abw, cfg.ta
+
+    def mf(sig):                                       # complex focus vs 1 point
+        return np.roll(np.fft.ifft(np.fft.fft(sig) * np.conj(np.fft.fft(sref1))),
+                       Na // 2)
+    F_ref, F_no, F_sa = mf(sig_true), mf(srec_no), mf(srec_sa)
+    pmax = np.abs(F_ref).max()
+    ndb = lambda z: 20.0 * np.log10(np.abs(z) / pmax + 1e-12)
+
+    fa = np.roll((np.arange(Na) / Na - 0.5) * prf, Na // 2)
+    band = np.abs(fa) <= 0.5 * abw
+
+    def dph(srec):                                     # residual phase vs ideal
+        d = np.angle(np.fft.fft(srec) * np.conj(np.fft.fft(sig_true)), deg=True)
+        d[~band] = np.nan
+        return d
+
+    try:
+        import matplotlib
+        matplotlib.use("pgf"); import matplotlib.pyplot as plt
+        _use_latex(matplotlib)
+    except Exception as e:                             # pragma: no cover
+        print("    (matplotlib unavailable)", e); return
+
+    dbat = cfg.array.bat[1] - cfg.array.bat[0]
+    dbxt = cfg.array.bxt[1] - cfg.array.bxt[0]
+    fig, ax = plt.subplots(2, 2, figsize=(12, 8))
+    fig.suptitle(rf"SATA reconstruction, Nrx={Nrx}, PRF={prf:.0f} Hz, $B_a$={abw:.0f} Hz, "
+                 rf"$\Delta b_{{at}}$={dbat:.0f} m, $\Delta b_{{xt}}$={dbxt:.0f} m, "
+                 rf"5 targets, single-point focus")
+
+    ax[0, 0].plot(ta, np.abs(sig_true), "k", lw=1.0, label="reference (5 targets)")
+    ax[0, 0].plot(ta, np.abs(srec_no), "C3", lw=0.8, label="no-SATA")
+    ax[0, 0].plot(ta, np.abs(srec_sa), "C0", lw=0.8, ls="--", label="+SATA")
+    ax[0, 0].set_xlabel("Time [s]"); ax[0, 0].set_ylabel("Amplitude")
+    ax[0, 0].grid(alpha=0.3); ax[0, 0].legend(fontsize="small")
+
+    ax[0, 1].plot(ta, ndb(F_ref), "k", lw=0.8, label="reference")
+    ax[0, 1].plot(ta, ndb(F_no), "C3", lw=0.8, label="no-SATA")
+    ax[0, 1].plot(ta, ndb(F_sa), "C0", lw=0.8, ls="--", label="+SATA")
+    ax[0, 1].set_xlabel("Time [s]"); ax[0, 1].set_ylabel("[dB]")
+    ax[0, 1].set_ylim([-60, 3]); ax[0, 1].grid(alpha=0.3); ax[0, 1].legend(fontsize="small")
+    ax[0, 1].set_title("focused image: 5 targets (focus vs 1 point)", fontsize=9)
+
+    # smooth zoom of the central-target IRF via zero-padded interpolation
+    Nz = int(16 * prf / abw); zpf = 64
+    taz = (np.arange(2 * Nz * zpf) - Nz * zpf) / prf / zpf * 1e3   # ms
+    zpk = np.abs(zoom1Dpeak(F_ref, Nz, zpf)).max()                 # reference peak
+    zdb = lambda F: 20.0 * np.log10(np.abs(zoom1Dpeak(F, Nz, zpf)) / zpk + 1e-12)
+    ax[1, 0].plot(taz, zdb(F_ref), "k", lw=1.2, label="reference")
+    ax[1, 0].plot(taz, zdb(F_no), "C3", lw=0.9, label="no-SATA")
+    ax[1, 0].plot(taz, zdb(F_sa), "C0", lw=1.1, ls="--", label="+SATA")
+    ax[1, 0].set_xlim(-12, 12)
+    ax[1, 0].set_xlabel("Time [ms]"); ax[1, 0].set_ylabel("[dB]")
+    ax[1, 0].set_ylim([-45, 2]); ax[1, 0].grid(alpha=0.3); ax[1, 0].legend(fontsize="small")
+    ax[1, 0].set_title("zoomed IRF (central target)", fontsize=9)
+
+    ax[1, 1].plot(fa, dph(srec_no), "C3", lw=0.7, label="no-SATA")
+    ax[1, 1].plot(fa, dph(srec_sa), "C0", lw=0.9, label="+SATA")
+    ax[1, 1].axvline(abw / 2, color="r", ls="-."); ax[1, 1].axvline(-abw / 2, color="r", ls="-.")
+    ax[1, 1].set_xlabel("Doppler freq [Hz]"); ax[1, 1].set_ylabel("[deg]")
+    ax[1, 1].grid(alpha=0.3); ax[1, 1].legend(fontsize="small")
+    ax[1, 1].set_title("spectral phase error (multi-target)", fontsize=9)
+
+    fig.tight_layout()
+    if save:
+        print(f"    4-panel plot saved -> "
+              f"{_save_fig(fig, 'sata_azimuth_topo_4panel', subdir='topography')}")
+    plt.close(fig)
 
 
 # ---------------------------------------------------------------------------
