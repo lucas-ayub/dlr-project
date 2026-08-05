@@ -233,8 +233,7 @@ def plot_polyfit_diagnostic(
 
         fig_d.suptitle(
             f"Poly fit diagnostic | Nrx={cfg.Nrx} | CH{kk} | "
-            f"bat={cfg.array.bat[kk]:.1f} m",
-            fontsize="medium",
+            f"bat={cfg.array.bat[kk]:.1f} m | bxt={cfg.array.bxt[kk]:.1f} m",            fontsize="medium",
         )
 
         axes_d[0].plot(ta_fit_, diff_real_ * 1e3, label="real rh_bs - rh_ms")

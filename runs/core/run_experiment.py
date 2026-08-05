@@ -40,12 +40,12 @@ USE_SATA = False
 SATA_OSF = 4
 
 
-CHANNEL_NUMBERS = [2, 3, 4, 5, 6]
-CASES = ["topo_dxt0", "topo_dxt10", "topo_dxt20", "topo_dxt50", "topo_dxt100"]
-CHANNEL_NUMBERS = [2]
-CASES = ["topo_dxt0"]
-SCENE_NAMES = ["topo_ramp"]
-# CASES = ["dpca"]
+CHANNEL_NUMBERS = [4]          
+CASES           = ["topo_dxt100"]   
+SCENE_NAMES     = ["topo_ramp"]
+MAKE_PLOTS      = True
+USE_LATEX_FONTS = False         
+SAVE_VECTOR     = True          
 
 def run_case(cfg: sar.ExperimentConfig, make_plots: bool = True, save_vector: bool = False,
              use_sata: bool = USE_SATA, sata_osf: int = SATA_OSF):
