@@ -147,22 +147,19 @@ class ArrayGeometry:
 
     @classmethod
     def linear(cls, Nrx: int, dx: float, dxt: float,
-               bat_offset: float = 0.0) -> "ArrayGeometry":
-        """
-        Uniform linear array: along-track spacing dx, centred cross-track
-        spacing dxt.
-
-        bat_offset shifts the whole array along-track relative to the TX.
-        Default (0.0) places the first receiver at bat=0 (co-located with
-        the TX in along-track), which is the standard DPCA condition.
-        Set bat_offset=dx/2 (half-spacing) to ensure every receiver has a
-        non-zero bat, which is useful for testing the numerical reconstruction
-        in the general bistatic case.
-
-        bat[i] = bat_offset + dx * i
-        """
+               bat_offset: float = 0.0,
+               bxt_mode: str = "linear",
+               bxt_max: float | None = None,
+               rng: "int | np.random.Generator | None" = None) -> "ArrayGeometry":
         bat = bat_offset + dx * np.arange(Nrx)
-        bxt = dxt * (np.arange(Nrx) - (Nrx - 1) / 2.0)
+        if bxt_mode == "linear":
+            bxt = dxt * (np.arange(Nrx) - (Nrx - 1) / 2.0)
+        elif bxt_mode == "random":
+            hi = dxt if bxt_max is None else bxt_max
+            gen = rng if isinstance(rng, np.random.Generator) else np.random.default_rng(rng)
+            bxt = gen.uniform(0.0, hi, size=Nrx)
+        else:
+            raise ValueError(f"unknown bxt_mode {bxt_mode!r}; expected 'linear' or 'random'")
         return cls(bat=bat, bxt=bxt)
 
 
@@ -258,6 +255,62 @@ def _make_topo_ramp(alpha_deg: float, length: float = TOPO_RAMP_LENGTH,
         for frac in np.linspace(0.10, 1.0, n_points)
     )
 
+def make_topo_random_config(Nrx: int, base_dir: str, scene_name: str = "topo_ramp",
+                            bxt_max: float = 100.0, seed: int = 0) -> ExperimentConfig:
+    system = SystemParams()
+    scene = Scene(rDelay=0.0051115753, c0=system.c0, h0=0.0,
+                  extra_offsets=SCENE_PRESETS[scene_name])
+    dx = 100.0
+    array = ArrayGeometry.linear(Nrx, dx, dxt=0.0,
+                                 bxt_mode="random", bxt_max=bxt_max, rng=seed)
+    prf, PRF_op = prf_from_fixed(2000.0, Nrx)
+    acq_time = 2.0 * integration_time(system, scene)
+    Na, Na_ch, ta = build_time_axis(prf, Nrx, acq_time)
+    tag = f"topo_rand_bxt{int(bxt_max)}_seed{seed}"
+    plots_dir = _plots_subdir(os.path.join(base_dir, "plots", tag), scene_name)
+    return ExperimentConfig(
+        name=tag, system=system, scene=scene, array=array,
+        prf=prf, PRF_op=PRF_op, Na=Na, Na_ch=Na_ch, ta=ta, plots_dir=plots_dir,
+    )
+
+
+def _make_topo_random(bxt_max: float, seed: int = 0):
+    def factory(Nrx, base_dir, scene_name="topo_ramp"):
+        return make_topo_random_config(Nrx, base_dir, scene_name,
+                                       bxt_max=bxt_max, seed=seed)
+    return factory
+
+
+def make_topo_dpca_random_config(Nrx: int, base_dir: str, scene_name: str = "topo_ramp",
+                                 bxt_max: float = 20.0, seed: int = 0) -> ExperimentConfig:
+    """
+    Topographic experiment with DPCA along-track timing (dx=11 m, PRF set by the
+    DPCA condition) and per-channel random cross-track baselines drawn uniformly
+    on (0, bxt_max). Same scene/geometry as make_topo_dpca_config; only the bxt
+    generation differs.
+    """
+    system = SystemParams()
+    scene = Scene(rDelay=0.0038659204080400003, c0=system.c0, h0=0.0,
+                  extra_offsets=SCENE_PRESETS[scene_name])
+    dx = 11.0
+    array = ArrayGeometry.linear(Nrx, dx, dxt=0.0,
+                                 bxt_mode="random", bxt_max=bxt_max, rng=seed)
+    prf, PRF_op = prf_from_dpca(system, Nrx, dx)
+    acq_time = 2.0 * integration_time(system, scene)
+    Na, Na_ch, ta = build_time_axis(prf, Nrx, acq_time)
+    tag = f"topo_dpca_rand_bxt{int(bxt_max)}_seed{seed}"
+    plots_dir = _plots_subdir(os.path.join(base_dir, "plots", tag), scene_name)
+    return ExperimentConfig(
+        name=tag, system=system, scene=scene, array=array,
+        prf=prf, PRF_op=PRF_op, Na=Na, Na_ch=Na_ch, ta=ta, plots_dir=plots_dir,
+    )
+
+
+def _make_topo_dpca_random(bxt_max: float, seed: int = 0):
+    def factory(Nrx, base_dir, scene_name="topo_ramp"):
+        return make_topo_dpca_random_config(Nrx, base_dir, scene_name,
+                                            bxt_max=bxt_max, seed=seed)
+    return factory
 
 def scene_ramp_angle_deg(scene: "Scene") -> float | None:
     """
@@ -501,4 +554,6 @@ CONFIG_FACTORIES = {
     "topo_dpca_dxt20":  _make_topo_dpca_dxt(20.0),
     "topo_dpca_dxt50":  _make_topo_dpca_dxt(50.0),
     "topo_dpca_dxt100": _make_topo_dpca_dxt(100.0),
+    "topo_rand_bxt100": _make_topo_random(100.0, seed=0),
+    "topo_dpca_rand_bxt20": _make_topo_dpca_random(20.0, seed=0),
 }

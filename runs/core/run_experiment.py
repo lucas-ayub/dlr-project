@@ -41,7 +41,7 @@ SATA_OSF = 4
 
 
 CHANNEL_NUMBERS = [4]          
-CASES           = ["topo_dxt100"]   
+CASES           = ["topo_dpca_rand_bxt20"]   
 SCENE_NAMES     = ["topo_ramp"]
 MAKE_PLOTS      = True
 USE_LATEX_FONTS = False         

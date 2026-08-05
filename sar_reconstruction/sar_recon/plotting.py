@@ -81,7 +81,7 @@ def plot_combined(cfg: ExperimentConfig, res: ReconResult, vector: bool = False)
     """2x2 summary: amplitude, spectrum, zoomed IRF, spectral phase."""
     Nrx, prf, abw = cfg.Nrx, cfg.prf, cfg.abw
     dx = cfg.array.bat[1] - cfg.array.bat[0] if Nrx > 1 else 0.0
-    dxt = cfg.array.bxt[1] - cfg.array.bxt[0] if Nrx > 1 else 0.0
+    bxt_max = float(np.max(np.abs(cfg.array.bxt))) if Nrx > 0 else 0.0  
     ta = cfg.ta
 
     dph = np.angle(
@@ -96,8 +96,7 @@ def plot_combined(cfg: ExperimentConfig, res: ReconResult, vector: bool = False)
         f"Numerical Reconstruction | Nrx={Nrx} | $\\mathrm{{PRF}}={prf:.1f}\\,\\mathrm{{Hz}}$ | "
         f"$\\mathrm{{B_{{a}}}}={abw:.1f}\\,\\mathrm{{Hz}}$ | "
         f"$\\Delta b_{{at}}={dx:.1f}\\,\\mathrm{{m}}$ | "
-        f"$\\Delta b_{{xt}}={dxt:.1f}\\,\\mathrm{{m}}$"
-    )
+        f"$b_{{xt}}^{{\\max}}={bxt_max:.1f}\\,\\mathrm{{m}}$")
 
     axes[0, 0].plot(ta, abs(res.sref), label="ref")
     axes[0, 0].plot(ta, abs(res.srecN), label="rec")
