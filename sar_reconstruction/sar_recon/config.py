@@ -555,5 +555,5 @@ CONFIG_FACTORIES = {
     "topo_dpca_dxt50":  _make_topo_dpca_dxt(50.0),
     "topo_dpca_dxt100": _make_topo_dpca_dxt(100.0),
     "topo_rand_bxt100": _make_topo_random(100.0, seed=0),
-    "topo_dpca_rand_bxt20": _make_topo_dpca_random(20.0, seed=0),
+    "topo_dpca_rand_bxt20": _make_topo_dpca_random(20.0, seed=1),
 }
