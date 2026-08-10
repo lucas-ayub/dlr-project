@@ -224,29 +224,25 @@ def _mpl():
 
 
 def plot_residual_per_subband(Nrx=4, bxt_max=100.0, dh=200.0):
-    """dC0/dC1/dC2 vs sub-band k -- the key finding (C0 flat, C1 antisymmetric)."""
+    """delta_C0 vs sub-band k -- the term the SATA correction actually applies.
+    Only C0 is shown (C1/C2 are computed internally but not corrected, so they are
+    left off this figure to avoid confusion)."""
     plt = _mpl()
     if plt is None:
         return
     ks, beta, dC, ch, bxt_ch = subband_residuals(Nrx, bxt_max, dh)
-    labels = [r"$\delta C_0^{(k)}$ [m]  (constant)",
-              r"$\delta C_1^{(k)}$ [s]  (antisymmetric)",
-              r"$\delta C_2^{(k)}$ [s/Hz]  (nearly constant)"]
-    colors = ["C0", "C3", "C2"]
-    fig, axes = plt.subplots(3, 1, figsize=(7.2, 6.6), sharex=True)
-    for j, (ax, lab, c) in enumerate(zip(axes, labels, colors)):
-        ax.plot(ks, dC[j], "o-", color=c, lw=1.4, ms=6)
-        ax.axhline(0.0, color="k", lw=0.6, alpha=0.4)
-        ax.set_ylabel(lab, fontsize=10)
-        ax.grid(alpha=0.3)
-        ax.ticklabel_format(axis="y", style="sci", scilimits=(-2, 3))
-    axes[-1].set_xlabel(r"output sub-band index $k$  "
-                        r"($\beta_k$ increases left$\to$right)")
-    axes[-1].set_xticks(ks)
-    axes[-1].set_xticklabels([f"{k}\n{beta[k]:+.2f}$^\\circ$" for k in ks])
-    axes[0].set_title(rf"Per-sub-band residual (DPCA)  ($N_{{rx}}={Nrx}$, "
-                      rf"ch {ch}: $b_{{xt}}={bxt_ch:.1f}$ m, $\Delta h={dh:.0f}$ m):  "
-                      rf"$C_0$ invariant, $C_1$ carries the sub-band structure")
+    fig, ax = plt.subplots(1, 1, figsize=(7.2, 3.6))
+    ax.plot(ks, dC[0], "o-", color="C0", lw=1.6, ms=7)
+    ax.axhline(0.0, color="k", lw=0.6, alpha=0.4)
+    ax.set_ylabel(r"$\delta C_0^{(k)}$ [m]")
+    ax.grid(alpha=0.3)
+    ax.ticklabel_format(axis="y", style="sci", scilimits=(-2, 3))
+    ax.set_xlabel(r"output sub-band index $k$  ($\beta_k$ increases left$\to$right)")
+    ax.set_xticks(ks)
+    ax.set_xticklabels([f"{k}\n{beta[k]:+.2f}$^\\circ$" for k in ks])
+    ax.set_title(rf"Per-sub-band $\delta C_0$ (DPCA, corrected term)  "
+                 rf"($N_{{rx}}={Nrx}$, ch {ch}: $b_{{xt}}={bxt_ch:.1f}$ m, "
+                 rf"$\Delta h={dh:.0f}$ m):  invariant across sub-bands")
     os.makedirs(PLOTS_DIR, exist_ok=True)
     out = os.path.join(PLOTS_DIR, f"residual_per_subband_Nrx{Nrx}_bxt{int(bxt_max)}.png")
     fig.tight_layout(); fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig)
