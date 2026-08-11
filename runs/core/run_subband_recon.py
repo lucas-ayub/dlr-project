@@ -66,7 +66,9 @@ _RDELAY_SCENE = 0.0051115753          # valid off-nadir scene geometry (r0 > H) 
 _SEED = 0                             # RNG seed for the random bxt draw
 
 DEFAULT_NRX = [2, 3, 4, 5]
-DEFAULT_BXT = [20, 50, 100]           # bxt_max values swept (random bxt upper bound)
+DEFAULT_BXT = [10, 20, 30, 50]        # bxt_max values swept (all in the working regime)
+# cases for the standard 4-panel showcase (single elevated target):
+PANEL_CASES = [(4, 20), (4, 50)]      # single-target 4-panel cases (low bxt)
 # (dx [m], dh [m]) for the azimuth-varying topography scene: a ramp of targets
 # spread along azimuth, each at a growing iso-range height.
 AZIMUTH_SPECS = ((-400, 80), (-200, 160), (0, 240), (200, 320), (400, 400))
@@ -111,6 +113,48 @@ def build_single_target(Nrx, bxt_max, dh, seed=_SEED):
                                scene=scene, array=array, prf=prf, PRF_op=PRF_op,
                                Na=Na, Na_ch=Nc, ta=ta, plots_dir=None)
     return cfg, sar.build_platform_tracks(cfg), cfg.scene.ptg + np.array(off)
+
+
+# v/PRF used to express the ramp spacing in focused samples. Defined from the
+# reference sampling PRF = 2000 Hz (v_s/2000 ~ 3.844 m/sample), per the spec; the
+# reconstruction itself still runs in DPCA mode.
+_V_OVER_PRF = SystemParams().vs / 2000.0          # ~ 3.844 m/sample
+_RAMP_SSAMP = [50, 100, 300, 600, 1000]           # focused-sample spacings swept
+_RAMP_ALPHA_DEG = 2.0                             # ramp inclination (in {0.3..3} deg)
+
+
+def build_ramp(Nrx, bxt_max, S_samp, alpha_deg=_RAMP_ALPHA_DEG, seed=_SEED,
+               v_over_prf=_V_OVER_PRF):
+    r"""Five iso-range targets forming a genuine ramp (DPCA timing, random bxt).
+
+    Targets at dx_k = k * S_m, k in {-2,-1,0,1,2}, with the spacing set in focused
+    samples S_m = S_samp * (v/PRF). The height varies with dx (the ramp), with the
+    left-most target on the ground:
+        dh_k = (dx_k - dx_min) tan(alpha) = (k+2) S_m tan(alpha),
+    so dh grows with both the spacing and the inclination (dh_max = 4 S_m tan a).
+    Each target is placed on the iso-range surface (same slant range r0).
+    Returns (cfg, tracks, S_m, dh_max).
+    """
+    system = SystemParams()
+    S_m = S_samp * v_over_prf
+    tan_a = np.tan(np.radians(alpha_deg))
+    base = Scene(rDelay=_RDELAY_SCENE, c0=system.c0, h0=0.0)
+    r0, H, y0 = base.r0, base.H, base.y0
+    offs = []
+    for k in (-2, -1, 0, 1, 2):
+        dx = k * S_m
+        dh = (k + 2) * S_m * tan_a                     # k=-2 -> 0 (on the ground)
+        y = np.sqrt(r0 ** 2 - (H - dh) ** 2) - y0      # iso-range placement
+        offs.append((float(dx), float(y), float(dh)))
+    scene = Scene(rDelay=_RDELAY_SCENE, c0=system.c0, h0=0.0, extra_offsets=tuple(offs))
+    array = _dpca_array(Nrx, bxt_max, seed)
+    prf, PRF_op = prf_from_dpca(system, Nrx, _DX_DPCA)
+    # widen the simulated aperture so the outermost targets (dx = +/-2 S_m) fit
+    Na, Nc, ta = build_time_axis(prf, Nrx, 2.4 * integration_time(system, scene))
+    cfg = sar.ExperimentConfig(name=f"ramp_Nrx{Nrx}_S{S_samp}_a{alpha_deg:g}",
+                               system=system, scene=scene, array=array, prf=prf,
+                               PRF_op=PRF_op, Na=Na, Na_ch=Nc, ta=ta, plots_dir=None)
+    return cfg, sar.build_platform_tracks(cfg), S_m, (4 * S_m * tan_a)
 
 
 def channels_and_refs(cfg, tracks):
@@ -187,23 +231,33 @@ def self_test():
 # ---------------------------------------------------------------------------
 # sweep
 # ---------------------------------------------------------------------------
-def run_one(Nrx, bxt_max, verbose_sata=False):
-    cfg, tr = build_azimuth_topo(Nrx, bxt_max)
+def _reconstruct_all(cfg, tr, verbose_sata=False):
+    """Reconstruct one scene three ways and return per-method metrics + signals."""
     sref1, sig_true, s_ch = channels_and_refs(cfg, tr)
-
     srec_no = sar.reconstruct(cfg, tr, s_ch.copy())
     srec_wb = sar.reconstruct(cfg, tr, sata_channels(cfg, tr, s_ch.copy(),
                                                      verbose=verbose_sata))
     srec_sb = reconstruct_subband(cfg, tr, s_ch.copy(), use_sata=True,
                                   verbose=verbose_sata)
-
-    f_ref = focus_mag(sig_true, sref1); p = f_ref.max()
+    p = focus_mag(sig_true, sref1).max()
     out = {"cfg": cfg, "sref1": sref1, "sig_true": sig_true,
            "srec": {"no-SATA": srec_no, "SATA band": srec_wb, "SATA sub": srec_sb}}
     for name, sr in out["srec"].items():
         f = focus_mag(sr, sref1)
         out[name] = {"peak_pct": 100 * f.max() / p, "ambig_db": ambiguity_db(f)}
     return out
+
+
+def run_one(Nrx, bxt_max, verbose_sata=False):
+    """Azimuth-varying topography scene (ramp of targets spread in azimuth)."""
+    cfg, tr = build_azimuth_topo(Nrx, bxt_max)
+    return _reconstruct_all(cfg, tr, verbose_sata)
+
+
+def run_one_single(Nrx, bxt_max, dh, verbose_sata=False):
+    """Single elevated iso-range target at height dh (clean ambiguity metric)."""
+    cfg, tr, _ = build_single_target(Nrx, bxt_max, dh)
+    return _reconstruct_all(cfg, tr, verbose_sata)
 
 
 # ---------------------------------------------------------------------------
@@ -277,7 +331,112 @@ def plot_peak_vs_dxt(results, nrxs, bxts):
     print(f"    plot -> {out}")
 
 
-def _draw_combined(plt, cfg, res, method):
+def _mpl_imshow_annot(ax, M, rows, cols, fmt="{:+.1f}", cmap="RdBu_r", vlim=None):
+    import numpy as _np
+    v = vlim if vlim else float(_np.nanmax(_np.abs(M))) or 1.0
+    im = ax.imshow(M, cmap=cmap, vmin=-v, vmax=v, aspect="auto")
+    ax.set_xticks(range(len(cols))); ax.set_xticklabels(cols)
+    ax.set_yticks(range(len(rows))); ax.set_yticklabels(rows)
+    for i in range(M.shape[0]):
+        for j in range(M.shape[1]):
+            if not _np.isnan(M[i, j]):
+                ax.text(j, i, fmt.format(M[i, j]), ha="center", va="center",
+                        fontsize=8, color="black")
+    return im
+
+
+def plot_method_bars(results, nrxs, bxts):
+    """Grouped bars: worst azimuth ambiguity [dB] for the three methods, per case.
+    Visualises, across (Nrx, bxt) cases, how far each method suppresses ambiguity
+    and how close SATA-band and SATA-sub are."""
+    plt = _mpl()
+    if plt is None:
+        return
+    cases = [(N, b) for N in nrxs for b in bxts]
+    labels = [f"N{N}\n{int(b)}m" for (N, b) in cases]
+    methods = ["no-SATA", "SATA band", "SATA sub"]
+    colors = {"no-SATA": "C3", "SATA band": "C1", "SATA sub": "C0"}
+    x = np.arange(len(cases)); w = 0.26
+    fig, ax = plt.subplots(figsize=(max(7, 1.05 * len(cases)), 4.2))
+    for j, m in enumerate(methods):
+        y = [results[c][m]["ambig_db"] for c in cases]
+        ax.bar(x + (j - 1) * w, y, w, color=colors[m], label=m)
+    ax.set_ylabel("worst azimuth ambiguity [dB]  (lower = better)")
+    ax.set_xticks(x); ax.set_xticklabels(labels, fontsize=8)
+    ax.set_xlabel(r"case  ($N_{rx}$, $b_{xt}^{\max}$)")
+    ax.grid(axis="y", alpha=0.3); ax.legend(fontsize=9, ncol=3, loc="upper center")
+    ax.set_title("Ambiguity suppression per method, across cases (DPCA)")
+    os.makedirs(PLOTS_DIR, exist_ok=True)
+    out = os.path.join(PLOTS_DIR, "cases_method_bars.png")
+    fig.tight_layout(); fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig)
+    print(f"    plot -> {out}")
+
+
+def plot_sub_vs_band_diff(results, nrxs, bxts):
+    """Heatmaps of (SATA-sub) - (SATA-band) over the (Nrx, bxt) grid, for both the
+    ambiguity [dB] and the peak [%]. Since delta_C0 is invariant across sub-bands,
+    the per-sub-band pass adds no correct C0 information; what it adds is a shorter
+    SATA sub-aperture (Nsb=Nrx) and re-centring, which can only match or degrade
+    the whole-band pass. Positive ambiguity difference = sub worse."""
+    plt = _mpl()
+    if plt is None or len(nrxs) < 2 and len(bxts) < 2:
+        return
+    dA = np.full((len(nrxs), len(bxts)), np.nan)
+    dP = np.full((len(nrxs), len(bxts)), np.nan)
+    for i, N in enumerate(nrxs):
+        for j, b in enumerate(bxts):
+            r = results[(N, b)]
+            dA[i, j] = r["SATA sub"]["ambig_db"] - r["SATA band"]["ambig_db"]
+            dP[i, j] = r["SATA sub"]["peak_pct"] - r["SATA band"]["peak_pct"]
+    cols = [f"{int(b)}" for b in bxts]; rows = [f"{N}" for N in nrxs]
+    fig, axes = plt.subplots(1, 2, figsize=(10, 3.8))
+    im0 = _mpl_imshow_annot(axes[0], dA, rows, cols, fmt="{:+.1f}")
+    axes[0].set_title(r"$\Delta$ ambiguity: sub $-$ band [dB]")
+    im1 = _mpl_imshow_annot(axes[1], dP, rows, cols, fmt="{:+.0f}")
+    axes[1].set_title(r"$\Delta$ peak: sub $-$ band [\%]")
+    for ax in axes:
+        ax.set_xlabel(r"$b_{xt}^{\max}$ [m]"); ax.set_ylabel(r"$N_{rx}$")
+    fig.colorbar(im0, ax=axes[0], fraction=0.046); fig.colorbar(im1, ax=axes[1], fraction=0.046)
+    fig.suptitle("Per-sub-band minus whole-band (C0):  sub-band adds no gain "
+                 "(positive dB / negative % = sub worse)", y=1.03)
+    os.makedirs(PLOTS_DIR, exist_ok=True)
+    out = os.path.join(PLOTS_DIR, "cases_sub_vs_band_diff.png")
+    fig.tight_layout(); fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig)
+    print(f"    plot -> {out}")
+
+
+def plot_dh_sweep(Nrx=4, bxt_max=100.0, dhs=(50, 100, 200, 300, 400)):
+    """Peak recovery and worst ambiguity vs target height dh, three methods
+    (single elevated target). Shows the topographic error growing with dh and how
+    each correction tracks it."""
+    plt = _mpl()
+    if plt is None:
+        return
+    methods = ["no-SATA", "SATA band", "SATA sub"]
+    colors = {"no-SATA": "C3", "SATA band": "C1", "SATA sub": "C0"}
+    peak = {m: [] for m in methods}; amb = {m: [] for m in methods}
+    for dh in dhs:
+        r = run_one_single(Nrx, bxt_max, float(dh))
+        for m in methods:
+            peak[m].append(r[m]["peak_pct"]); amb[m].append(r[m]["ambig_db"])
+    fig, ax = plt.subplots(1, 2, figsize=(10, 3.8))
+    for m in methods:
+        ls = "--" if m == "SATA sub" else "-"
+        ax[0].plot(dhs, peak[m], "o" + ls, color=colors[m], label=m)
+        ax[1].plot(dhs, amb[m], "o" + ls, color=colors[m], label=m)
+    ax[0].set_ylabel("focused peak [% of ideal]"); ax[0].set_ylim(0, 105)
+    ax[1].set_ylabel("worst ambiguity [dB]")
+    for a in ax:
+        a.set_xlabel(r"target height $\Delta h$ [m]"); a.grid(alpha=0.3); a.legend(fontsize=9)
+    fig.suptitle(rf"Effect of topography height ($N_{{rx}}={Nrx}$, "
+                 rf"$b_{{xt}}^{{\max}}={bxt_max:.0f}$ m, single target)", y=1.03)
+    os.makedirs(PLOTS_DIR, exist_ok=True)
+    out = os.path.join(PLOTS_DIR, "cases_dh_sweep.png")
+    fig.tight_layout(); fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig)
+    print(f"    plot -> {out}")
+
+
+def _draw_combined(plt, cfg, res, method, tag=""):
     """Replica of sar_recon.plotting.plot_combined (2x2), saved to our PLOTS_DIR
     with mathtext. ref vs rec: amplitude, spectrum [dB], zoomed IRF, phase."""
     Nrx, prf, abw = cfg.Nrx, cfg.prf, cfg.abw
@@ -322,29 +481,53 @@ def _draw_combined(plt, cfg, res, method):
 
     fig.tight_layout()
     os.makedirs(PLOTS_DIR, exist_ok=True)
-    out = os.path.join(PLOTS_DIR, f"combined_4panel_{method}_Nrx{Nrx}.png")
+    out = os.path.join(PLOTS_DIR, f"combined_4panel_{method}_{tag}.png")
     fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig)
     print(f"    plot -> {out}")
 
 
-def plot_standard_4panel(Nrx, bxt_max, dh=200.0):
+def plot_standard_4panel(Nrx, bxt_max, dh=200.0,
+                         methods=("no-SATA", "SATA-band", "SATA-sub")):
     """The standard reconstruction 4-panel (as run_experiment.plot_combined), one
-    per method (no-SATA / whole-band SATA / per-sub-band SATA). DPCA timing
-    (dx=11 m -> PRF by DPCA) with a single elevated iso-range target and random
-    cross-track baselines (uniform 0..bxt_max), so the topographic azimuth
-    ambiguities are visible."""
+    per selected method. DPCA timing (dx=11 m -> PRF by DPCA) with a single
+    elevated iso-range target and random cross-track baselines (uniform
+    0..bxt_max), so the topographic azimuth ambiguities are visible. Files are
+    tagged by (Nrx, bxt_max, dh) so multiple cases do not overwrite."""
     plt = _mpl()
     if plt is None:
         return
     cfg, tr, _ = build_single_target(Nrx, bxt_max, dh)
     sref1, _sig_true, s_ch = channels_and_refs(cfg, tr)   # ref = clean single point
+    tag = f"Nrx{Nrx}_bxt{int(bxt_max)}_dh{int(dh)}"
     recons = {
-        "no-SATA": sar.reconstruct(cfg, tr, s_ch.copy()),
-        "SATA-band": sar.reconstruct(cfg, tr, sata_channels(cfg, tr, s_ch.copy(), verbose=False)),
-        "SATA-sub": reconstruct_subband(cfg, tr, s_ch.copy(), use_sata=True, verbose=False),
+        "no-SATA": lambda: sar.reconstruct(cfg, tr, s_ch.copy()),
+        "SATA-band": lambda: sar.reconstruct(cfg, tr, sata_channels(cfg, tr, s_ch.copy(), verbose=False)),
+        "SATA-sub": lambda: reconstruct_subband(cfg, tr, s_ch.copy(), use_sata=True, verbose=False),
     }
-    for name, srecN in recons.items():
-        _draw_combined(plt, cfg, sar.analyze(cfg, sref1, srecN), name)
+    for name in methods:
+        srecN = recons[name]()
+        _draw_combined(plt, cfg, sar.analyze(cfg, sref1, srecN), name, tag=tag)
+
+
+def plot_ramp_4panel(Nrx, bxt_max, S_samp, alpha_deg=_RAMP_ALPHA_DEG,
+                     methods=("no-SATA", "SATA-band", "SATA-sub")):
+    """Standard 4-panel for the 5-target iso-range RAMP scene, one per method.
+    Files tagged by (Nrx, bxt_max, S_samp, alpha). Reference = scene centre."""
+    plt = _mpl()
+    if plt is None:
+        return
+    cfg, tr, S_m, dh_max = build_ramp(Nrx, bxt_max, S_samp, alpha_deg)
+    sref1, _sig, s_ch = channels_and_refs(cfg, tr)
+    tag = f"ramp_Nrx{Nrx}_bxt{int(bxt_max)}_S{S_samp}_a{alpha_deg:g}"
+    recons = {
+        "no-SATA": lambda: sar.reconstruct(cfg, tr, s_ch.copy()),
+        "SATA-band": lambda: sar.reconstruct(cfg, tr, sata_channels(cfg, tr, s_ch.copy(), verbose=False)),
+        "SATA-sub": lambda: reconstruct_subband(cfg, tr, s_ch.copy(), use_sata=True, verbose=False),
+    }
+    for name in methods:
+        _draw_combined(plt, cfg, sar.analyze(cfg, sref1, recons[name]()), name, tag=tag)
+    print(f"    ramp S_samp={S_samp}: S_m={S_m:.0f} m, dh_max={dh_max:.0f} m "
+          f"(alpha={alpha_deg:g} deg)")
 
 
 def plot_sata_grid(Nrx, bxt_max):
@@ -430,14 +613,33 @@ def main():
     if do_plots:
         print("\n[plots]")
         rep_nrx = args.nrx if args.nrx else 4
-        rep_bxt = args.bxt if args.bxt else 100.0
-        # (a) the key finding: residual per sub-band (one representative config)
+        rep_bxt = args.bxt if args.bxt else 50.0
+        # (a) the corrected term: delta_C0 per sub-band (C0 only)
         plot_residual_per_subband(Nrx=rep_nrx, bxt_max=rep_bxt, dh=200.0)
         # (b) summary: peak recovery vs bxt_max per Nrx
         plot_peak_vs_dxt(results, nrxs, bxts)
-        # (c) the standard reconstruction 4-panel, one per method
-        plot_standard_4panel(Nrx=rep_nrx, bxt_max=rep_bxt)
-        # (d) the N x N 'Output of SATA' grid per configuration
+        # --- case visualisations (the effect across different cases) -----------
+        # (c) method comparison bars across all (Nrx, bxt) cases
+        plot_method_bars(results, nrxs, bxts)
+        # (d) sub - band difference heatmaps over the (Nrx, bxt) grid
+        plot_sub_vs_band_diff(results, nrxs, bxts)
+        # (e) effect of topography height dh (single target)
+        plot_dh_sweep(Nrx=rep_nrx, bxt_max=rep_bxt)
+        # ----------------------------------------------------------------------
+        # (f) the standard reconstruction 4-panel, for several single-target cases
+        if args.nrx or args.bxt:
+            plot_standard_4panel(Nrx=rep_nrx, bxt_max=rep_bxt)
+        else:
+            for (N, b) in PANEL_CASES:
+                print(f"    4-panel case Nrx={N}, bxt_max={b}")
+                plot_standard_4panel(Nrx=N, bxt_max=float(b))
+        # (g) the standard 4-panel for the 5-target iso-range RAMP (alpha=2 deg),
+        #     swept over S_samp, at low cross-track baselines (bxt = 20 and 50 m)
+        print("    ramp 4-panels (5 iso-range targets, alpha=2 deg):")
+        for b in (20, 50):
+            for S in _RAMP_SSAMP:
+                plot_ramp_4panel(Nrx=rep_nrx, bxt_max=float(b), S_samp=S)
+        # (g) the N x N 'Output of SATA' grid per configuration
         for (Nrx, bxt) in results:
             plot_sata_grid(Nrx, bxt)
 
