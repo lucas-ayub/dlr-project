@@ -27,7 +27,10 @@ It does three things:
        (c) combined_4panel_*     -- the STANDARD reconstruction 4-panel (as
            run_experiment.plot_combined: amplitude, spectrum [dB], zoomed IRF,
            spectral phase with the B_a lines), one per method;
-       (d) sata_grid_*           -- the Nrx x Nrx 'Output of SATA' grid.
+       (d) sata_grid_*           -- the Nrx x Nrx 'Output of SATA' grid;
+       (e) topright_spectrum_*   -- single-panel overlay of the "spectrum [dB]"
+           (top-right) panel for the ramp scene, all three methods on one axes,
+           swept over alpha (ramp inclination) as well as bxt/S_samp.
 
 Plots use matplotlib mathtext ($...$), so no LaTeX toolchain is needed
 (consistent with USE_LATEX=0). Console output is ASCII, copy-paste-safe.
@@ -36,6 +39,7 @@ Place under runs/core/ in the repo. Run:
     cd sar_reconstruction
     PYTHONPATH=. python ../runs/core/run_subband_recon.py
     PYTHONPATH=. python ../runs/core/run_subband_recon.py --nrx 4 --bxt 100
+    PYTHONPATH=. python ../runs/core/run_subband_recon.py --alpha 10
     PYTHONPATH=. python ../runs/core/run_subband_recon.py --no-plots
 """
 from __future__ import annotations
@@ -120,8 +124,8 @@ def build_single_target(Nrx, bxt_max, dh, seed=_SEED):
 # reconstruction itself still runs in DPCA mode.
 _V_OVER_PRF = SystemParams().vs / 2000.0          # ~ 3.844 m/sample
 _RAMP_SSAMP = [50, 100, 300, 600, 1000]           # focused-sample spacings swept
-_RAMP_ALPHA_DEG = 2.0                             # ramp inclination (in {0.3..3} deg)
-_RAMP_ALPHAS = [5.0, 10.0, 15.0]
+_RAMP_ALPHA_DEG = 2.0                             # default ramp inclination [deg]
+RAMP_ALPHA_SWEEP = [5.0, 10.0, 15.0, 20.0]        # alpha values swept for the ramp scene
 
 
 def build_ramp(Nrx, bxt_max, S_samp, alpha_deg=_RAMP_ALPHA_DEG, seed=_SEED,
@@ -486,70 +490,6 @@ def _draw_combined(plt, cfg, res, method, tag=""):
     fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig)
     print(f"    plot -> {out}")
 
-def plot_ramp_spectrum_overlay(Nrx, bxt_max, S_samp, alpha_deg,
-                               methods=("no-SATA", "SATA-band", "SATA-sub")):
-    """
-    Plota apenas o painel superior direito (espectro em dB) com os três métodos
-    sobrepostos na mesma figura.
-    """
-    plt = _mpl()
-    if plt is None:
-        return
-
-    cfg, tr, S_m, dh_max = build_ramp(Nrx, bxt_max, S_samp, alpha_deg)
-    sref1, _sig, s_ch = channels_and_refs(cfg, tr)
-
-    recons = {
-        "no-SATA": lambda: sar.reconstruct(cfg, tr, s_ch.copy()),
-        "SATA-band": lambda: sar.reconstruct(
-            cfg, tr, sata_channels(cfg, tr, s_ch.copy(), verbose=False)
-        ),
-        "SATA-sub": lambda: reconstruct_subband(
-            cfg, tr, s_ch.copy(), use_sata=True, verbose=False
-        ),
-    }
-
-    colors = {
-        "no-SATA": "C3",
-        "SATA-band": "C1",
-        "SATA-sub": "C0",
-    }
-
-    fig, ax = plt.subplots(figsize=(7.5, 4.2))
-
-    # referência
-    ref_db = 20 * np.log10(np.abs(np.fft.fft(sref1)) /
-                           np.max(np.abs(np.fft.fft(sref1))))
-    ax.plot(cfg.ta, ref_db, color="k", lw=2.0, label="Reference")
-
-    # reconstruções
-    for name in methods:
-        srec = recons[name]()
-        rec_db = 20 * np.log10(np.abs(np.fft.fft(srec)) /
-                               np.max(np.abs(np.fft.fft(srec))))
-        ax.plot(cfg.ta, rec_db, lw=1.5, color=colors[name], label=name)
-
-    ax.set_xlabel("Time [s]")
-    ax.set_ylabel("Magnitude [dB]")
-    ax.set_ylim([-100, 5])
-    ax.grid(alpha=0.3)
-    ax.legend()
-
-    ax.set_title(
-        rf"Ramp spectrum overlay ($N_{{rx}}={Nrx}$, "
-        rf"$b_{{xt}}^{{\max}}={bxt_max:.0f}$ m, "
-        rf"$S={S_samp}$, $\\alpha={alpha_deg:g}^\\circ$)"
-    )
-
-    os.makedirs(PLOTS_DIR, exist_ok=True)
-    out = os.path.join(
-        PLOTS_DIR,
-        f"spectrum_overlay_ramp_Nrx{Nrx}_bxt{int(bxt_max)}_S{S_samp}_a{alpha_deg:g}.png"
-    )
-    fig.tight_layout()
-    fig.savefig(out, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    print(f"    plot -> {out}")
 
 def plot_standard_4panel(Nrx, bxt_max, dh=200.0,
                          methods=("no-SATA", "SATA-band", "SATA-sub")):
@@ -577,7 +517,9 @@ def plot_standard_4panel(Nrx, bxt_max, dh=200.0,
 def plot_ramp_4panel(Nrx, bxt_max, S_samp, alpha_deg=_RAMP_ALPHA_DEG,
                      methods=("no-SATA", "SATA-band", "SATA-sub")):
     """Standard 4-panel for the 5-target iso-range RAMP scene, one per method.
-    Files tagged by (Nrx, bxt_max, S_samp, alpha). Reference = scene centre."""
+    Files tagged by (Nrx, bxt_max, S_samp, alpha). Reference = scene centre.
+    (Kept for cases where the full 4-panel breakdown is still wanted; the
+    default sweep in main() now uses plot_ramp_topright_combined instead.)"""
     plt = _mpl()
     if plt is None:
         return
@@ -593,6 +535,101 @@ def plot_ramp_4panel(Nrx, bxt_max, S_samp, alpha_deg=_RAMP_ALPHA_DEG,
         _draw_combined(plt, cfg, sar.analyze(cfg, sref1, recons[name]()), name, tag=tag)
     print(f"    ramp S_samp={S_samp}: S_m={S_m:.0f} m, dh_max={dh_max:.0f} m "
           f"(alpha={alpha_deg:g} deg)")
+
+
+def plot_ramp_topright_combined(Nrx, bxt_max, S_samp, alpha_deg=_RAMP_ALPHA_DEG,
+                                methods=("no-SATA", "SATA-band", "SATA-sub")):
+    """Single-panel comparison for the 5-target iso-range RAMP scene: overlays
+    just the 'spectrum [dB]' panel (top-right of the standard 4-panel) for all
+    three methods on one set of axes, instead of three separate 4-panel figures.
+    One reference curve (black) plus one reconstructed-spectrum curve per method.
+    Files tagged by (Nrx, bxt_max, S_samp, alpha)."""
+    plt = _mpl()
+    if plt is None:
+        return
+    cfg, tr, S_m, dh_max = build_ramp(Nrx, bxt_max, S_samp, alpha_deg)
+    sref1, _sig, s_ch = channels_and_refs(cfg, tr)
+    tag = f"ramp_Nrx{Nrx}_bxt{int(bxt_max)}_S{S_samp}_a{alpha_deg:g}"
+
+    recons = {
+        "no-SATA": lambda: sar.reconstruct(cfg, tr, s_ch.copy()),
+        "SATA-band": lambda: sar.reconstruct(cfg, tr, sata_channels(cfg, tr, s_ch.copy(), verbose=False)),
+        "SATA-sub": lambda: reconstruct_subband(cfg, tr, s_ch.copy(), use_sata=True, verbose=False),
+    }
+    colors = {"no-SATA": "C3", "SATA-band": "C1", "SATA-sub": "C0"}
+    # distinct linestyles (on top of color) so overlapping curves stay readable
+    # -- see https://matplotlib.org/stable/gallery/lines_bars_and_markers/linestyles.html
+    linestyles = {"no-SATA": "dashed", "SATA-band": "dashdot", "SATA-sub": "dotted"}
+    ta = cfg.ta
+
+    fig, ax = plt.subplots(1, 1, figsize=(7.5, 4.2))
+    ref_plotted = False
+    for name in methods:
+        srecN = recons[name]()
+        res = sar.analyze(cfg, sref1, srecN)
+        if not ref_plotted:
+            ax.plot(ta, 20 * np.log10(abs(res.srefF) / np.max(abs(res.srefF))),
+                    color="k", lw=1.3, ls="solid", label="ref")
+            ref_plotted = True
+        ax.plot(ta, 20 * np.log10(abs(res.srecNF) / np.max(abs(res.srecNF))),
+                color=colors[name], lw=1.3, ls=linestyles[name], label=name)
+
+    ax.set_xlabel("Time [s]"); ax.set_ylabel("[dB]")
+    ax.set_ylim([-100, 0]); ax.grid(alpha=0.3); ax.legend(fontsize="small", loc="best")
+    ax.set_title(rf"Spectrum comparison, ramp (DPCA) | $N_{{rx}}={Nrx}$ | "
+                 rf"$b_{{xt}}^{{\max}}={bxt_max:.0f}$ m | $S$={S_samp} samp "
+                 rf"($S_m$={S_m:.0f} m) | $\alpha={alpha_deg:g}^\circ$ "
+                 rf"($\Delta h_{{\max}}$={dh_max:.0f} m)")
+    os.makedirs(PLOTS_DIR, exist_ok=True)
+    out = os.path.join(PLOTS_DIR, f"topright_spectrum_{tag}.png")
+    fig.tight_layout(); fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig)
+    print(f"    plot -> {out}")
+
+
+def plot_ramp_topright_sidebyside(Nrx, bxt_max, S_samp, alpha_deg=_RAMP_ALPHA_DEG,
+                                  methods=("no-SATA", "SATA-band", "SATA-sub")):
+    """Same 'spectrum [dB]' panel as plot_ramp_topright_combined, but drawn as
+    three side-by-side subplots (one per method, ref vs rec) instead of one
+    overlay -- easier to read each method's fit on its own axes.
+    Files tagged by (Nrx, bxt_max, S_samp, alpha)."""
+    plt = _mpl()
+    if plt is None:
+        return
+    cfg, tr, S_m, dh_max = build_ramp(Nrx, bxt_max, S_samp, alpha_deg)
+    sref1, _sig, s_ch = channels_and_refs(cfg, tr)
+    tag = f"ramp_Nrx{Nrx}_bxt{int(bxt_max)}_S{S_samp}_a{alpha_deg:g}"
+
+    recons = {
+        "no-SATA": lambda: sar.reconstruct(cfg, tr, s_ch.copy()),
+        "SATA-band": lambda: sar.reconstruct(cfg, tr, sata_channels(cfg, tr, s_ch.copy(), verbose=False)),
+        "SATA-sub": lambda: reconstruct_subband(cfg, tr, s_ch.copy(), use_sata=True, verbose=False),
+    }
+    colors = {"no-SATA": "C3", "SATA-band": "C1", "SATA-sub": "C0"}
+    ta = cfg.ta
+
+    fig, axes = plt.subplots(1, len(methods), figsize=(5.0 * len(methods), 4.2),
+                             sharey=True)
+    if len(methods) == 1:
+        axes = [axes]
+    for ax, name in zip(axes, methods):
+        srecN = recons[name]()
+        res = sar.analyze(cfg, sref1, srecN)
+        ax.plot(ta, 20 * np.log10(abs(res.srefF) / np.max(abs(res.srefF))),
+                color="k", lw=1.3, ls="solid", label="ref")
+        ax.plot(ta, 20 * np.log10(abs(res.srecNF) / np.max(abs(res.srecNF))),
+                color=colors[name], lw=1.3, ls="dashed", label=name)
+        ax.set_xlabel("Time [s]"); ax.set_ylim([-100, 0]); ax.grid(alpha=0.3)
+        ax.legend(fontsize="small", loc="best")
+        ax.set_title(name)
+    axes[0].set_ylabel("[dB]")
+    fig.suptitle(rf"Spectrum comparison, ramp (DPCA) | $N_{{rx}}={Nrx}$ | "
+                 rf"$b_{{xt}}^{{\max}}={bxt_max:.0f}$ m | $S$={S_samp} samp "
+                 rf"($S_m$={S_m:.0f} m) | $\alpha={alpha_deg:g}^\circ$ "
+                 rf"($\Delta h_{{\max}}$={dh_max:.0f} m)", y=1.03)
+    os.makedirs(PLOTS_DIR, exist_ok=True)
+    out = os.path.join(PLOTS_DIR, f"topright_spectrum_sidebyside_{tag}.png")
+    fig.tight_layout(); fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig)
+    print(f"    plot -> {out}")
 
 
 def plot_sata_grid(Nrx, bxt_max):
@@ -651,6 +688,9 @@ def main():
     ap.add_argument("--nrx", type=int, default=None)
     ap.add_argument("--bxt", "--dxt", dest="bxt", type=float, default=None,
                     help="bxt_max: upper bound of the random cross-track baselines [m]")
+    ap.add_argument("--alpha", type=float, default=None,
+                    help="ramp inclination angle [deg]; default sweeps RAMP_ALPHA_SWEEP "
+                         f"={RAMP_ALPHA_SWEEP}")
     ap.add_argument("--seed", type=int, default=_SEED, help="RNG seed for random bxt")
     ap.add_argument("--no-plots", action="store_true", help="disable figure output")
     args = ap.parse_args()
@@ -663,6 +703,7 @@ def main():
 
     nrxs = [args.nrx] if args.nrx else DEFAULT_NRX
     bxts = [args.bxt] if args.bxt else DEFAULT_BXT
+    alphas = [args.alpha] if args.alpha else RAMP_ALPHA_SWEEP
 
     print("\n[sweep] azimuth-varying topography  (focused peak %% of ideal | worst ambiguity dB)")
     hdr = f"{'Nrx':>4}{'bxt_max':>8} | {'no-SATA':>16}{'SATA band':>16}{'SATA sub':>16}"
@@ -698,32 +739,19 @@ def main():
             for (N, b) in PANEL_CASES:
                 print(f"    4-panel case Nrx={N}, bxt_max={b}")
                 plot_standard_4panel(Nrx=N, bxt_max=float(b))
-        # (g) the standard 4-panel for the 5-target iso-range RAMP (alpha=2 deg),
-        #     swept over S_samp, at low cross-track baselines (bxt = 20 and 50 m)
-        print("    ramp 4-panels (5 iso-range targets):")
-        # for alpha in _RAMP_ALPHAS:
-        #     print(f"      alpha = {alpha:g} deg")
-        #     for b in (20, 50):
-        #         for S in _RAMP_SSAMP:
-        #             plot_ramp_4panel(
-        #                 Nrx=rep_nrx,
-        #                 bxt_max=float(b),
-        #                 S_samp=S,
-        #                 alpha_deg=alpha
-        #             )
-        for alpha in _RAMP_ALPHAS:
-            print(f"    ramp spectrum overlays (alpha={alpha:g} deg)")
+        # (g) single-panel spectrum comparison (no-SATA / SATA band / SATA sub)
+        #     for the 5-target iso-range RAMP, swept over alpha, bxt, S_samp.
+        print("    ramp spectrum comparisons (5 iso-range targets, alpha sweep "
+              f"{alphas}):")
+        for alpha in alphas:
             for b in (20, 50):
                 for S in _RAMP_SSAMP:
-                    plot_ramp_spectrum_overlay(
-                        Nrx=rep_nrx,
-                        bxt_max=float(b),
-                        S_samp=S,
-                        alpha_deg=alpha,
-                    )
-        # (g) the N x N 'Output of SATA' grid per configuration
+                    plot_ramp_topright_combined(Nrx=rep_nrx, bxt_max=float(b),
+                                                S_samp=S, alpha_deg=alpha)
+                    plot_ramp_topright_sidebyside(Nrx=rep_nrx, bxt_max=float(b),
+                                                  S_samp=S, alpha_deg=alpha)
+        # (h) the N x N 'Output of SATA' grid per configuration
         for (Nrx, bxt) in results:
-            
             plot_sata_grid(Nrx, bxt)
 
     print("\nnote: DPCA mode (small along-track spacing, random cross-track "
