@@ -58,13 +58,31 @@ from .reconstruction import GetCoeffNu
 # The SATA kernel (1D)
 # ---------------------------------------------------------------------------
 def sata_1d(data, delta_C0_array, rref, prf, v, wl, r,
-            squint=0.0, Nsb=1, inverse=False, sata_osf=1, verbose=True):
+            squint=0.0, Nsb=1, inverse=False, sata_osf=1, verbose=True,
+            delta_C1_array=None, delta_C2_array=None, debug_center=False,
+            analysis_window="triangular"):
     """
-    Apply the 1D SATA topography correction (C0 term) to one azimuth line.
+    Apply the 1D SATA topography correction to one azimuth line.
 
     For each sub-aperture and Doppler bin the constant phase
     ph = -2*pi/lambda * delta_C0(x_p) is applied, where x_p is the azimuth
-    position the bin maps to. This corrects the bulk range (C0) residual only.
+    position the bin maps to. This corrects the bulk range (C0) residual.
+
+    EXPERIMENTAL C1/C2 extension (opt-in, off by default)
+    -------------------------------------------------------
+    delta_C1_array and delta_C2_array, if given, add extra per-bin phase
+    terms built from the SAME (position -> Doppler bin) map already used for
+    C0, mirroring the sign/structure of the reconstruction filter's own phase
+    model (see `hf` in `subband_recon.reconstruct_subband`):
+
+        ph_C1(x_p, f) = -2*pi * delta_C1(x_p) * f
+        ph_C2(x_p, f) = -2*pi * delta_C2(x_p) * wl * f**2
+
+    These are a first-order, UNVALIDATED extension of the classic (C0-only)
+    SATA kernel meant for exploratory A/B comparisons ("which term actually
+    moves the result"), not yet a verified physical correction. Confirm with
+    a round-trip test (inverse=True then inverse=False reproduces the input)
+    before trusting the C1/C2 outputs quantitatively.
 
     Parameters
     ----------
@@ -101,10 +119,32 @@ def sata_1d(data, delta_C0_array, rref, prf, v, wl, r,
         if the peak-to-peak correction is large enough to wrap.
     verbose : bool
         Print the sub-aperture sizing report.
+    debug_center : bool
+        If True, also return a dict with the raw (pre-correction) sub-aperture
+        spectrum of the window closest to the CENTRE of `data` -- i.e. exactly
+        `spec = np.fft.fft(buf)` from STEP 2 below, for the one window nearest
+        dimx/2, plus its Doppler axis and sizing. Useful for plotting/
+        inspecting the sub-aperture spectrum SATA actually computes, without
+        reimplementing any of this function's logic. Return value becomes
+        `(out, debug_info)` instead of just `out` when True.
+    analysis_window : {"triangular", "rectangular"}
+        Analysis window applied to each sub-aperture before the FFT.
+        "triangular" (default) is the original SATA behaviour -- required
+        for the weighted-overlap-add reconstruction (`out`) to satisfy COLA
+        and reproduce the identity when delta_C0=0. "rectangular" applies no
+        weighting (all-ones window) -- only meant for inspecting/plotting the
+        RAW sub-aperture spectrum (e.g. via debug_center) with narrower main
+        lobes and un-tapered (~-13 dB) sidelobes; the reconstructed `out` is
+        NOT COLA-guaranteed with this option and should not be trusted.
 
     Returns
     -------
     (naz,) complex : the SATA-corrected azimuth line.
+    (naz,) complex, dict : if debug_center=True, also the debug_info dict
+        with keys "spec" (Nzp complex), "fsub" (Nzp float, Doppler axis,
+        NOT fftshift'ed -- same order as `spec`), "Tsubeff", "Nzp", "win"
+        (the Tsubeff-length triangular analysis window), "start" (the sample
+        index the captured window began at).
     """
     data = np.asarray(data, dtype=complex).copy()
     dimx = len(data)
@@ -115,12 +155,13 @@ def sata_1d(data, delta_C0_array, rref, prf, v, wl, r,
     # Optimum sub-aperture ground extent -- best SATA resolution.
     deltax = np.sqrt(wl * rref / 2.0)
     # Sub-aperture length in samples (forced even).
-    Tsubeff = int(np.round(deltax * prf / v * 0.5 / Nsb) * 2)
+    # Tsubeff = int(np.round(deltax * prf / v * 0.5 / Nsb) * 2)
+    Tsubeff = int(np.round(deltax * prf / v * 0.5 ) * 2)
 
     if Tsubeff <= 2:
         if verbose:
             print("SATA: sub-aperture length very small, no correction needed")
-        return data
+        return (data, None) if debug_center else data
 
     # Zero-padded block length (next power of two, times oversampling).
     Nzp = int(2 ** np.ceil(np.log2(Tsubeff)) * sata_osf)
@@ -134,10 +175,14 @@ def sata_1d(data, delta_C0_array, rref, prf, v, wl, r,
         print(f"SATA: sub-aperture length {Tsubeff}, zero-padded to {Nzp} "
               f"(margin {marg_az}), Nsub={Nsub}")
 
-    # Triangular analysis window for weighted overlap-add (50% overlap).
-    rightweight = np.arange(Tovl) / (Tovl - 1)           # 0 -> 1
-    leftweight = rightweight[::-1]                        # 1 -> 0
-    win = np.concatenate((rightweight, leftweight))       # length 2*Tovl = Tsubeff
+    # Analysis window for the weighted overlap-add (50% overlap).
+    if analysis_window == "rectangular":
+        win = np.ones(Tsubeff)                             # no weighting
+    else:
+        # Triangular (default, required for COLA / the identity round-trip).
+        rightweight = np.arange(Tovl) / (Tovl - 1)          # 0 -> 1
+        leftweight = rightweight[::-1]                       # 1 -> 0
+        win = np.concatenate((rightweight, leftweight))      # length 2*Tovl = Tsubeff
 
     # Sub-aperture frequency axis (Doppler), aligned to the data spectrum.
     fc = 2.0 * v / wl * np.sin(squint)                   # Doppler centroid [Hz]
@@ -159,6 +204,8 @@ def sata_1d(data, delta_C0_array, rref, prf, v, wl, r,
     out = np.zeros(dimx, dtype=complex)
     wsum = np.zeros(dimx, dtype=float)
     max_ph = 0.0
+    debug_info = None
+    best_center_dist = np.inf
 
     for start in range(0, dimx, hop):
         seg = data[start:start + L]
@@ -171,6 +218,14 @@ def sata_1d(data, delta_C0_array, rref, prf, v, wl, r,
         buf[:Lseg] = seg * win[:Lseg]
         spec = np.fft.fft(buf)
 
+        if debug_center:
+            center_dist = abs((start + 0.5 * L) - 0.5 * dimx)
+            if center_dist < best_center_dist:
+                best_center_dist = center_dist
+                debug_info = dict(spec=spec.copy(), fsub=fsub.copy(),
+                                  Tsubeff=Tsubeff, Nzp=Nzp,
+                                  win=win.copy(), start=start)
+
         # For each Doppler bin, the azimuth image position it maps to.
         center = start + 0.5 * L
         posaux = np.round(azpos + center).astype(int)
@@ -178,6 +233,10 @@ def sata_1d(data, delta_C0_array, rref, prf, v, wl, r,
 
         # C0 residual -> constant-per-position phase correction.
         ph = -2.0 * np.pi / wl * delta_C0_array[posaux]
+        if delta_C1_array is not None:
+            ph = ph - 2.0 * np.pi * delta_C1_array[posaux] * fsub
+        if delta_C2_array is not None:
+            ph = ph - 2.0 * np.pi * delta_C2_array[posaux] * wl * fsub ** 2
         ph[~np.isfinite(ph)] = 0.0
         max_ph = max(max_ph, float(np.max(np.abs(ph))))
 
@@ -204,7 +263,7 @@ def sata_1d(data, delta_C0_array, rref, prf, v, wl, r,
             print(f"SATA WARNING: margin insufficient; increase sata_osf "
                   f"from {sata_osf} to {min_osf} to avoid artefacts.")
 
-    return out
+    return (out, debug_info) if debug_center else out
 
 
 # ---------------------------------------------------------------------------

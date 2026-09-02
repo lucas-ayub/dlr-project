@@ -168,20 +168,29 @@ def subband_frequency_beam(cfg, k: int):
 
 
 # ---------------------------------------------------------------------------
-# 3) Per-sub-band residual C0 and its azimuth map
+# 3) Per-sub-band residual (C0, C1 or C2) and its azimuth map
 # ---------------------------------------------------------------------------
-def residual_C0_subband(cfg, tracks, ptg_real: np.ndarray, channel: int,
-                        k: int) -> float:
-    """
-    Residual C0 [m] for one scatterer, channel, and sub-band k, computed over
-    the sub-band's angular window:
+_TERM_INDEX = {"C0": 0, "C1": 1, "C2": 2}
 
-        delta_C0 = C0_beam(real target) - C0_beam(assumed centre) ,
 
-    with C0_beam from getcoeff_beam restricted to [beta_lo, beta_hi] of sub-band
-    k. Returns 0.0 if the window is too small to fit either target (no reliable
-    correction -> leave the data unchanged for that sub-band).
+def residual_term_subband(cfg, tracks, ptg_real: np.ndarray, channel: int,
+                          k: int, term: str = "C0") -> float:
     """
+    Residual for one scatterer, channel, sub-band k, and coefficient `term`
+    ("C0", "C1" or "C2"), computed over the sub-band's angular window:
+
+        delta_term = term_beam(real target) - term_beam(assumed centre) ,
+
+    with *_beam from getcoeff_beam restricted to [beta_lo, beta_hi] of
+    sub-band k. Returns 0.0 if the window is too small to fit either target
+    (no reliable correction -> leave the data unchanged for that sub-band).
+
+    NOTE: only the C0 path has a validated correction mechanism in
+    `sata.sata_1d` (the classic bulk-range WOLA correction). C1/C2 residuals
+    computed here feed the EXPERIMENTAL extension of `sata_1d`
+    (delta_C1_array / delta_C2_array) -- see that function's docstring.
+    """
+    idx = _TERM_INDEX[term]
     kk = channel
     _f, _b, blo, bhi = subband_frequency_beam(cfg, k)
     common = (tracks.ptx, tracks.prx[kk], tracks.vtx, tracks.vrx[kk],
@@ -190,18 +199,19 @@ def residual_C0_subband(cfg, tracks, ptg_real: np.ndarray, channel: int,
     ref = getcoeff_beam(cfg.scene.ptg, *common)
     if real is None or ref is None:
         return 0.0
-    return float(real[0] - ref[0])
+    return float(real[idx] - ref[idx])
 
 
-def build_delta_C0_subband_array(cfg, tracks, channel: int, k: int,
-                                 naz: int | None = None,
-                                 pad_zero_outside: bool = False) -> np.ndarray:
+def build_delta_term_subband_array(cfg, tracks, channel: int, k: int,
+                                   term: str = "C0", naz: int | None = None,
+                                   pad_zero_outside: bool = False) -> np.ndarray:
     """
-    Per-sub-band delta_C0 map for `channel`, sub-band `k` -- the sub-band
-    analogue of sar_recon.sata.build_delta_C0_array. Each extra scatterer
-    (dx, dy, dh) contributes residual_C0_subband(...) at its azimuth pixel; the
-    map is interpolated across azimuth. All zeros if the scene has no extra
-    scatterers (-> SATA is a no-op -> baseline).
+    Per-sub-band delta_<term> map for `channel`, sub-band `k` -- the sub-band
+    analogue of sar_recon.sata.build_delta_C0_array, generalised to any of
+    "C0" / "C1" / "C2". Each extra scatterer (dx, dy, dh) contributes
+    residual_term_subband(...) at its azimuth pixel; the map is interpolated
+    across azimuth. All zeros if the scene has no extra scatterers (-> SATA
+    is a no-op -> baseline).
     """
     if naz is None:
         naz = cfg.Na_ch
@@ -214,7 +224,7 @@ def build_delta_C0_subband_array(cfg, tracks, channel: int, k: int,
     for (dx, dy, dh) in cfg.scene.extra_offsets:
         ptg_real = center + np.array([dx, dy, dh], dtype=np.float64)
         by_pixel[az_pixel_of_dx(cfg, dx)].append(
-            residual_C0_subband(cfg, tracks, ptg_real, channel, k))
+            residual_term_subband(cfg, tracks, ptg_real, channel, k, term))
 
     pix = sorted(by_pixel)
     xs = np.array(pix, dtype=float)
@@ -230,29 +240,65 @@ def build_delta_C0_subband_array(cfg, tracks, channel: int, k: int,
     return np.interp(grid, xs, ys, left=left, right=right)
 
 
+# Backward-compatible aliases (old call sites, C0-only).
+def residual_C0_subband(cfg, tracks, ptg_real, channel, k):
+    return residual_term_subband(cfg, tracks, ptg_real, channel, k, "C0")
+
+
+def build_delta_C0_subband_array(cfg, tracks, channel, k, naz=None,
+                                 pad_zero_outside=False):
+    return build_delta_term_subband_array(cfg, tracks, channel, k, "C0",
+                                          naz, pad_zero_outside)
+
+
 # ---------------------------------------------------------------------------
 # 4) SATA every channel for one sub-band k
 # ---------------------------------------------------------------------------
 def sata_channels_subband(cfg, tracks, s_channel: np.ndarray, k: int,
                           remove: bool = True, sata_osf: int = 4,
-                          verbose: bool = False) -> np.ndarray:
+                          verbose: bool = False,
+                          correct_terms=("C0",)) -> np.ndarray:
     """
     Copy of s_channel [Nrx, Na_ch] with every channel SATA-corrected for output
-    sub-band k: the per-sub-band delta_C0 map (build_delta_C0_subband_array) is
-    applied with the SATA frequency beam centred on beta_k (squint = beta_k) and
-    Nsb = Nrx. Same kernel and sign convention as sar_recon.sata.sata_channels
-    (remove=True removes the residual).
+    sub-band k: the per-sub-band delta maps (build_delta_term_subband_array)
+    are applied with the SATA frequency beam centred on beta_k
+    (squint = beta_k). Same kernel and sign convention as
+    sar_recon.sata.sata_channels (remove=True removes the residual).
+
+    correct_terms : subset of ("C0", "C1", "C2") -- which residual(s) to
+        include in the correction. Default ("C0",) matches the validated,
+        whole-band-equivalent behaviour. Add "C1"/"C2" to explore their
+        effect (EXPERIMENTAL, see sata_1d docstring) -- pass an explicit list
+        per run to A/B compare, e.g. correct_terms=("C0",), ("C0","C1"),
+        ("C0","C1","C2").
+
+    Nsb -- FIX (was a bug): `sata_1d`'s Nsb parameter sizes the SATA
+    sub-aperture as Tsubeff = round(deltax*prf/v*0.5/Nsb)*2, i.e. it shrinks
+    the sub-aperture by a factor of Nsb. It has nothing to do with the number
+    of *output* Doppler sub-bands (Nrx) -- this function still operates on
+    one per-channel line sampled at PRF_op, exactly like sata_channels
+    (whole-band). Passing Nsb=Nrx here (the previous behaviour) shrank
+    Tsubeff by up to Nrx, and for the DPCA presets in this repo (Nrx>=8)
+    that pushes Tsubeff to <=2, which trips sata_1d's early-return
+    ("sub-aperture length very small, no correction needed") -- i.e. the
+    per-sub-band SATA silently became a no-op, which is exactly why SATA-sub
+    measured no better than (or worse than, once you add the extra
+    interpolation/rounding) plain no-SATA. Nsb=1 restores the same
+    sub-aperture sizing as the whole-band SATA.
     """
     Nrx = cfg.Nrx
     _f, beta_k, _lo, _hi = subband_frequency_beam(cfg, k)
     out = np.asarray(s_channel, dtype=complex).copy()
     for kk in range(Nrx):
-        dC0 = build_delta_C0_subband_array(cfg, tracks, kk, k, naz=cfg.Na_ch)
+        terms = {t: build_delta_term_subband_array(cfg, tracks, kk, k, t, naz=cfg.Na_ch)
+                 for t in correct_terms}
         out[kk, :] = sata_1d(
-            out[kk, :], dC0, rref=cfg.scene.r0, prf=cfg.PRF_op,
+            out[kk, :], terms.get("C0", np.zeros(cfg.Na_ch)),
+            rref=cfg.scene.r0, prf=cfg.PRF_op,
             v=cfg.system.vs, wl=cfg.system.wl, r=cfg.scene.r0,
-            squint=beta_k, Nsb=Nrx, inverse=remove,
+            squint=beta_k, Nsb=1, inverse=remove,
             sata_osf=sata_osf, verbose=verbose,
+            delta_C1_array=terms.get("C1"), delta_C2_array=terms.get("C2"),
         )
     return out
 
@@ -263,7 +309,8 @@ def sata_channels_subband(cfg, tracks, s_channel: np.ndarray, k: int,
 def reconstruct_subband(cfg, tracks, s_channel: np.ndarray,
                         use_sata: bool = True, remove: bool = True,
                         sata_osf: int = 4, zeroOutBw: bool = True,
-                        verbose: bool = False) -> np.ndarray:
+                        verbose: bool = False,
+                        correct_terms=("C0",)) -> np.ndarray:
     """
     Sub-band reconstruction with optional per-sub-band SATA pre-conditioning.
 
@@ -298,7 +345,8 @@ def reconstruct_subband(cfg, tracks, s_channel: np.ndarray,
         for kk in range(Nsb):
             corr = sata_channels_subband(cfg, tracks, base, kk,
                                          remove=remove, sata_osf=sata_osf,
-                                         verbose=verbose)
+                                         verbose=verbose,
+                                         correct_terms=correct_terms)
             for jj in range(Nrx):
                 spec[kk][jj] = np.roll(np.fft.fft(corr[jj, :]), Nsh)
     else:
