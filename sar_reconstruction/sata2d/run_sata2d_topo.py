@@ -20,7 +20,7 @@ What it runs
 [4] AZIMUTH TOPOGRAPHY five targets at different azimuth positions and
                        different heights -- the case a single global
                        correction cannot fix.
-[5] PLOTS
+[5] PLOTS               geometry, sweep, azimuth topography, residual map
 
 Run
 ---
@@ -38,19 +38,20 @@ import time
 import numpy as np
 
 if __package__ in (None, ""):
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    __package__ = "sata2d"
+    _pkg_dir = os.path.dirname(os.path.abspath(__file__))
+    sys.path.insert(0, os.path.dirname(_pkg_dir))
+    __package__ = os.path.basename(_pkg_dir)  # works whatever this folder is named
 
-from .params3d import make_params3d, iso_range_offset          # noqa: E402
-from .geom3d import (build_tracks_3d, CoeffTable3D,            # noqa: E402
-                     residual_C0_3d, dC0_approx)
-from .datagen3d import generate_reference_3d, generate_channels_3d  # noqa: E402
-from .rangecomp import range_compress                          # noqa: E402
-from .sata2d import sata_1d                                    # noqa: E402
-from .sata3d import (build_delta_C0_map_3d, reconstruct_subband_2d,  # noqa: E402
-                     range_bin_of, scatterer_range)
+from .geometry import (make_params3d, iso_range_offset, C0_LIGHT,     # noqa: E402
+                       build_tracks_3d, CoeffTable3D, residual_C0_3d,
+                       dC0_approx, generate_reference_3d, generate_channels_3d)
+from .sata import sata_1d                                            # noqa: E402
+from .reconstruction import (range_compress, build_delta_C0_map_3d,  # noqa: E402
+                             reconstruct_subband_2d, range_bin_of,
+                             scatterer_range)
 
 RULE = "=" * 78
+H_DEFAULT = 720e3   # satellite height used by make_params3d's default H
 
 
 def hdr(t):
@@ -180,11 +181,15 @@ def test3_sweep(p0, quick=False):
 
 
 # ---------------------------------------------------------------------------
-def test4_azimuth_topo(sata_osf=4, verbose=False):
-    hdr("[4] Azimuth-varying topography (position-dependent correction)")
+def test4_azimuth_topo(sata_osf=4, verbose=False, rDelay=None, quiet=False):
+    if not quiet:
+        hdr("[4] Azimuth-varying topography (position-dependent correction)")
     specs = ((-400.0, 80.0), (-200.0, 160.0), (0.0, 240.0),
              (200.0, 320.0), (400.0, 400.0))
-    p = make_params3d(Nrx=4, dx=100.0, dxt=150.0, specs=specs)
+    kw = dict(Nrx=4, dx=100.0, dxt=150.0, specs=specs)
+    if rDelay is not None:
+        kw["rDelay"] = rDelay
+    p = make_params3d(**kw)
     tr = build_tracks_3d(p)
     print(f"  5 iso-range targets, azimuth {[s[0] for s in specs]} m, "
           f"heights {[s[1] for s in specs]} m")
@@ -225,6 +230,205 @@ def test4_azimuth_topo(sata_osf=4, verbose=False):
     return p, res, specs
 
 
+def test4_multi_range(theta_deg=(12.0, 20.0, 28.0), sata_osf=4, verbose=False):
+    """
+    Repeat test4_azimuth_topo (five iso-range targets, position-dependent
+    topography) at several different reference ranges, by choosing rDelay so
+    the incidence angle theta_inc comes out at each value in theta_deg.  20 deg
+    is the default geometry used everywhere else in this report; the other two
+    just move the whole scene nearer/farther in range.
+
+    This is here to make STEP 2 + RCMC concrete: (C0, C1, C2, Dt) are
+    recomputed at r_scan[n] for every range bin (Sec. 3), and CoeffTable3D is
+    evaluated across the same node grid regardless of where in the swath the
+    scene sits.  If the correction only worked at the one range everything
+    else in this report happens to use, that would be a red flag; running the
+    exact same experiment at near/mid/far range and getting the same
+    percentages back is the check that it does not.
+    """
+    hdr("[4b] The same azimuth-topography case at different ranges")
+    out = []
+    for th in theta_deg:
+        r0_target = H_DEFAULT / np.cos(np.radians(th))
+        rDelay = 2.0 * r0_target / C0_LIGHT
+        t0 = time.time()
+        p, res, specs = test4_azimuth_topo(sata_osf=sata_osf, verbose=verbose,
+                                           rDelay=rDelay, quiet=True)
+        pm = np.max(np.abs(res["mono"]))
+        pct = {tag: 100.0 * np.max(np.abs(res[tag])) / pm
+               for tag in ("no", "whole", "sub")}
+        print(f"  theta_inc={th:5.1f} deg  r0={p.r0/1e3:7.2f} km  "
+              f"no={pct['no']:5.1f}%  whole={pct['whole']:5.1f}%  "
+              f"sub={pct['sub']:5.1f}%   ({time.time()-t0:.0f}s)")
+        out.append((th, p, res, specs, pct))
+    return out
+
+
+# ---------------------------------------------------------------------------
+def plot_geometry(outdir, p, p_rand=None):
+    """
+    Three panels showing the acquisition geometry the experiment actually uses
+    (every number is read from ``p``, nothing is drawn by hand):
+
+    (a) range section at true scale -- H, y0, r0 and the incidence angle;
+    (b) zoom on the scene: the iso-range arc and the elevated targets, which is
+        where dy = y(h0+dh) - y(h0) becomes visible (549 m for dh = 400 m);
+    (c) the receiver array in the (azimuth, range) plane, for the
+        "linear" ladder and, if ``p_rand`` is given, the seeded random draw.
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    os.makedirs(outdir, exist_ok=True)
+
+    H, r0, y0, th = p.H, p.r0, p.y0, p.theta_inc
+    # Two rows rather than three columns: the figure is embedded at text width
+    # in the report, and three panels side by side make the labels unreadable.
+    with plt.rc_context({"font.size": 11}):
+        fig = plt.figure(figsize=(8.8, 7.6))
+        gs = fig.add_gridspec(2, 2, height_ratios=[1.15, 1.0], hspace=0.34,
+                              wspace=0.30)
+        ax = [fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[0, 1]),
+              fig.add_subplot(gs[1, :])]
+
+        # ---- (a) cross-track section, true scale ------------------------------
+        a = ax[0]
+        a.plot([0, y0], [H, p.h0], color="#1F4E79", lw=1.6, zorder=3)
+        a.plot(0, H, marker="s", ms=9, color="#1F4E79", zorder=4)
+        a.annotate("TX / RX", (0, H), textcoords="offset points", xytext=(8, 6),
+                   fontsize=9, color="#1F4E79")
+        a.plot([-30e3, 300e3], [0, 0], color="#8D6E63", lw=1.4)
+        a.fill_between([-30e3, 300e3], -60e3, 0, color="#8D6E63", alpha=0.12)
+        a.plot([0, 0], [0, H], ls=":", color="gray", lw=1)
+        a.plot(y0, p.h0, marker="o", ms=7, color="#C62828", zorder=4)
+        a.annotate("target", (y0, 0), textcoords="offset points",
+                   xytext=(6, 12), fontsize=10, color="#C62828")
+        a.annotate("", xy=(0, 0), xytext=(0, H),
+                   arrowprops=dict(arrowstyle="<->", color="gray", lw=0.9))
+        a.text(-16e3, H / 2, f"H = {H/1e3:.0f} km", rotation=90, va="center",
+               fontsize=9, color="gray")
+        a.annotate("", xy=(y0, -22e3), xytext=(0, -22e3),
+                   arrowprops=dict(arrowstyle="<->", color="gray", lw=0.9))
+        a.text(y0 / 2, -34e3, f"$y_0$ = {y0/1e3:.0f} km", ha="center", fontsize=9,
+               color="gray")
+        a.text(y0 * 0.42, H * 0.60, f"$r_0$ = {r0/1e3:.1f} km", fontsize=9,
+               color="#1F4E79", rotation=np.degrees(np.arctan2(-H, y0)))
+        tt = np.linspace(0, th, 40)
+        a.plot(90e3 * np.sin(tt), H - 90e3 * np.cos(tt), color="#2E7D32", lw=1.2)
+        a.text(38e3, H - 1.05e5, rf"$\theta_{{inc}}$ = {np.degrees(th):.1f}$^\circ$",
+               fontsize=9, color="#2E7D32")
+        a.set_xlim(-40e3, 300e3); a.set_ylim(-60e3, 800e3)
+        a.set_xticks(np.arange(0, 300e3, 100e3)); a.set_yticks(np.arange(0, 801e3, 200e3))
+        a.set_xticklabels([f"{v/1e3:.0f}" for v in a.get_xticks()])
+        a.set_yticklabels([f"{v/1e3:.0f}" for v in a.get_yticks()])
+        a.set_xlabel("range $y$ [km]"); a.set_ylabel("height $z$ [km]")
+        a.set_title("(a) range section, true scale", fontsize=11)
+        a.grid(alpha=0.25)
+
+        # ---- (b) zoom on the scene -------------------------------------------
+        b = ax[1]
+        hh = np.linspace(0, 430, 200)
+        yy = np.sqrt(np.maximum(r0 ** 2 - (H - hh) ** 2, 0.0)) - y0
+        b.plot(yy, hh, color="#2E7D32", lw=1.6,
+               label=r"iso-range: $y(h)=\sqrt{r_0^2-(H-h)^2}$")
+        b.plot([-200, 1600], [0, 0], color="#8D6E63", lw=1.4, label="flat earth ($h_0$)")
+        cmap = plt.get_cmap("viridis")
+        for j, (dx, dy, dh) in enumerate(p.extra_offsets):
+            c = cmap(0.15 + 0.7 * j / max(len(p.extra_offsets) - 1, 1))
+            b.plot(dy, dh, marker="o", ms=8, color=c, zorder=4)
+            # first label to the left (the legend sits bottom-right), rest right
+            off, ha = ((-9, -18), "right") if j == 0 else ((9, -16), "left")
+            b.annotate(f"$x$={dx:+.0f} m\n$\\Delta h$={dh:.0f} m", (dy, dh),
+                       textcoords="offset points", xytext=off, fontsize=8.5,
+                       ha=ha, color=c)
+            b.plot([dy, dy], [0, dh], ls=":", color=c, lw=0.9)
+        dy_max = float(yy[-1])
+        b.annotate("", xy=(dy_max, 452), xytext=(0, 452),
+                   arrowprops=dict(arrowstyle="<->", color="gray", lw=0.9))
+        b.text(dy_max / 2, 460,
+               r"$\delta y = \Delta h\,\cot\theta_{inc}$" + f"   ({dy_max:.0f} m)",
+               ha="center", fontsize=8.5, color="gray")
+        b.set_xlim(-110, 1.52 * dy_max); b.set_ylim(-55, 505)
+        b.set_xlabel(r"range offset $\delta y$ [m]")
+        b.set_ylabel(r"height $\Delta h$ [m]")
+        b.set_title("(b) the scene: iso-range targets", fontsize=11)
+        b.grid(alpha=0.25)
+        b.legend(fontsize=8.5, loc="lower right", framealpha=0.95)
+
+        # ---- (c) the array ----------------------------------------------------
+        c = ax[2]
+        c.plot(0, 0, marker="*", ms=15, color="#C62828", zorder=5, label="TX")
+        c.plot(-p.bat, p.bxt, "o-", ms=8, color="#1F4E79", lw=1.1,
+               label=f'RX, bxt "linear" ($d_{{xt}}$={p.bxt[1]-p.bxt[0]:.0f} m)')
+        for i in range(p.Nrx):
+            c.annotate(f"{i}", (-p.bat[i], p.bxt[i]), textcoords="offset points",
+                       xytext=(7, 4), fontsize=8, color="#1F4E79")
+        if p_rand is not None:
+            c.plot(-p_rand.bat, p_rand.bxt, "s--", ms=7, color="#2E7D32", lw=1.0,
+                   alpha=0.85, label=r'RX, bxt "random" $\sim\mathcal{U}(0,100)$')
+        c.plot(-p.bat / 2, p.bxt / 2, "x", ms=8, color="gray",
+               label="effective phase centres")
+        c.axhline(0, color="gray", lw=0.7, ls=":")
+        c.set_xlabel(r"azimuth [m]   ($-b_{at}$)")
+        c.set_ylabel(r"range [m]   ($b_{xt}$)")
+        c.set_title(f"(c) the receiver array, $N_{{rx}}$ = {p.Nrx}", fontsize=11)
+        c.grid(alpha=0.25)
+        c.legend(fontsize=9, loc="lower left", ncol=2, framealpha=0.95)
+
+        fig.savefig(os.path.join(outdir, "recon3d_geometry.png"), dpi=160,
+                    bbox_inches="tight")
+        plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+def plot_multi_range(outdir, multi):
+    """
+    One zoomed central-target IRF panel per (theta_inc, r0) case in ``multi``
+    (the output of test4_multi_range), side by side, plus the recovered
+    percentages printed under each panel -- so the same check the report
+    makes numerically is also visible as a picture: the sub-band correction
+    is not a one-range coincidence.
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    os.makedirs(outdir, exist_ok=True)
+
+    n = len(multi)
+    fig, axes = plt.subplots(1, n, figsize=(4.4 * n, 4.4), sharey=True)
+    if n == 1:
+        axes = [axes]
+    order = (("mono", "monostatic reference", "#444444"),
+             ("no", "no SATA", "#C62828"),
+             ("whole", "SATA whole band", "#1F4E79"),
+             ("sub", "SATA per sub-band", "#2E7D32"))
+    for ax, (th, p, res, specs, pct) in zip(axes, multi):
+        Na = p.Na
+        ds = p.vs / p.prf
+        x = (np.arange(Na) - Na / 2) * ds
+        pk = np.max(np.abs(res["mono"]))
+        for key, lab, col in order:
+            db = 20 * np.log10(np.abs(res[key]) / pk + 1e-20)
+            ax.plot(x, db, label=lab, color=col, lw=1.1)
+        ax.axvline(0.0, color="#999999", ls=":", lw=0.8)
+        ax.set_xlim(-120, 120); ax.set_ylim(-40, 3)
+        ax.set_title(rf"$\theta_{{\mathrm{{inc}}}}={th:.0f}^\circ$, "
+                     rf"$r_0={p.r0/1e3:.0f}$ km" + "\n"
+                     rf"no {pct['no']:.0f}%  whole {pct['whole']:.0f}%  "
+                     rf"sub {pct['sub']:.0f}%", fontsize=10)
+        ax.set_xlabel("azimuth [m]")
+        ax.grid(alpha=0.3)
+    axes[0].set_ylabel("normalised [dB]")
+    axes[-1].legend(fontsize=8, loc="upper right")
+    fig.suptitle("The central target (dh = 240 m) at three different ranges",
+                y=1.02)
+    fig.tight_layout()
+    fig.savefig(os.path.join(outdir, "recon3d_multirange.png"), dpi=140,
+               bbox_inches="tight")
+    plt.close(fig)
+    print(f"\nfigure written to {outdir}/recon3d_multirange.png")
+
+
 # ---------------------------------------------------------------------------
 def make_plots(outdir, sweep_rows, p4, res4, specs):
     import matplotlib
@@ -250,7 +454,7 @@ def make_plots(outdir, sweep_rows, p4, res4, specs):
         ax.legend(loc="lower right", fontsize=9)
         ax.set_title("SATA recovers the peak the flat-earth filter loses")
         fig.tight_layout()
-        fig.savefig(os.path.join(outdir, "sata3d_sweep.png"), dpi=140)
+        fig.savefig(os.path.join(outdir, "recon3d_sweep.png"), dpi=140)
 
     # --- (b) azimuth-topography IRF ---------------------------------------
     Na = p4.Na
@@ -278,7 +482,7 @@ def make_plots(outdir, sweep_rows, p4, res4, specs):
         ax.grid(alpha=0.3); ax.legend(fontsize=8, loc="upper right")
     fig.suptitle("Azimuth-varying topography: what SATA recovers", y=1.0)
     fig.tight_layout()
-    fig.savefig(os.path.join(outdir, "sata3d_azimuth_topo.png"), dpi=140)
+    fig.savefig(os.path.join(outdir, "recon3d_azimuth_topo.png"), dpi=140)
 
     # --- (c) residual map --------------------------------------------------
     tr = build_tracks_3d(p4)
@@ -295,7 +499,7 @@ def make_plots(outdir, sweep_rows, p4, res4, specs):
     ax.set_title("The residual SATA must remove, per channel")
     ax.grid(alpha=0.3); ax.legend(fontsize=9)
     fig.tight_layout()
-    fig.savefig(os.path.join(outdir, "sata3d_residual.png"), dpi=140)
+    fig.savefig(os.path.join(outdir, "recon3d_residual.png"), dpi=140)
     print(f"\nfigures written to {outdir}/")
 
 
@@ -307,6 +511,8 @@ def main(argv=None):
     ap.add_argument("--plots", action="store_true")
     ap.add_argument("--outdir", default="plots/sata2d")
     ap.add_argument("--skip-sweep", action="store_true")
+    ap.add_argument("--multi-range", action="store_true",
+                    help="repeat test 4 at near/mid/far range and plot it")
     args = ap.parse_args(argv)
 
     p = make_params3d()
@@ -317,9 +523,14 @@ def main(argv=None):
     test2_residual(p, tr)
     rows = [] if args.skip_sweep else test3_sweep(p, quick=args.quick)
     p4, res4, specs = test4_azimuth_topo()
+    multi = test4_multi_range() if args.multi_range else None
 
     if args.plots:
+        p_rand = make_params3d(bxt_mode="random", bxt_max=100.0, seed=0)
+        plot_geometry(args.outdir, p4, p_rand)
         make_plots(args.outdir, rows, p4, res4, specs)
+        if multi:
+            plot_multi_range(args.outdir, multi)
     print()
     return 0
 

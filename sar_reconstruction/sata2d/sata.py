@@ -87,6 +87,9 @@ the kernel the two quantities it actually needs --
 Then ``Tsubeff``, ``fsub``, ``betasub`` and ``azpos`` are all expressed in the
 same units and cannot drift apart.  :func:`legacy_sata_1d` keeps the original
 formulas so the two can be compared -- see ``run_sata_diagnostics.py``.
+(Renamed from sata2d.py to sata.py: living inside a folder that
+could itself be named e.g. sata2d/sata_2d made "import sata2d" and
+"the sata2d package" ambiguous. The algorithm is unchanged.)
 """
 from __future__ import annotations
 
@@ -94,7 +97,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .rd_recons2d import get_coeff_nu
+from .geometry import get_coeff_nu
 
 PI = np.pi
 
