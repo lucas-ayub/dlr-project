@@ -124,6 +124,10 @@ def main(argv=None):
     ap.add_argument("--sata-osf", type=int, default=4, dest="sata_osf")
     ap.add_argument("--span", type=float, default=None,
                     help="axis half-size [m] (default: 4.5 resolution cells)")
+    ap.add_argument("--coreg", action="store_true",
+                    help="use the explicit co-registration pipeline of coreg.py "
+                         "(monochromatic filter + explicit range shift) instead "
+                         "of the standard range-frequency-dependent filter")
     ap.add_argument("--out", default=None)
     args = ap.parse_args(argv)
 
@@ -159,8 +163,13 @@ def main(argv=None):
         maps = [build_delta_C0_map_3d(p, tr, i, range_halfwidth=hw)
                 for i in range(p.Nrx)]
         print(f"  (range_halfwidth = {hw} cells, to cover the RCM)")
-        rec = reconstruct_subband_2d(p, tr, ch, tab, sata_osf=args.sata_osf,
-                                     maps=maps, **METHOD_KW[args.method])
+        if args.coreg:
+            from .coreg import reconstruct_explicit_coreg
+            rec = reconstruct_explicit_coreg(p, tr, ch, tab, sata_osf=args.sata_osf,
+                                             maps=maps, **METHOD_KW[args.method])
+        else:
+            rec = reconstruct_subband_2d(p, tr, ch, tab, sata_osf=args.sata_osf,
+                                         maps=maps, **METHOD_KW[args.method])
         imgs[args.method] = focus2d(rec, ref)
 
     key = args.method
@@ -202,7 +211,8 @@ def main(argv=None):
     ax0.set_ylim(-span, span)
     ax0.set_aspect("equal")
     ax0.grid(alpha=.3)
-    ax0.set_title(f"2-D IRF -- {LABEL[key]}")
+    ax0.set_title(f"2-D IRF -- {LABEL[key]}"
+                  + ("  (explicit co-registration)" if args.coreg else ""))
 
     for ax, cut, xax, lab in ((ax1, z[key][:, cr], x_az, "Azimuth [m]"),
                               (ax2, z[key][ca, :], x_rg, "Range [m]")):
@@ -225,7 +235,8 @@ def main(argv=None):
                  fontsize="medium")
     fig.subplots_adjust(left=0.06, right=0.98, top=0.88, bottom=0.11)
 
-    out = args.out or os.path.join(PLOTS, f"irf2d_{key}.png")
+    out = args.out or os.path.join(
+        PLOTS, f"irf2d_{key}{'_coreg' if args.coreg else ''}.png")
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     fig.savefig(out, dpi=160, bbox_inches="tight")
     plt.close(fig)

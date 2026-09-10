@@ -19,9 +19,26 @@ orbit.
 pip install numpy scipy matplotlib
 
 cd sar_reconstruction   # the directory that CONTAINS this package folder
+# --- main experiments -----------------------------------------------------
 python -m sata2d.run_sata2d_topo --plots   # main experiment, 3-D geometry
 python -m sata2d.run_sata_irf              # playground: one target, ONE method
 python -m sata2d.run_sata_irf_all          # playground: one target, all THREE
+
+# --- impulse response -----------------------------------------------------
+python -m sata2d.run_irf2d                     # 2-D IRF, monostatic reference
+python -m sata2d.run_irf2d --method sub        # 2-D IRF, SATA per sub-band
+
+# --- diagnostics ----------------------------------------------------------
+python -m sata2d.run_check && python -m sata2d.plot_esr   # error budget
+python -m sata2d.run_axes_2d                   # slow/fast time, 2-D spectrum
+python -m sata2d.run_c1c2                      # C1/C2 residuals + oracle
+python -m sata2d.run_bxt_test                  # bxt sweep
+
+# --- range co-registration study ------------------------------------------
+python -m sata2d.run_coreg --stage equiv       # the 2x2 equivalence matrix
+python -m sata2d.run_coreg --stage pipeline    # full pipeline comparison
+python -m sata2d.plot_coreg                    # its three figures
+python -m sata2d.run_irf2d --method sub --coreg
 ```
 
 Every script also runs directly (`python run_sata_irf_all.py`, no `-m`, from
@@ -92,6 +109,15 @@ experiment demonstrates.
 | `run_sata2d_topo.py`  | the main experiment + plots                                                                                                                                                                                        |
 | `run_sata_irf.py`     | **playground**: one target, **one** method, one IRF plot                                                                                                                                                           |
 | `run_sata_irf_all.py` | **playground**: one target, the **three** methods together, one IRF plot                                                                                                                                           |
+| `run_irf2d.py` | **2-D impulse response**: range x azimuth contour + the two 1-D cuts, Sakar Fig. 2.9 style. `--coreg` uses the explicit co-registration pipeline |
+| `coreg.py` | the **range co-registration** term: derivation, the ramp, the monochromatic-filter context manager, `reconstruct_explicit_coreg` |
+| `run_coreg.py` | the co-registration experiment (`--stage equiv` / `--stage pipeline`) |
+| `plot_coreg.py` | its figures, from the cached results |
+| `run_check.py` + `plot_esr.py` | error-budget diagnostics: error-to-signal in 2-D and vs Doppler, azimuth IRF, main-lobe zoom |
+| `run_axes_2d.py` | which axis is which: azimuth IRF (slow time), range IRF (fast time), 2-D spectrum |
+| `run_c1c2.py` | `dC0/dC1/dC2` residuals as phase, plus the oracle reconstruction |
+| `run_bxt_test.py` | `bxt` sweep with the oracle filter |
+| `docs/` | `coreg_report_en.pdf` / `coreg_report_pt.pdf`, the co-registration study |
 
 `geometry.py`, `sata.py` and `reconstruction.py` were merged from ten
 smaller files (`params3d.py`, `geom3d.py`, `datagen3d.py`, `sata2d.py`,
@@ -203,15 +229,63 @@ particular range.
 
 ---
 
+---
+
+## 5b. Diagnostics and the range co-registration study
+
+Three results came out of checking why the focused peak sits at 95–96 % rather
+than 100 %.
+
+**`C1` and `C2` are identically zero in broadside.** With
+`dCk = Ck(true target) − Ck(flat point at the same slant range)` converted to
+phase over `T_int`, the maximum `|phi_0|` is 278.5° while `|phi_1|` and
+`|phi_2|` are 2.7e−8 and 2.4e−9 of it — `polyfit` noise. Both `r_ms(t)` and
+`r_bs(t)` are even about their own points of closest approach, so the
+difference carries no odd term. An **oracle** reconstruction, handed the true
+target height so that `C0`, `C1` and `C2` are all exact, reaches 96.1 %
+against 95.4 % for SATA with `C0` alone — 0.7 points, and nothing in
+error-to-signal. Implementing `C1`/`C2` would buy nothing here.
+(`run_c1c2.py`)
+
+**Inter-channel range co-registration is already handled, implicitly.** A
+cross-track baseline shifts each channel's energy by `bxt*sin(theta_inc)/2` —
+38.5 m, or 1.47 range cells, for `bxt = 225 m`. That shift is not missing: the
+STEP 1 filter is built at every range frequency, and its `C0/wl_m` term
+expands into `C0*f0/c + C0*fr/c`, whose second half is linear in range
+frequency and is therefore, by the shift theorem, exactly the co-registration.
+Measured with the oracle filter:
+
+| STEP 1 filter | explicit co-reg | peak | err/signal |
+|---|---|---|---|
+| `wl(f_r)` | no | **96.1 %** | −6.27 dB |
+| `wl(f_r)` | yes | 38.6 % | −0.39 dB |
+| `wl0` | no | 37.4 % | +0.29 dB |
+| `wl0` | yes | **96.1 %** | −6.24 dB |
+
+Exactly one of the two routes must be applied; both, or neither, breaks it. The
+practical consequence is that the `wl_arr` loop in `create_ref_dataset` is
+load-bearing and must not be simplified away. `coreg.py` implements the second
+diagonal entry — the co-registration as an explicit, printable, plottable step
+— as a test version; it is equivalent, not better.
+(`run_coreg.py`, `plot_coreg.py`, `docs/coreg_report_en.pdf`)
+
+**Do not use phase-difference maps in this regime.** With an error-to-signal
+ratio of +1.18 dB (no SATA) or −6.39 dB (with SATA),
+`arg(S_rec * conj(S_ref))` is close to uniform and the map shows noise rather
+than structure. Use `|S_rec − S_ref| / |S_ref|` in dB instead.
+(`run_check.py`, `plot_esr.py`)
+
 ## 6. Known limitations
 
-1. **Only the `C0` term is corrected.** For this geometry that is justified
-   — in broadside `C1 = 0` exactly and `C2 ~ 1e-11` — but it stops being so
+1. **Only the `C0` term is corrected.** For this geometry that is justified,
+   and now measured (Section 5b): the `C1` and `C2` residuals are `polyfit`
+   noise and an oracle filter gains only 0.7 points. It stops being justified
    under squint.
-2. **No range co-registration between channels.** The `bxt` correction fixes
-   the _phase_; a large `bxt` (77 m ≈ 3 range bins for `b_xt = 450 m`) also
-   produces a real physical range misalignment between channels that is not
-   resampled/shifted — SATA does not touch it.
+2. **Range co-registration is implicit.** The channels are misaligned in range
+   by `bxt*sin(theta_inc)/2` (1.47 cells for `bxt = 225 m`), and the
+   range-frequency dependence of the STEP 1 filter is what corrects it — see
+   Section 5b. It works, but it is invisible in the source; `coreg.py` is the
+   version that makes it explicit.
 3. `apply_rcm` in STEP 1 is off by default: the true range-cell-migration
    effect is range-dependent and is already handled by STEP 2 + RCMC
    (`interp_filter`); turning both on double-counts it.
