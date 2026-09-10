@@ -115,9 +115,18 @@ def test2_residual(p, tracks):
 
 
 # ---------------------------------------------------------------------------
-def _run_case(Nrx, dx, dxt, dh, bxt_mode="linear", bxt_max=None, seed=0,
+def _run_case(Nrx, dxt, dh, dx=None, bxt_mode="random", bxt_max=None, seed=0,
               sata_osf=4, verbose=False, n_nodes=16):
-    """One elevated iso-range target, reconstructed four ways."""
+    """One elevated iso-range target, reconstructed four ways.
+
+    ``dx=None`` (the default) puts the along-track baselines on the DPCA
+    condition for the current PRF, so the multichannel sampling is uniform and
+    the case measures the geometry rather than the array timing.  Pass an
+    explicit ``dx`` only to study what breaking DPCA costs.
+    """
+    from .arrays import dpca_dx
+    if dx is None:
+        dx = dpca_dx(2000.0)
     p = make_params3d(Nrx=Nrx, dx=dx, dxt=dxt, bxt_mode=bxt_mode,
                       bxt_max=bxt_max, seed=seed, specs=((0.0, dh),))
     tr = build_tracks_3d(p)
@@ -147,21 +156,25 @@ def test3_sweep(p0, quick=False):
     hdr("[3] Single elevated iso-range target: no-SATA / SATA / ideal")
     print("  focused peak amplitude, normalised to the ideal reconstruction "
           "(100 % = perfect)\n")
+    # All cases: bxt ~ U(0, bxt_max) and bat on the DPCA condition, so the
+    # sweep isolates the cross-track geometry.  The last two deliberately break
+    # DPCA, to show what the array timing alone is worth.
+    R = dict(bxt_mode="random", seed=0)
     cases = [
-        ("dxt=50   dh=240",  dict(Nrx=4, dx=100, dxt=50.0,  dh=240.0)),
-        ("dxt=150  dh=240",  dict(Nrx=4, dx=100, dxt=150.0, dh=240.0)),
-        ("dxt=300  dh=240",  dict(Nrx=4, dx=100, dxt=300.0, dh=240.0)),
+        ("bxt<=20   dh=240",  dict(Nrx=4, dxt=20.0,  bxt_max=20.0,  dh=240.0, **R)),
+        ("bxt<=100  dh=240",  dict(Nrx=4, dxt=100.0, bxt_max=100.0, dh=240.0, **R)),
+        ("bxt<=300  dh=240",  dict(Nrx=4, dxt=300.0, bxt_max=300.0, dh=240.0, **R)),
     ]
     if not quick:
         cases += [
-            ("dxt=150  dh=400",  dict(Nrx=4, dx=100, dxt=150.0, dh=400.0)),
-            ("bxt rand<=100",    dict(Nrx=4, dx=100, dxt=100.0, dh=240.0,
-                                      bxt_mode="random", bxt_max=100.0, seed=0)),
-            ("bxt rand<=20",     dict(Nrx=4, dx=100, dxt=20.0,  dh=240.0,
-                                      bxt_mode="random", bxt_max=20.0, seed=0)),
-            ("Nrx=2   dxt=150",  dict(Nrx=2, dx=100, dxt=150.0, dh=240.0)),
-            ("Nrx=6   dxt=150",  dict(Nrx=6, dx=100, dxt=150.0, dh=240.0)),
-            ("DPCA dx=11",       dict(Nrx=4, dx=11,  dxt=150.0, dh=240.0)),
+            ("bxt<=100  dh=400",  dict(Nrx=4, dxt=100.0, bxt_max=100.0, dh=400.0, **R)),
+            ("bxt<=300  dh=400",  dict(Nrx=4, dxt=300.0, bxt_max=300.0, dh=400.0, **R)),
+            ("Nrx=2  bxt<=100",   dict(Nrx=2, dxt=100.0, bxt_max=100.0, dh=240.0, **R)),
+            ("Nrx=6  bxt<=100",   dict(Nrx=6, dxt=100.0, bxt_max=100.0, dh=240.0, **R)),
+            ("off-DPCA dx=11",    dict(Nrx=4, dxt=100.0, bxt_max=100.0, dh=240.0,
+                                       dx=11.0, **R)),
+            ("off-DPCA dx=100",   dict(Nrx=4, dxt=100.0, bxt_max=100.0, dh=240.0,
+                                       dx=100.0, **R)),
         ]
     print(f"  {'case':<18} {'max|dC0| [deg]':>15} {'no-SATA':>9} "
           f"{'SATA whole':>11} {'SATA sub-b':>11} {'ideal':>7}")
@@ -181,18 +194,30 @@ def test3_sweep(p0, quick=False):
 
 
 # ---------------------------------------------------------------------------
-def test4_azimuth_topo(sata_osf=4, verbose=False, rDelay=None, quiet=False):
+def test4_azimuth_topo(sata_osf=4, verbose=False, rDelay=None, quiet=False,
+                       bxt_mode="random", bxt_max=100.0, seed=0):
     if not quiet:
         hdr("[4] Azimuth-varying topography (position-dependent correction)")
     specs = ((-400.0, 80.0), (-200.0, 160.0), (0.0, 240.0),
              (200.0, 320.0), (400.0, 400.0))
-    kw = dict(Nrx=4, dx=100.0, dxt=150.0, specs=specs)
+    # Cross-track baselines: "random" draws bxt ~ U(0, bxt_max), which is the
+    # realistic array; "linear" is the symmetric ladder bxt_i = dxt(i-(Nrx-1)/2)
+    # and is a deliberate worst case (much larger spread between channels).
+    # bat on the DPCA condition (arrays.py) so the along-track sampling is
+    # uniform; cross-track baselines drawn as bxt ~ U(0, bxt_max) by default.
+    from .arrays import dpca_dx, dpca_residual
+    kw = dict(Nrx=4, dx=dpca_dx(2000.0),
+              dxt=(bxt_max if bxt_mode == "random" else 150.0),
+              specs=specs, bxt_mode=bxt_mode, bxt_max=bxt_max, seed=seed)
     if rDelay is not None:
         kw["rDelay"] = rDelay
     p = make_params3d(**kw)
     tr = build_tracks_3d(p)
     print(f"  5 iso-range targets, azimuth {[s[0] for s in specs]} m, "
           f"heights {[s[1] for s in specs]} m")
+    print(f"  bxt_mode = {bxt_mode}, bxt = {np.array2string(p.bxt, precision=1)} m")
+    print(f"  DPCA bat = {np.array2string(p.bat, precision=2)} m "
+          f"(residual {dpca_residual(p):.1e})")
     nb = target_range_bin(p, p.points[0])
     print(f"  all in range bin {nb}\n")
 
@@ -511,6 +536,13 @@ def main(argv=None):
     ap.add_argument("--plots", action="store_true")
     ap.add_argument("--outdir", default="plots/sata2d")
     ap.add_argument("--skip-sweep", action="store_true")
+    ap.add_argument("--bxt-mode", default="random", dest="bxt_mode",
+                    choices=("linear", "random"),
+                    help="cross-track baselines of the azimuth-topography "
+                         "experiment: 'random' (default) draws bxt ~ U(0,bxt_max), "
+                         "'linear' uses the symmetric ladder")
+    ap.add_argument("--bxt-max", type=float, default=100.0, dest="bxt_max")
+    ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--multi-range", action="store_true",
                     help="repeat test 4 at near/mid/far range and plot it")
     args = ap.parse_args(argv)
@@ -522,7 +554,8 @@ def main(argv=None):
     test1_kernel(p)
     test2_residual(p, tr)
     rows = [] if args.skip_sweep else test3_sweep(p, quick=args.quick)
-    p4, res4, specs = test4_azimuth_topo()
+    p4, res4, specs = test4_azimuth_topo(bxt_mode=args.bxt_mode,
+                                         bxt_max=args.bxt_max, seed=args.seed)
     multi = test4_multi_range() if args.multi_range else None
 
     if args.plots:

@@ -11,13 +11,29 @@ from .geometry import (make_params3d, build_tracks_3d, generate_reference_3d,
 from .reconstruction import (range_compress, build_delta_C0_map_3d, reconstruct_subband_2d,
                              scatterer_range, range_bin_of, matched_filter, METHOD_KW)
 
-p = make_params3d(Nrx=4, dxt=150.0, specs=((0.0, 240.0),))
+import argparse
+_ap = argparse.ArgumentParser(description=__doc__)
+_ap.add_argument("--nrx", type=int, default=4)
+_ap.add_argument("--dxt", type=float, default=100.0)
+_ap.add_argument("--bxt-mode", default="random", dest="bxt_mode",
+                 choices=("linear", "random"))
+_ap.add_argument("--bxt-max", type=float, default=100.0, dest="bxt_max")
+_ap.add_argument("--seed", type=int, default=0)
+_a = _ap.parse_args()
+
+from .arrays import make_params_dpca, dpca_residual
+p = make_params_dpca(Nrx=_a.nrx, dxt=_a.dxt, specs=((0.0, 240.0),),
+                     bxt_mode=_a.bxt_mode, bxt_max=_a.bxt_max, seed=_a.seed)
 tr = build_tracks_3d(p)
 ptg = np.asarray(p.points[0], float)
 r = float(np.sqrt(ptg[1]**2 + (p.H - ptg[2])**2))
 flat = p.flat_point_at_range(r); flat[0] = ptg[0]
 T, wl = p.int_time, p.wl
-print(f"target h = {ptg[2]:.0f} m, r = {r/1e3:.3f} km, T_int = {T:.3f} s, wl = {wl} m\n")
+print(f"target h = {ptg[2]:.0f} m, r = {r/1e3:.3f} km, T_int = {T:.3f} s, wl = {wl} m")
+print(f"array: DPCA (residual {dpca_residual(p):.1e}), "
+      f"bat = {np.array2string(p.bat, precision=2)} m")
+print(f"       bxt_mode={_a.bxt_mode}, bxt = "
+      f"{np.array2string(p.bxt, precision=1)} m\n")
 print(f"{'ch':>3} {'dC0 [mm]':>11} {'dC1 [mm/s]':>12} {'dC2 [mm/s2]':>12} "
       f"{'ph0 [deg]':>11} {'ph1 pp [deg]':>13} {'ph2 [deg]':>11}")
 tot = []

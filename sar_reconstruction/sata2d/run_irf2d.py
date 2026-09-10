@@ -121,6 +121,10 @@ def main(argv=None):
     ap.add_argument("--height", type=float, default=240.0, help="target height [m]")
     ap.add_argument("--nrx", type=int, default=4)
     ap.add_argument("--dxt", type=float, default=150.0)
+    ap.add_argument("--bxt-mode", default="random", dest="bxt_mode",
+                    choices=("linear", "random"))
+    ap.add_argument("--bxt-max", type=float, default=100.0, dest="bxt_max")
+    ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--sata-osf", type=int, default=4, dest="sata_osf")
     ap.add_argument("--span", type=float, default=None,
                     help="axis half-size [m] (default: 4.5 resolution cells)")
@@ -132,8 +136,11 @@ def main(argv=None):
     args = ap.parse_args(argv)
 
     specs = ((args.azimuth, args.height),) if (args.azimuth, args.height) != (0.0, 0.0) else ()
-    p = make_params3d(Nrx=args.nrx, dxt=args.dxt, specs=specs,
-                      res_rg=args.res_rg, swath=args.swath)
+    from .arrays import make_params_dpca, dpca_residual
+    p = make_params_dpca(Nrx=args.nrx, dxt=args.dxt, specs=specs,
+                         res_rg=args.res_rg, swath=args.swath,
+                         bxt_mode=args.bxt_mode, bxt_max=args.bxt_max,
+                         seed=args.seed)
     tr = build_tracks_3d(p)
     ptg = np.asarray(p.points[0], float)
     nb = range_bin_of(p, scatterer_range(p, ptg))
@@ -145,6 +152,8 @@ def main(argv=None):
     rcm = (p.ve * p.int_time / 2.0) ** 2 / (2.0 * p.r0)
 
     print(p.summary())
+    print(f"array      : DPCA (residual {dpca_residual(p):.1e}), "
+          f"bxt = {np.array2string(p.bxt, precision=1)} m")
     print(f"resolution : range {res_rg:.2f} m | azimuth {res_az:.2f} m")
     print(f"sampling   : range {rho_r:.2f} m | azimuth {d_az:.2f} m")
     print(f"RCM        : {rcm:.1f} m = {rcm / rho_r:.1f} range cells")

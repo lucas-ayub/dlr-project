@@ -39,6 +39,7 @@ from .geometry import (make_params3d, build_tracks_3d, generate_reference_3d,
 from .reconstruction import (range_compress, build_delta_C0_map_3d,
                              reconstruct_subband_2d, scatterer_range,
                              range_bin_of, matched_filter, METHOD_KW)
+from .arrays import make_params_dpca, dpca_residual
 from .coreg import (coregister_channels, coregistration_shift,
                     swath_shift_variation, monochromatic_filter,
                     reconstruct_explicit_coreg)
@@ -50,8 +51,13 @@ PLOTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "plots")
 class Bench:
     """Scene, reference signal and the two metrics, built once."""
 
-    def __init__(self, nrx=4, dxt=150.0, azimuth=0.0, height=240.0):
-        self.p = p = make_params3d(Nrx=nrx, dxt=dxt, specs=((azimuth, height),))
+    def __init__(self, nrx=4, dxt=150.0, azimuth=0.0, height=240.0,
+                 bxt_mode="linear", bxt_max=None, seed=0):
+        # bat is always on the DPCA condition (arrays.py): the along-track
+        # sampling is then exactly uniform, so anything left over is due to the
+        # geometry under test rather than to the array timing.
+        self.p = p = make_params_dpca(Nrx=nrx, dxt=dxt, specs=((azimuth, height),),
+                                      bxt_mode=bxt_mode, bxt_max=bxt_max, seed=seed)
         self.tr = build_tracks_3d(p)
         self.ptg = np.asarray(p.points[0], float)
         self.nb = range_bin_of(p, scatterer_range(p, self.ptg))
@@ -75,6 +81,9 @@ class Bench:
         p = self.p
         print(p.summary())
         print(f"range cell : {self.rho_r:.2f} m")
+        print(f"array      : DPCA, bat = {np.array2string(p.bat, precision=2)} m "
+              f"(residual {dpca_residual(p):.1e})")
+        print(f"             bxt = {np.array2string(p.bxt, precision=1)} m")
         print(f"target     : height {self.height:.0f} m -> range bin "
               f"{self.nb}/{p.Nr}\n")
         print("co-registration shifts, Eq. (1)")
@@ -82,7 +91,14 @@ class Bench:
             dR = float(coregistration_shift(p, i))
             print(f"  ch{i}: bxt = {p.bxt[i]:+7.1f} m -> dR = {dR:+7.2f} m"
                   f" = {dR / self.rho_r:+6.3f} cells")
-        print(f"  swath variation: {swath_shift_variation(self.p):.4f} cells\n")
+        rel = np.array([float(coregistration_shift(p, i)) for i in range(p.Nrx)])
+        rel -= rel.mean()
+        print(f"  swath variation: {swath_shift_variation(self.p):.4f} cells")
+        print(f"  spread between channels: "
+              f"{(rel.max()-rel.min())*1:.2f} m = "
+              f"{(rel.max()-rel.min())/self.rho_r:.2f} cells "
+              f"(a shift common to all channels is a global image shift, "
+              f"not a misalignment)\n")
 
     def score(self, rec):
         """(focused peak, % of monostatic, in-band error/signal [dB], IRF)."""
@@ -174,10 +190,19 @@ def main(argv=None):
     ap.add_argument("--dxt", type=float, default=150.0)
     ap.add_argument("--height", type=float, default=240.0)
     ap.add_argument("--azimuth", type=float, default=0.0)
+    ap.add_argument("--bxt-mode", default="random", dest="bxt_mode",
+                    choices=("linear", "random"),
+                    help="cross-track baselines: 'random' draws bxt ~ U(0, bxt_max) "
+                         "(default), 'linear' is the symmetric ladder "
+                         "bxt_i = dxt*(i-(Nrx-1)/2)")
+    ap.add_argument("--bxt-max", type=float, default=100.0, dest="bxt_max",
+                    help="upper bound of the uniform draw (random mode)")
+    ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args(argv)
 
     os.makedirs(PLOTS, exist_ok=True)
-    b = Bench(args.nrx, args.dxt, args.azimuth, args.height)
+    b = Bench(args.nrx, args.dxt, args.azimuth, args.height,
+              bxt_mode=args.bxt_mode, bxt_max=args.bxt_max, seed=args.seed)
     b.report_geometry()
     if args.stage == "equiv":
         stage_equiv(b, os.path.join(PLOTS, "cache_coreg_equiv.npz"))

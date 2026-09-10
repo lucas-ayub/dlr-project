@@ -41,6 +41,14 @@ python -m sata2d.plot_coreg                    # its three figures
 python -m sata2d.run_irf2d --method sub --coreg
 ```
 
+All the study scripts default to the realistic array: along-track baselines on
+the **DPCA condition** (`arrays.make_params_dpca`, `dx = 2*vs/PRF = 7.6885 m`,
+so the effective phase centres are uniformly spaced and the multichannel
+sampling is exact) and cross-track baselines drawn as `bxt ~ U(0, bxt_max)`,
+set with `--bxt-max` (default 100 m) and `--seed`. Pass `--bxt-mode linear`
+for the symmetric ladder `bxt_i = dxt*(i-(Nrx-1)/2)`, a deliberate worst case.
+Every script writes its figures into `plots/` next to this file.
+
 Every script also runs directly (`python run_sata_irf_all.py`, no `-m`, from
 inside the folder) and works whatever the folder itself is named — e.g.
 `sata_2d` — since each script derives its own package name from the
@@ -110,6 +118,7 @@ experiment demonstrates.
 | `run_sata_irf.py`     | **playground**: one target, **one** method, one IRF plot                                                                                                                                                           |
 | `run_sata_irf_all.py` | **playground**: one target, the **three** methods together, one IRF plot                                                                                                                                           |
 | `run_irf2d.py` | **2-D impulse response**: range x azimuth contour + the two 1-D cuts, Sakar Fig. 2.9 style. `--coreg` uses the explicit co-registration pipeline |
+| `arrays.py` | the **DPCA condition**: `dpca_dx`, `dpca_prf`, `dpca_residual` and `make_params_dpca`, used by every study script so the along-track sampling is uniform |
 | `coreg.py` | the **range co-registration** term: derivation, the ramp, the monochromatic-filter context manager, `reconstruct_explicit_coreg` |
 | `run_coreg.py` | the co-registration experiment (`--stage equiv` / `--stage pipeline`) |
 | `plot_coreg.py` | its figures, from the cached results |
@@ -190,16 +199,19 @@ the true height):
 
 | case            | max&nbsp;\|dC0\| [°] | no SATA | SATA whole band | SATA per sub-band |
 | --------------- | -------------------- | ------- | --------------- | ----------------- |
-| dxt=50, dh=240  | 93                   | 48.1 %  | 99.8 %          | 99.8 %            |
-| dxt=150, dh=240 | 278                  | 8.3 %   | 99.3 %          | 99.3 %            |
-| dxt=300, dh=240 | 557                  | 95.8 %  | 99.9 %          | 99.9 %            |
-| dxt=150, dh=400 | 464                  | 61.2 %  | 99.0 %          | 99.0 %            |
-| bxt ~ U(0,100)  | 79                   | 86.6 %  | 100.4 %         | 100.4 %           |
-| bxt ~ U(0,20)   | 16                   | 99.5 %  | 100.0 %         | 100.0 %           |
-| Nrx=2, dxt=150  | 93                   | 8.8 %   | 99.3 %          | 99.3 %            |
-| Nrx=6, dxt=150  | 464                  | 10.9 %  | 99.3 %          | 99.3 %            |
+| bxt<=20, dh=240 | 16 | 99.5 % | 100.0 % | 100.0 % |
+| bxt<=100, dh=240 | 79 | 86.6 % | 100.5 % | 100.5 % |
+| bxt<=300, dh=240 | 236 | 46.6 % | 99.8 % | 99.8 % |
+| bxt<=100, dh=400 | 131 | 65.7 % | 100.3 % | 100.3 % |
+| bxt<=300, dh=400 | 394 | 56.5 % | 100.0 % | 100.0 % |
+| Nrx=2, bxt<=100 | 79 | 91.9 % | 100.9 % | 100.9 % |
+| Nrx=6, bxt<=100 | 113 | 72.3 % | 100.4 % | 100.4 % |
+| off-DPCA dx=11 | 79 | 89.6 % | 100.4 % | 100.4 % |
+| off-DPCA dx=100 | 79 | 86.6 % | 100.4 % | 100.4 % |
 
-SATA recovers **99.0–100.4 %** of the ideal peak in every case. For a
+SATA recovers **99.8–100.9 %** of the ideal peak in every case.  All cases use
+`bxt ~ U(0, bxt_max)` with seed 0 and DPCA along-track timing, except the last
+two which break DPCA on purpose. For a
 **single** target the residual is constant across azimuth, so whole-band and
 per-sub-band SATA agree exactly.
 
@@ -211,19 +223,20 @@ central target, as a percentage of the monostatic reference:
 
 |                       | peak          | % of monostatic |
 | --------------------- | ------------- | --------------- |
-| monostatic reference  | 1.308e+04     | 100.0 %         |
-| no SATA               | 7.725e+03     | 59.1 %          |
-| SATA whole band       | 9.238e+03     | 70.7 %          |
-| **SATA per sub-band** | **1.194e+04** | **91.3 %**      |
+| monostatic reference | 1.308e+04 | 100.0 % |
+| no SATA | 1.285e+04 | 98.3 % |
+| SATA whole band | 1.221e+04 | 93.4 % |
+| **SATA per sub-band** | **1.324e+04** | **101.3 %** |
 
 **This is where the per-sub-band scheme earns its cost.** Each sub-band's
-frequency window maps onto a different piece of the ground, so the
-correction becomes position-selective; a single whole-band correction can
-only apply one value per azimuth line and leaves elevated sidelobes.
+frequency window maps onto a different piece of the ground, so the correction
+becomes position-selective. The whole-band correction ends up *below* no
+correction at all: with a residual that changes sign along azimuth, one value
+per azimuth line subtracts the wrong correction over half the scene.
 
 Repeating the same case at three reference ranges (12°/20°/28° incidence,
-`--multi-range`): per-sub-band stays at 91–95 % throughout; whole-band is
-inconsistent (64–71 %, once _worse_ than no correction at all) — evidence
+`--multi-range`): per-sub-band holds 98.6–101.3 %; whole-band stays at 82–97 %, below no
+correction throughout — evidence
 that the per-sub-band scheme's advantage is not a lucky coincidence of one
 particular range.
 
@@ -238,18 +251,20 @@ than 100 %.
 
 **`C1` and `C2` are identically zero in broadside.** With
 `dCk = Ck(true target) − Ck(flat point at the same slant range)` converted to
-phase over `T_int`, the maximum `|phi_0|` is 278.5° while `|phi_1|` and
-`|phi_2|` are 2.7e−8 and 2.4e−9 of it — `polyfit` noise. Both `r_ms(t)` and
+phase over `T_int`, the maximum `|phi_0|` is 78.8° while `|phi_1|` and
+`|phi_2|` are 3.0e−10 and 2.4e−9 of it — `polyfit` noise. Both `r_ms(t)` and
 `r_bs(t)` are even about their own points of closest approach, so the
 difference carries no odd term. An **oracle** reconstruction, handed the true
-target height so that `C0`, `C1` and `C2` are all exact, reaches 96.1 %
-against 95.4 % for SATA with `C0` alone — 0.7 points, and nothing in
-error-to-signal. Implementing `C1`/`C2` would buy nothing here.
+target height so that `C0`, `C1` and `C2` are all exact, reaches 99.5 %
+against 100.0 % for SATA with `C0` alone — it does not even match it, because
+the oracle table is built at one height for every range. Implementing
+`C1`/`C2` would buy nothing here.
 (`run_c1c2.py`)
 
 **Inter-channel range co-registration is already handled, implicitly.** A
-cross-track baseline shifts each channel's energy by `bxt*sin(theta_inc)/2` —
-38.5 m, or 1.47 range cells, for `bxt = 225 m`. That shift is not missing: the
+cross-track baseline shifts each channel's energy by `bxt*sin(theta_inc)/2`.
+What matters is the *spread* between channels: 10.6 m, or 0.41 range cells,
+for `bxt ~ U(0,100) m`; 2.95 cells for a symmetric ladder with `bxt = ±225 m`. That shift is not missing: the
 STEP 1 filter is built at every range frequency, and its `C0/wl_m` term
 expands into `C0*f0/c + C0*fr/c`, whose second half is linear in range
 frequency and is therefore, by the shift theorem, exactly the co-registration.
@@ -257,10 +272,10 @@ Measured with the oracle filter:
 
 | STEP 1 filter | explicit co-reg | peak | err/signal |
 |---|---|---|---|
-| `wl(f_r)` | no | **96.1 %** | −6.27 dB |
-| `wl(f_r)` | yes | 38.6 % | −0.39 dB |
-| `wl0` | no | 37.4 % | +0.29 dB |
-| `wl0` | yes | **96.1 %** | −6.24 dB |
+| `wl(f_r)` | no | **99.5 %** | −10.83 dB |
+| `wl(f_r)` | yes | 95.9 % | −8.41 dB |
+| `wl0` | no | 93.3 % | −8.74 dB |
+| `wl0` | yes | **99.5 %** | −10.84 dB |
 
 Exactly one of the two routes must be applied; both, or neither, breaks it. The
 practical consequence is that the `wl_arr` loop in `create_ref_dataset` is
@@ -270,19 +285,20 @@ diagonal entry — the co-registration as an explicit, printable, plottable step
 (`run_coreg.py`, `plot_coreg.py`, `docs/coreg_report_en.pdf`)
 
 **Do not use phase-difference maps in this regime.** With an error-to-signal
-ratio of +1.18 dB (no SATA) or −6.39 dB (with SATA),
-`arg(S_rec * conj(S_ref))` is close to uniform and the map shows noise rather
+ratio of −3.87 dB (no SATA) or −11.65 dB (with SATA), and much worse on a wide
+array, `arg(S_rec * conj(S_ref))` is close to uniform and the map shows noise rather
 than structure. Use `|S_rec − S_ref| / |S_ref|` in dB instead.
 (`run_check.py`, `plot_esr.py`)
 
 ## 6. Known limitations
 
 1. **Only the `C0` term is corrected.** For this geometry that is justified,
-   and now measured (Section 5b): the `C1` and `C2` residuals are `polyfit`
-   noise and an oracle filter gains only 0.7 points. It stops being justified
+   and now measured (Section 5b): the `C1` and `C2` residuals are `polyfit` noise
+   and an oracle filter does not even match SATA with `C0` alone. It stops being justified
    under squint.
 2. **Range co-registration is implicit.** The channels are misaligned in range
-   by `bxt*sin(theta_inc)/2` (1.47 cells for `bxt = 225 m`), and the
+   by `bxt*sin(theta_inc)/2` (0.41 cells of spread for `bxt ~ U(0,100) m`), and
+   the
    range-frequency dependence of the STEP 1 filter is what corrects it — see
    Section 5b. It works, but it is invisible in the source; `coreg.py` is the
    version that makes it explicit.
