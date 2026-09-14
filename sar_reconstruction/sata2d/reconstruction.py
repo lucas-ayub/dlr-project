@@ -685,13 +685,18 @@ def matched_filter(s, ref):
 
 
 def run_irf(target_azimuth, target_height, Nrx, dxt, sata_osf,
-           verbose=False, methods=("no", "whole", "sub")):
+           verbose=False, methods=("no", "whole", "sub"),
+           bxt_mode="random", bxt_max=100.0, seed=0):
     """Build the geometry, reconstruct the single target (only the methods
     requested -- default all three), return (p, res) with
     res['mono'|'no'|'whole'|'sub'] the corresponding azimuth IRFs."""
     specs = ((target_azimuth, target_height),) \
         if (target_azimuth, target_height) != (0.0, 0.0) else ()
-    p = make_params3d(Nrx=Nrx, dxt=dxt, specs=specs)
+    # DPCA along-track timing + the realistic random cross-track array, so the
+    # playground matches every other study in the package (see arrays.py).
+    from .arrays import make_params_dpca
+    p = make_params_dpca(Nrx=Nrx, dxt=dxt, specs=specs,
+                         bxt_mode=bxt_mode, bxt_max=bxt_max, seed=seed)
     tr = build_tracks_3d(p)
 
     ptg = p.points[0]
@@ -722,13 +727,14 @@ def run_irf(target_azimuth, target_height, Nrx, dxt, sata_osf,
     return p, res
 
 
-def _param_box(p):
+def _param_box(p, height=None):
     dx = p.bat[1] - p.bat[0] if p.Nrx > 1 else 0.0
     bxt_max = float(np.max(np.abs(p.bxt))) if p.Nrx > 0 else 0.0
+    extra = "" if height is None else f" | $\\Delta h={height:.0f}\\,\\mathrm{{m}}$"
     return (f"Nrx={p.Nrx} | $\\mathrm{{PRF}}={p.prf:.1f}\\,\\mathrm{{Hz}}$ | "
            f"$B_a={p.abw:.1f}\\,\\mathrm{{Hz}}$ | "
            f"$\\Delta b_{{at}}={dx:.1f}\\,\\mathrm{{m}}$ | "
-           f"$b_{{xt}}^{{\\max}}={bxt_max:.1f}\\,\\mathrm{{m}}$")
+           f"$b_{{xt}}^{{\\max}}={bxt_max:.1f}\\,\\mathrm{{m}}$" + extra)
 
 
 def plot_irf_single(p, res, method, out="sata_irf.png"):
@@ -762,7 +768,7 @@ def plot_irf_single(p, res, method, out="sata_irf.png"):
     print(f"\nfigure written to {out}")
 
 
-def plot_irf_all(p, res, out="sata_irf_all.png"):
+def plot_irf_all(p, res, out="sata_irf_all.png", height=None):
     """The three methods together (no SATA / whole band / per sub-band)
     against the monostatic reference, same style as plot_irf_single."""
     import matplotlib
@@ -778,7 +784,7 @@ def plot_irf_all(p, res, out="sata_irf_all.png"):
              ("sub", "SATA per sub-band", "#2E7D32"))
 
     fig, ax = plt.subplots(figsize=(9.5, 5.5), dpi=150)
-    fig.suptitle(f"IRF comparison | {_param_box(p)}")
+    fig.suptitle(f"IRF comparison | {_param_box(p, height)}")
 
     for key, lab, col in order:
         if key not in res:

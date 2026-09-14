@@ -25,7 +25,8 @@ Two things make this figure work, and without either of them it does not:
 
 Sanity check: for the monostatic reference this script returns
 PSLR = -13.3 / -13.5 dB in azimuth and range -- the theoretical rectangular
-window value is -13.26 dB -- and IRW(-3 dB) of about 4-5 m for 6 m resolution.
+window value is -13.26 dB -- and IRW(-3 dB) of 5.1 m in azimuth and 5.4 m in
+range for 6 m resolution (theory: 0.886 x 6.0 = 5.3 m).
 
 Run from ``sar_reconstruction/``::
 
@@ -89,12 +90,33 @@ def zoom2d(img, ia, ir, na, nr, zpa, zpr):
 
 
 def cut_metrics(cut, axis):
-    """(IRW at -3 dB, PSLR) of a 1-D cut, both from the interpolated grid."""
+    """(IRW at -3 dB, PSLR) of a 1-D cut, both from the interpolated grid.
+
+    The -3 dB crossings are found by linear interpolation between the two
+    samples that straddle them, not by taking the outermost sample above the
+    threshold: the latter underestimates the width by up to two grid steps,
+    which on this grid (0.93 m) is a third of the width being measured.
+    """
     a = np.abs(cut)
     a = a / a.max()
     i0 = int(np.argmax(a))
-    half = np.where(a >= 10 ** (-3 / 20))[0]
-    irw = (axis[half[-1]] - axis[half[0]]) if half.size > 1 else np.nan
+    thr = 10 ** (-3 / 20)
+    half = np.where(a >= thr)[0]
+    if half.size > 1:
+        lo_i, hi_i = int(half[0]), int(half[-1])
+
+        def cross(i, j):
+            """Position where the segment i->j crosses the threshold."""
+            if a[j] == a[i]:
+                return axis[i]
+            t = (thr - a[i]) / (a[j] - a[i])
+            return axis[i] + t * (axis[j] - axis[i])
+
+        left = cross(lo_i - 1, lo_i) if lo_i > 0 else axis[lo_i]
+        right = cross(hi_i + 1, hi_i) if hi_i < len(a) - 1 else axis[hi_i]
+        irw = float(right - left)
+    else:
+        irw = np.nan
     # exclude the main lobe: walk out to the first null on either side
     lo = hi = i0
     while lo > 0 and a[lo - 1] < a[lo]:

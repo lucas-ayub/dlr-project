@@ -28,6 +28,12 @@ python -m sata2d.run_sata_irf_all          # playground: one target, all THREE
 python -m sata2d.run_irf2d                     # 2-D IRF, monostatic reference
 python -m sata2d.run_irf2d --method sub        # 2-D IRF, SATA per sub-band
 
+# --- the case matrix ------------------------------------------------------
+python -m sata2d.run_cases --list              # the 16 geometries
+python -m sata2d.run_cases                     # run them all (~5 min)
+python -m sata2d.run_cases --only A1 B4        # a subset; results accumulate
+python -m sata2d.plot_cases                    # the three summary figures
+
 # --- diagnostics ----------------------------------------------------------
 python -m sata2d.run_check && python -m sata2d.plot_esr   # error budget
 python -m sata2d.run_axes_2d                   # slow/fast time, 2-D spectrum
@@ -74,14 +80,17 @@ azimuths and heights, the case a single global correction cannot fix).
 Two smaller scripts for quick, single-target experimentation rather than a
 full run: both build the same standard geometry as above (`wl=0.25 m`,
 `H=720 km`, `r0=766.21 km`, `PRF=2000 Hz`, `Nrx=4`), place **one** target at
-a chosen azimuth offset and height, and reconstruct it. Only the `TARGET
-GEOMETRY` block at the top of each file is meant to be edited — everything
+a chosen azimuth offset and height, and reconstruct it. The `TARGET GEOMETRY` block at the top of each file holds the defaults, and
+each of them is also a command-line flag (`--height`, `--azimuth`, `--nrx`,
+`--bxt-max`, `--bxt-mode`, `--seed`, `--sata-osf`, `--out`), so a figure is
+reproducible from the command that made it. Nothing else — everything
 else stays at the same defaults, so runs stay directly comparable to each
 other and to `run_sata2d_topo.py`.
 
 ```bash
-python -m sata2d.run_sata_irf --method sub    # one method, one IRF
-python -m sata2d.run_sata_irf_all             # all three, one plot
+python -m sata2d.run_sata_irf --method sub        # one method, one IRF
+python -m sata2d.run_sata_irf_all                # all three, one plot
+python -m sata2d.run_sata_irf_all --height 400   # same, target 400 m high
 ```
 
 - `run_sata_irf.py` reconstructs with a single method (`--method
@@ -126,7 +135,9 @@ experiment demonstrates.
 | `run_axes_2d.py` | which axis is which: azimuth IRF (slow time), range IRF (fast time), 2-D spectrum |
 | `run_c1c2.py` | `dC0/dC1/dC2` residuals as phase, plus the oracle reconstruction |
 | `run_bxt_test.py` | `bxt` sweep with the oracle filter |
-| `docs/` | `coreg_report_en.pdf` / `coreg_report_pt.pdf`, the co-registration study |
+| `run_cases.py` | the **case matrix**: 16 geometries (single target / iso-range ramp), each reconstructed three ways and focused with the exact 2-D matched filter; one six-panel figure and one JSON record per case |
+| `plot_cases.py` | the three summary figures over the matrix, from `plots/cases/cases.json` |
+| `docs/` | `coreg_report.pdf` / `coreg_report_pt.pdf`, the co-registration study; `cases_report.pdf` / `cases_report_pt.pdf`, the case matrix of Section 5c |
 
 `geometry.py`, `sata.py` and `reconstruction.py` were merged from ten
 smaller files (`params3d.py`, `geom3d.py`, `datagen3d.py`, `sata2d.py`,
@@ -282,13 +293,90 @@ practical consequence is that the `wl_arr` loop in `create_ref_dataset` is
 load-bearing and must not be simplified away. `coreg.py` implements the second
 diagonal entry — the co-registration as an explicit, printable, plottable step
 — as a test version; it is equivalent, not better.
-(`run_coreg.py`, `plot_coreg.py`, `docs/coreg_report_en.pdf`)
+(`run_coreg.py`, `plot_coreg.py`, `docs/coreg_report.pdf`)
 
 **Do not use phase-difference maps in this regime.** With an error-to-signal
 ratio of −3.87 dB (no SATA) or −11.65 dB (with SATA), and much worse on a wide
 array, `arg(S_rec * conj(S_ref))` is close to uniform and the map shows noise rather
 than structure. Use `|S_rec − S_ref| / |S_ref|` in dB instead.
 (`run_check.py`, `plot_esr.py`)
+
+## 5c. The case matrix — how the result depends on the geometry
+
+`run_cases.py` sweeps 16 geometries and reconstructs each one three ways (no
+SATA / one whole-band pass / one pass per sub-band), focusing every scatterer
+with the exact 2-D matched filter of its own monostatic signal. Two scene
+families: **A**, a single point target at height `h`; **B**, five iso-range
+scatterers on a ramp of slope `alpha` along azimuth,
+`h_j = h_ref + x_j*tan(alpha)`, each displaced cross-track onto
+`y(h) = sqrt(r0^2 - (H-h)^2)` so that all five land in the same range bin.
+Everything runs at `res_rg = 6 m` (so the 2-D impulse response comes out
+isotropic) with the along-track baselines on the DPCA condition and
+`bxt ~ U(0, bxt_max)`, `seed=0`.
+
+**One number orders the whole matrix.** The residual the flat-earth filter
+fails to model is `dC0_i = -bxt_i*h/(r0*tan(theta_inc))`. A residual common to
+all channels is a global image phase and costs nothing; what the reconstruction
+cannot absorb is the *spread between channels*,
+`max_i dC0_i - min_i dC0_i`, in wavelengths. Plotting every target of every
+case against it collapses the un-corrected results onto one falling trend —
+94.5 % of the monostatic peak at 0.04 cycles, 82.0 % at 0.21, 61.9 % at 0.36,
+31.9 % at 0.64. Neither `h` nor `bxt` alone predicts a case; their product
+does. (`plots/cases/cases_predictor.png`)
+
+**SATA reduces the error; it does not remove it.** Across the matrix the
+per-sub-band pass lands between 82.4 % and 96.6 %, and the ceiling falls as the
+residual grows (94.9 % at `bxt_max = 20 m`, 93.0 % at the reference geometry,
+89.8 % at `h = 400 m`, 83.3 % at `bxt_max = 300 m`). The ceiling also depends
+on the channel count in a way this matrix does not separate from the residual:
+A6 (`Nrx = 2`) stops at 90.4 % with half the residual of A1.
+
+**For a single target, whole-band and per-sub-band are identical** — to every
+digit printed, in all eight A cases, in both the peak and the ESR. With one
+scatterer there is one residual, evaluated at closest approach where it is
+essentially angle-invariant, so the four sub-band passes compute the same
+correction. Single-target studies should use `use_sata="whole"`: four times
+faster, measurably identical.
+
+**The `alpha` question.** The per-sub-band machinery costs four reconstructions
+instead of one, and family B says when that is worth paying:
+
+| `alpha` | heights | no SATA (worst) | whole band | per sub-band | spread along the ramp (none / whole / sub) |
+|---|---|---|---|---|---|
+| 1.0° | 233–247 m | 82.5 % | 93.9 % | 94.0 % | 1.4 / 0.2 / 0.1 pp |
+| 3.0° | 219–261 m | 81.0 % | 93.7 % | 93.9 % | 4.3 / 0.4 / 0.2 pp |
+| 6.0° | 198–282 m | 78.5 % | 93.0 % | 93.8 % | 8.8 / 0.8 / 0.3 pp |
+| 21.8° | 80–400 m | 63.0 % | 84.2 % | 92.3 % | 31.8 / 5.0 / 1.0 pp |
+
+Below roughly `alpha = 5°` over a ±400 m aperture, and at moderate cross-track
+baselines, one whole-band pass is as good as four per-sub-band passes. Above
+it the two separate, and at 21.8° the whole-band pass *tilts* the scene: the
+target at the foot of the ramp (`h = 80 m`) comes back at 94.8 % with no
+correction at all and at 87.7 % after a whole-band pass, because a single
+correction tuned to the scene average over-corrects a target whose own residual
+is below it. The per-sub-band pass costs that target 1.5 points instead of 7.1
+and leaves the whole ramp at one level.
+
+The baseline caveat is not decorative: case B5 sits at `alpha = 3°` but with
+`bxt_max = 300 m`, and there the two variants separate again by up to 1.9
+points on a single target. Low `alpha` alone is not a licence to drop the
+per-sub-band pass.
+
+**Reading the peak of one target in a multi-target scene.** The matched filter
+puts the target of interest at *zero lag*, i.e. the exact centre of the
+`fftshift`ed output, and that is where `run_cases.py` reads the peak. Locating
+it with `argmax` is wrong here: the other four scatterers of an iso-range ramp
+sit in the same range bin, are compressed by the same azimuth chirp, and
+produce peaks of comparable amplitude 200 m away in azimuth, so `argmax` locks
+onto a neighbour and two targets get reported with the same number. Even
+reading the centre, the four neighbours add coherently there and put a floor
+of about one percentage point on the precision of a per-target peak (B4's
+`h = 400 m` target reads 63.0 % inside the ramp against 61.9 % for the same
+target alone in A3).
+
+Full write-up, all 16 six-panel figures and the metric tables:
+`docs/cases_report.pdf` (`docs/cases_report_pt.pdf` in Portuguese).
+(`run_cases.py`, `plot_cases.py`)
 
 ## 6. Known limitations
 
@@ -308,3 +396,11 @@ than structure. Use `|S_rec − S_ref| / |S_ref|` in dB instead.
 4. `interp_filter` requires the filter block size to equal the number of
    range bins it operates on (`Nb == Nr`); this is validated, not fixed for
    the general block case.
+5. **One draw of `bxt` per case.** Every study script uses `seed=0`. The
+   ordering of the cases in Section 5c is driven by the residual and would
+   survive another draw, but the individual percentages would move; nothing
+   here averages over seeds.
+6. **Point targets only.** Five isolated scatterers are not a distributed
+   scene: none of these results say how the correction behaves against
+   clutter, decorrelation, or a continuum of heights inside one resolution
+   cell.

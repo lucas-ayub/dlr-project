@@ -46,18 +46,19 @@ from .reconstruction import run_irf, plot_irf_single  # noqa: E402
 PLOTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "plots")
 
 # ===========================================================================
-# TARGET GEOMETRY -- this is the block to edit.  Everything below it is the
-# standard system/array geometry from the rest of the report; leave it alone
-# unless you specifically want to explore a different platform or array.
+# TARGET GEOMETRY -- defaults only; each of these is also a command-line flag,
+# so a figure is reproducible from the command that made it.  (0.0, 0.0)
+# reproduces the plain monostatic IRF: no SATA, whole band and per sub-band all
+# coincide.  The array is the standard one: bat on the DPCA condition, bxt
+# drawn as U(0, BXT_MAX) -- see arrays.py.
 # ===========================================================================
 TARGET_AZIMUTH = 0.0        # [m] azimuth offset of the target from scene centre
 TARGET_HEIGHT = 240.0       # [m] target height above the reference surface
-#                             (0.0, 0.0) reproduces the plain monostatic IRF:
-#                             no SATA, whole band and per sub-band all coincide.
 
 NRX = 4                     # number of receive channels
-DXT = 150.0                 # [m] cross-track baseline step ("linear" ladder)
 SATA_OSF = 4                # SATA sub-aperture zero-padding oversampling
+BXT_MAX = 100.0             # [m] bxt ~ U(0, BXT_MAX)
+SEED = 0
 # ===========================================================================
 
 
@@ -70,14 +71,25 @@ def main(argv=None):
     ap.add_argument("--out", default=None,
                     help="output PNG path (default: plots/sata_irf.png "
                          "next to this script; created if missing)")
+    ap.add_argument("--height", type=float, default=TARGET_HEIGHT,
+                    help="target height above the reference surface [m]")
+    ap.add_argument("--azimuth", type=float, default=TARGET_AZIMUTH,
+                    help="target azimuth offset from scene centre [m]")
+    ap.add_argument("--nrx", type=int, default=NRX)
+    ap.add_argument("--bxt-max", type=float, default=BXT_MAX, dest="bxt_max")
+    ap.add_argument("--bxt-mode", default="random", dest="bxt_mode",
+                    choices=("linear", "random"))
+    ap.add_argument("--seed", type=int, default=SEED)
+    ap.add_argument("--sata-osf", type=int, default=SATA_OSF, dest="sata_osf")
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args(argv)
 
     out = args.out if args.out is not None else os.path.join(PLOTS_DIR, "sata_irf.png")
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
 
-    p, res = run_irf(TARGET_AZIMUTH, TARGET_HEIGHT, NRX, DXT, SATA_OSF,
-                     verbose=args.verbose, methods=(args.method,))
+    p, res = run_irf(args.azimuth, args.height, args.nrx, args.bxt_max,
+                     args.sata_osf, verbose=args.verbose, methods=(args.method,),
+                     bxt_mode=args.bxt_mode, bxt_max=args.bxt_max, seed=args.seed)
     plot_irf_single(p, res, args.method, out=out)
     return 0
 
