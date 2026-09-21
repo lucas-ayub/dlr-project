@@ -1,5 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Is the 'phase error' panel a valid diagnostic here?  Measure error-to-signal."""
+"""Is the 'phase error' panel a valid diagnostic here?  Measure error-to-signal.
+
+Geometry: the DELIBERATE WORST CASE -- symmetric cross-track ladder
+bxt = [-225, -75, 75, 225] m and along-track step 100 m (OFF the DPCA
+condition), one target at h = 240 m.  Channel-to-channel residual spread
+Sigma ~ 1.5 cycles, so the numbers here are NOT comparable with the DPCA /
+bxt <= 100 m studies.  Writes plots/cache_check.npz; plot with plot_esr.py.
+"""
 from __future__ import annotations
 import os, sys
 import numpy as np
@@ -25,7 +32,7 @@ S = {k: np.fft.fftshift(np.fft.fft2(v)) for k, v in rec.items()}
 fa = np.fft.fftshift(np.fft.fftfreq(p.Na, 1/p.prf)); fr = np.fft.fftshift(np.fft.fftfreq(p.Nr, 1/p.rsf))
 inb = np.abs(fa) < p.abw/2
 print("\n=== error-to-signal ratio, in-band ===")
-esr = {}
+esr, esr_amp = {}, {}
 for k, v in S.items():
     e = np.abs(v - S_ref)[inb]; s = np.abs(S_ref)[inb]
     esr[k] = 20*np.log10(np.sqrt(np.mean(e**2))/np.sqrt(np.mean(s**2)))
@@ -34,8 +41,9 @@ for k, v in S.items():
     # how much of that is a pure phase screen (multiplicative) vs additive?
     ph = np.exp(1j*np.angle(v*np.conj(S_ref)))
     e2 = np.abs(v - S_ref*ph)[inb]
+    esr_amp[k] = 20*np.log10(np.sqrt(np.mean(e2**2))/np.sqrt(np.mean(s**2)))
     print(f"        residual after removing the best per-bin phase: "
-          f"{20*np.log10(np.sqrt(np.mean(e2**2))/np.sqrt(np.mean(s**2))):6.2f} dB (amplitude-only part)")
+          f"{esr_amp[k]:6.2f} dB (amplitude-only part)")
 esr_fa = {k: 20*np.log10(np.sqrt(np.mean(np.abs(v-S_ref)**2,1))/np.sqrt(np.mean(np.abs(S_ref)**2,1)))
           for k, v in S.items()}
 esr_2d = {k: 20*np.log10(np.abs(v-S_ref)/(np.abs(S_ref)+1e-30)) for k, v in S.items()}
@@ -43,8 +51,26 @@ ref_line = ref[:, nb]
 foc = lambda d: np.stack([matched_filter(d[:, n], ref_line) for n in range(p.Nr)], 1)
 img = {"mono": foc(ref), "no": foc(rec["no"]), "sub": foc(rec["sub"])}
 pk = int(np.argmax(np.abs(img["mono"][:, nb])))
+# geometry facts the figure prints instead of hard-coding them
+from .geometry import _coeff
+from .arrays import dpca_residual
+_pt = np.asarray(p.points[0], float)
+_r = float(np.sqrt(_pt[1]**2 + (p.H - _pt[2])**2))
+_fl = p.flat_point_at_range(_r); _fl[0] = _pt[0]
+_dC0 = np.array([_coeff(p, tr, _pt, i)[0] - _coeff(p, tr, _fl, i)[0] for i in range(p.Nrx)])
+sigma = float(np.ptp(_dC0) / p.wl)
+peak = {k: float(np.abs(img[k][:, nb]).max() / np.abs(img["mono"][:, nb]).max())
+        for k in ("no", "sub")}
+print(f"\nSigma = {sigma:.3f} cycles | peak: no SATA {100*peak['no']:.1f} %, "
+      f"SATA sub-band {100*peak['sub']:.1f} % | DPCA residual {dpca_residual(p):.2f}")
 np.savez_compressed(os.path.join(OUT, "cache_check.npz"),
     fa=fa, fr=fr, abw=p.abw, prf=p.prf, ve=p.ve, pk=pk,
+    vs=p.vs, wl=p.wl, r0=p.r0, prf_op=p.PRF_op, Nrx=p.Nrx,
+    height=float(_pt[2]), bxt=p.bxt, bat=p.bat, dC0=_dC0, sigma=sigma,
+    dpca_res=dpca_residual(p),
+    esr_no=esr["no"], esr_sub=esr["sub"],
+    esr_amp_no=esr_amp["no"], esr_amp_sub=esr_amp["sub"],
+    peak_no=peak["no"], peak_sub=peak["sub"],
     esr_fa_no=esr_fa["no"], esr_fa_sub=esr_fa["sub"],
     esr2d_no=esr_2d["no"].astype(np.float32), esr2d_sub=esr_2d["sub"].astype(np.float32),
     mag_ref=np.abs(S_ref).astype(np.float32),

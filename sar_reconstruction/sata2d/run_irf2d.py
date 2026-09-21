@@ -130,9 +130,10 @@ def cut_metrics(cut, axis):
 
 
 # ---------------------------------------------------------------------------
-def main(argv=None):
+def make_parser(description=None):
+    """The command line shared by run_irf2d.py and run_irf2d_full.py."""
     ap = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+        description=description or __doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--method", default="mono", choices=("mono", "no", "whole", "sub"),
                     help="what to focus (default: mono)")
     ap.add_argument("--res-rg", type=float, default=6.0, dest="res_rg",
@@ -155,7 +156,17 @@ def main(argv=None):
                          "(monochromatic filter + explicit range shift) instead "
                          "of the standard range-frequency-dependent filter")
     ap.add_argument("--out", default=None)
-    args = ap.parse_args(argv)
+    return ap
+
+
+def compute(args):
+    """Build the geometry, reconstruct (if asked) and focus with the exact
+    2-D matched filter.  Shared by run_irf2d.py and run_irf2d_full.py.
+
+    Returns a dict with ``p``, ``imgs`` ('mono' and the requested method),
+    ``key``, the peak position ``ia``/``ir``, the monostatic peak ``nrm`` and
+    the sampling / resolution numbers the plots need.
+    """
 
     specs = ((args.azimuth, args.height),) if (args.azimuth, args.height) != (0.0, 0.0) else ()
     from .arrays import make_params_dpca, dpca_residual
@@ -207,6 +218,17 @@ def main(argv=None):
     ia = int(np.argmax(np.abs(imgs["mono"]).max(axis=1)))
     ir = int(np.argmax(np.abs(imgs["mono"]).max(axis=0)))
     nrm = np.abs(imgs["mono"]).max()
+
+    return dict(p=p, imgs=imgs, key=key, ia=ia, ir=ir, nrm=nrm,
+                rho_r=rho_r, d_az=d_az, res_rg=res_rg, res_az=res_az)
+
+
+def main(argv=None):
+    args = make_parser().parse_args(argv)
+    r = compute(args)
+    p, imgs, key = r["p"], r["imgs"], r["key"]
+    ia, ir, nrm = r["ia"], r["ir"], r["nrm"]
+    rho_r, d_az, res_rg, res_az = r["rho_r"], r["d_az"], r["res_rg"], r["res_az"]
 
     span = args.span if args.span is not None else 4.5 * max(res_az, res_rg)
     na = max(8, int(np.ceil(3.0 * span / d_az)))
