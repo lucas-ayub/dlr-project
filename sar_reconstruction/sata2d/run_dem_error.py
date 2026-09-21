@@ -10,11 +10,17 @@ sweeps eps and measures the cost.
 THE SPLIT THAT MAKES THIS AN EXPERIMENT
 ---------------------------------------
 The data are generated ONCE from the true parameters: the scene does not move.
-Only the CORRECTION is built at ``h + eps`` -- the coefficient table (through
-its ``height`` argument) and the per-channel ``dC0`` maps.  So the target sits
-where it always sat and the processor believes something else, which is what a
-DEM error is.  Building the data at ``h + eps`` instead would move the target
-and measure nothing.
+Only the SATA CORRECTION is built at ``h + eps`` -- the per-channel ``dC0``
+maps.  So the target sits where it always sat and the processor believes
+something else, which is what a DEM error is.  Building the data at ``h + eps``
+instead would move the target and measure nothing.
+
+The reconstruction filter itself stays FLAT-EARTH (``CoeffTable3D`` with no
+``height``), exactly as in run_irf2d.py.  Handing the table the DEM height
+would make it the oracle of run_c1c2.py -- a filter that already models the
+topography -- and SATA on top of it would then remove the residual a second
+time.  That double correction is what an earlier version of this script did:
+at eps = 0 it returned ~47 % of the monostatic peak instead of ~100 %.
 
 WHAT COMES OUT
 --------------
@@ -145,12 +151,17 @@ def sigma_cycles(p, tracks, ptg, h_dem: float) -> float:
 def reconstruct_at(p, tr, ch, eps: float, hw: int, args, mk: dict):
     """Reconstruct with the SATA correction built at ``h_true + eps``.
 
-    ``p`` -- the TRUE parameters -- still drives the inversion geometry; only
-    the coefficient table and the dC0 maps are handed the DEM height.
+    ``p`` -- the TRUE parameters -- drives the inversion geometry, and the
+    coefficient table is the ordinary FLAT-EARTH one.  Only the dC0 maps -- the
+    thing SATA subtracts -- are built from the DEM height.
+
+    Do NOT pass ``height=h_dem`` to ``CoeffTable3D``: that turns the filter into
+    the oracle of run_c1c2.py, which already absorbs the topography, and SATA
+    would then correct it twice (peak ~47 % at eps = 0 instead of ~100 %).
     """
     h_dem = args.height + eps
     p_dem = params_with_height(mk, args.azimuth, h_dem)
-    tab = CoeffTable3D(p, tr, n_nodes=16, height=h_dem)
+    tab = CoeffTable3D(p, tr, n_nodes=16)          # flat earth, as in run_irf2d
     maps = [build_delta_C0_map_3d(p_dem, tr, i, range_halfwidth=hw)
             for i in range(p.Nrx)]
     if args.coreg:
