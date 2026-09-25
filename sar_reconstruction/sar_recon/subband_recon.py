@@ -204,15 +204,25 @@ def residual_term_subband(cfg, tracks, ptg_real: np.ndarray, channel: int,
 
 def build_delta_term_subband_array(cfg, tracks, channel: int, k: int,
                                    term: str = "C0", naz: int | None = None,
-                                   pad_zero_outside: bool = False) -> np.ndarray:
+                                   pad_zero_outside: bool = False,
+                                   mode: str = "footprint",
+                                   footprint_halfwidth: int | None = None,
+                                   include_aliases: bool = True) -> np.ndarray:
     """
     Per-sub-band delta_<term> map for `channel`, sub-band `k` -- the sub-band
     analogue of sar_recon.sata.build_delta_C0_array, generalised to any of
     "C0" / "C1" / "C2". Each extra scatterer (dx, dy, dh) contributes
-    residual_term_subband(...) at its azimuth pixel; the map is interpolated
-    across azimuth. All zeros if the scene has no extra scatterers (-> SATA
-    is a no-op -> baseline).
+    residual_term_subband(...).
+
+    mode="footprint" (DEFAULT): the value is present only where the scatterer
+    appears in the SATA STFT (its pixel +- the sub-aperture main lobe), 0
+    elsewhere, plus the alias images if include_aliases -- see
+    sar_recon.sata.build_delta_C0_array.
+    mode="hold" (LEGACY): previous interpolate-and-hold behaviour.
+    All zeros if the scene has no extra scatterers (-> SATA is a no-op).
     """
+    from .sata import (az_pixel_of_scatterer, sata_footprint_halfwidth,
+                       sata_image_offsets, footprint_map)
     if naz is None:
         naz = cfg.Na_ch
     if not cfg.scene.extra_offsets:
@@ -221,6 +231,23 @@ def build_delta_term_subband_array(cfg, tracks, channel: int, k: int,
     center = cfg.scene.ptg
     from collections import defaultdict
     by_pixel = defaultdict(list)
+
+    if mode == "footprint":
+        hw = (sata_footprint_halfwidth(cfg)
+              if footprint_halfwidth is None else int(footprint_halfwidth))
+        for (dx, dy, dh) in cfg.scene.extra_offsets:
+            ptg_real = center + np.array([dx, dy, dh], dtype=np.float64)
+            by_pixel[az_pixel_of_scatterer(cfg, dx, channel)].append(
+                residual_term_subband(cfg, tracks, ptg_real, channel, k, term))
+        # fold images for a kernel labelled with the absolute Doppler of band k
+        # (subband_sata_explicit.sata_1d_subband), see sar_recon.sata.sata_image_offsets
+        f_k = subband_frequency_beam(cfg, k)[0]
+        offs = sata_image_offsets(cfg, f_centre=f_k) if include_aliases else (0.0,)
+        return footprint_map(by_pixel, naz, hw, offs)
+
+    if mode != "hold":
+        raise ValueError(f"unknown mode {mode!r}; expected 'footprint' or 'hold'")
+
     for (dx, dy, dh) in cfg.scene.extra_offsets:
         ptg_real = center + np.array([dx, dy, dh], dtype=np.float64)
         by_pixel[az_pixel_of_dx(cfg, dx)].append(
@@ -246,9 +273,11 @@ def residual_C0_subband(cfg, tracks, ptg_real, channel, k):
 
 
 def build_delta_C0_subband_array(cfg, tracks, channel, k, naz=None,
-                                 pad_zero_outside=False):
+                                 pad_zero_outside=False, mode="footprint",
+                                 footprint_halfwidth=None):
     return build_delta_term_subband_array(cfg, tracks, channel, k, "C0",
-                                          naz, pad_zero_outside)
+                                          naz, pad_zero_outside, mode,
+                                          footprint_halfwidth)
 
 
 # ---------------------------------------------------------------------------
@@ -261,9 +290,12 @@ def sata_channels_subband(cfg, tracks, s_channel: np.ndarray, k: int,
     """
     Copy of s_channel [Nrx, Na_ch] with every channel SATA-corrected for output
     sub-band k: the per-sub-band delta maps (build_delta_term_subband_array)
-    are applied with the SATA frequency beam centred on beta_k
-    (squint = beta_k). Same kernel and sign convention as
+    are applied with the per-sub-band kernel
+    (subband_sata_explicit.sata_1d_subband: bins labelled with the absolute
+    Doppler of band k, positions on the broadside grid). Same sign convention as
     sar_recon.sata.sata_channels (remove=True removes the residual).
+    (Before Sept. 2026 this called sata_1d(squint=beta_k), whose f_k shift and
+    beta_k offset cancelled and made it the whole-band kernel.)
 
     correct_terms : subset of ("C0", "C1", "C2") -- which residual(s) to
         include in the correction. Default ("C0",) matches the validated,
@@ -286,17 +318,18 @@ def sata_channels_subband(cfg, tracks, s_channel: np.ndarray, k: int,
     interpolation/rounding) plain no-SATA. Nsb=1 restores the same
     sub-aperture sizing as the whole-band SATA.
     """
+    from .subband_sata_explicit import sata_1d_subband   # local import: that module imports this one
     Nrx = cfg.Nrx
-    _f, beta_k, _lo, _hi = subband_frequency_beam(cfg, k)
+    f_k, beta_k, _lo, _hi = subband_frequency_beam(cfg, k)
     out = np.asarray(s_channel, dtype=complex).copy()
     for kk in range(Nrx):
         terms = {t: build_delta_term_subband_array(cfg, tracks, kk, k, t, naz=cfg.Na_ch)
                  for t in correct_terms}
-        out[kk, :] = sata_1d(
+        out[kk, :] = sata_1d_subband(
             out[kk, :], terms.get("C0", np.zeros(cfg.Na_ch)),
             rref=cfg.scene.r0, prf=cfg.PRF_op,
             v=cfg.system.vs, wl=cfg.system.wl, r=cfg.scene.r0,
-            squint=beta_k, Nsb=1, inverse=remove,
+            f_k=f_k, beta_k=beta_k, inverse=remove,
             sata_osf=sata_osf, verbose=verbose,
             delta_C1_array=terms.get("C1"), delta_C2_array=terms.get("C2"),
         )

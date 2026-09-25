@@ -37,13 +37,25 @@ This module rebuilds the frequency axis EXPLICITLY and continuously per
 sub-band, with no `round(mod(...))` step, so it is correct for any f_k
 (integer or half-integer multiple of PRF_op):
 
-        freq_block = fftfreq(Nzp, d = 1/PRF_op)      # in [-PRF_op/2, +PRF_op/2)
-        fsub_k     = f_k + freq_block                 # absolute Doppler of sub-band k
+        freq_block = fftfreq(Nzp, d = 1/PRF_op)             # baseband, [-PRF_op/2, +PRF_op/2)
+        f_lo       = f_k - PRF_op/2
+        fsub_k     = f_lo + mod(freq_block - f_lo, PRF_op)   # absolute Doppler in band k
         beta       = asin( wl * fsub_k / (2 v) )
-        x_i offset = r * ( tan(beta) - tan(beta_k) ) / v * PRF_op
+        x_i offset = r * tan(beta) / v * PRF_op               # broadside grid, beta_img = 0
 
 `fftfreq` is aligned bin-for-bin with `np.fft.fft`, so no roll/relabel is
 needed; the half-integer Nyquist case is handled continuously like any other.
+
+Correction (Sept. 2026). The earlier version of this kernel used
+fsub_k = f_k + freq_block and measured x from beta_k. Both terms were
+inconsistent with the report (Section 4.2): since f_k is an odd multiple of
+PRF_op/2 for even Nrx, f_k + phi is not one of the Dopplers phi + m*PRF_op that
+bin phi holds, and subtracting tan(beta_k) shifted the grid back by the same half
+band. To first order the two errors cancelled and the kernel was position for
+position the whole-band kernel. The axis above labels each bin with the absolute
+Doppler it holds in band k and measures positions on the broadside grid, so the
+energy of band k points at the scatterer's own pixel. The maps it reads must use
+the fold set of band k: build_delta_term_subband_array does this (f_centre = f_k).
 
 Everything else (WOLA sub-aperture bookkeeping, the ph = -2 pi/wl * dC0
 correction, the optional experimental C1/C2 terms) mirrors `sata_1d`.
@@ -107,17 +119,19 @@ def sata_1d_subband(data, delta_C0_array, rref, prf, v, wl, r,
     # fftfreq is aligned bin-for-bin with np.fft.fft, and spans [-prf/2, prf/2)
     # continuously, so f_k being a half-integer multiple of prf (even Nrx) is
     # handled exactly like any other value -- no round(mod(...)) degeneracy.
-    freq_block = np.fft.fftfreq(Nzp, d=1.0 / prf)          # [-prf/2, prf/2)
-    # Optional Doppler-centroid recentring (Eq. 3.38): reposition this sub-band's
-    # centre at f_k + f_dc. beta_k_eff is the reference beam of the shifted centre
-    # so the block centre still maps to azimuth offset 0.
+    freq_block = np.fft.fftfreq(Nzp, d=1.0 / prf)          # baseband bin frequencies [-prf/2, prf/2)
+    # Each baseband bin phi holds the true Dopplers phi + m*prf. Label it with the
+    # one that lies in this sub-band's window [f_centre - prf/2, f_centre + prf/2)
+    # (the absolute Doppler of sub-band k), and measure positions on the BROADSIDE
+    # image grid on which the delta maps are defined (beta_img = 0). Energy of
+    # sub-band k then points at the scatterer's own pixel; energy of the other
+    # sub-bands points at pixel + m*X (sar_recon.sata.sata_image_offsets with
+    # f_centre). Optional Doppler-centroid recentring (Eq. 3.38): f_centre = f_k + f_dc.
     f_centre = f_k + f_dc
-    beta_k_eff = np.arcsin(np.clip(wl * f_centre / (2.0 * v), -1.0, 1.0))
-    fsub = f_centre + freq_block                           # absolute Doppler, sub-band k
+    f_lo = f_centre - prf / 2.0
+    fsub = f_lo + np.mod(freq_block - f_lo, prf)           # absolute Doppler, sub-band k
     betasub = np.arcsin(np.clip(wl * fsub / (2.0 * v), -1.0, 1.0))
-    # azimuth-image-position offset [pixels] of a scatterer at beta, measured
-    # from the sub-band's own centre beam beta_k_eff (so the block centre maps to 0).
-    azpos = r * (np.tan(betasub) - np.tan(beta_k_eff)) / v * prf
+    azpos = r * np.tan(betasub) / v * prf                  # offset [px] on the broadside grid
 
     if verbose:
         print(f"SATA(sub): f_k={f_k:.2f} Hz, beta_k={np.degrees(beta_k):.3f} deg, "

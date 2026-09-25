@@ -291,36 +291,172 @@ def residual_C0(cfg: ExperimentConfig, tracks: PlatformTracks,
 
 def az_pixel_of_dx(cfg: ExperimentConfig, dx: float) -> int:
     """
-    Azimuth image pixel of an along-track offset dx [m] on the per-channel grid.
-
-    The per-channel line is sampled at PRF_op, so along-track sample spacing is
-    vs / PRF_op. The scene centre sits at Na_ch/2.
+    LEGACY. Azimuth pixel of an along-track offset dx [m] on the per-channel
+    grid (scene centre at Na_ch/2, sample spacing vs/PRF_op). Ignores the
+    centre's own x0 and the channel's along-track baseline; kept only for the
+    legacy "hold" map. Use `az_pixel_of_scatterer` instead.
     """
     ds = cfg.system.vs / cfg.PRF_op
     return int(round(cfg.Na_ch / 2 + dx / ds))
 
 
+def az_pixel_of_scatterer(cfg: ExperimentConfig, dx: float, channel: int) -> int:
+    """
+    Azimuth pixel [per-channel grid] where scatterer (x0 + dx) appears in the
+    line of receiver `channel`.
+
+    The slow-time axis is centred (platform at x = 0 at sample Na_ch/2) and the
+    line is sampled every ds = vs / PRF_op. The bistatic phase centre of
+    channel kk sits bat[kk]/2 behind the transmitter, so the target's closest
+    approach in that channel is delayed by bat[kk]/2 along track.
+    """
+    ds = cfg.system.vs / cfg.PRF_op
+    x_abs = cfg.scene.x0 + dx + 0.5 * cfg.array.bat[channel]
+    return int(round(cfg.Na_ch / 2 + x_abs / ds))
+
+
+def sata_footprint_halfwidth(cfg: ExperimentConfig, squint: float = 0.0) -> int:
+    """
+    Half-width [pixels] of the region where ONE point target appears in the
+    SATA sub-aperture spectrum, expressed on the azimuth-position axis
+    (x = posaux).
+
+    SATA looks at the data through windows of Tsubeff samples with a
+    triangular analysis window; in every window the target shows up as that
+    window's spectrum: a main lobe (first null at 2*PRF_op/Tsubeff) and first
+    sidelobes (~ -27 dB, up to the second null at 4*PRF_op/Tsubeff). The
+    footprint covers everything up to the second null, i.e. all the energy of
+    the target above ~ -30 dB. Mapped through SATA's own ruler
+    (f -> beta -> x = r tan(beta) / v * PRF_op). Same sizing as `sata_1d`.
+    """
+    prf, v, wl, r = cfg.PRF_op, cfg.system.vs, cfg.system.wl, cfg.scene.r0
+    deltax = np.sqrt(wl * r / 2.0)
+    Tsubeff = int(np.round(deltax * prf / v * 0.5) * 2)
+    f_edge = 4.0 * prf / Tsubeff                       # second null of the triangular window
+    fc = 2 * v / wl * np.sin(squint)
+    b0 = np.arcsin(np.clip(wl * fc / (2 * v), -1, 1))
+    b1 = np.arcsin(np.clip(wl * (fc + f_edge) / (2 * v), -1, 1))
+    return int(np.ceil(r * (np.tan(b1) - np.tan(b0)) / v * prf))
+
+
+def sata_image_offsets(cfg: ExperimentConfig, f_centre: float = 0.0) -> np.ndarray:
+    """
+    Offsets [pixels, relative to the scatterer's own pixel] of every place
+    where ONE point target appears on SATA's position axis (x = posaux), for a
+    kernel whose bins are labelled with the absolute Doppler in
+    [f_centre - PRF_op/2, f_centre + PRF_op/2) on the broadside image grid.
+
+    The channel line is sampled at PRF_op but the target's Doppler history
+    spans [-B/2, B/2], B = 4 v sin(theta_tx/2) / wl. A true Doppler f is
+    labelled f + m*PRF_op (the m that brings it into the kernel's window), and
+    the ruler maps that label to x_target + m*X with
+        X = r tan(arcsin(wl*PRF_op/(2v))) / v * PRF_op   (one fold of PRF_op).
+    Offsets = {m*X}, m = round((f_centre - B/2)/PRF_op) .. round((f_centre + B/2)/PRF_op).
+
+    f_centre = 0   : whole-band kernel (sata_1d, broadside) -> {-X, 0, +X}.
+    f_centre = f_k : per-sub-band kernel of output band k
+                     (subband_sata_explicit.sata_1d_subband) -> one-sided set.
+    """
+    prf, v, wl, r = cfg.PRF_op, cfg.system.vs, cfg.system.wl, cfg.scene.r0
+    X = r * np.tan(np.arcsin(np.clip(wl * prf / (2 * v), -1, 1))) / v * prf
+    B = 4.0 * v * np.sin(cfg.theta_tx / 2.0) / wl
+    m_lo = int(np.round((f_centre - 0.5 * B) / prf))
+    m_hi = int(np.round((f_centre + 0.5 * B) / prf))
+    return np.array([m * X for m in range(m_lo, m_hi + 1)], dtype=float)
+
+
+def sata_alias_images(cfg: ExperimentConfig, squint: float = 0.0):
+    """
+    Whole-band summary of `sata_image_offsets`: (X, M) = image spacing [px]
+    and number of images per side for a broadside (f_centre = 0) kernel.
+    """
+    prf, v, wl, r = cfg.PRF_op, cfg.system.vs, cfg.system.wl, cfg.scene.r0
+    X = r * np.tan(np.arcsin(np.clip(wl * prf / (2 * v), -1, 1))) / v * prf
+    M = int(max(0, np.max(np.abs(np.round(sata_image_offsets(cfg) / X)))))
+    return float(X), M
+
+
+def footprint_map(values_by_pixel: dict, naz: int, halfwidth: int,
+                  offsets=(0.0,)) -> np.ndarray:
+    """
+    delta map that is NON-ZERO ONLY where the scatterers appear in the SATA
+    STFT, 0 elsewhere (flat reference).
+
+    1) Terrain blocks. Scatterers are sorted by pixel (several at the SAME
+       pixel: largest |value|). Neighbours whose footprints touch
+       (gap <= 2*halfwidth) form one block -- a piece of terrain: over
+       [first - halfwidth, last + halfwidth] each cell gets the linear
+       interpolation between the neighbouring scatterers. An isolated scatterer
+       is its own block: its value over pixel +- halfwidth.
+    2) Images. Every block is drawn at each offset (0 = direct image, m*X =
+       folded copies, see `sata_image_offsets`). Where images overlap, a cell
+       takes the image whose core [first, last] + offset is NEAREST (ties: the
+       direct image, then the smaller |offset|). Each image is the footprint
+       of one component whose main lobe is centred on its core, so every main
+       lobe reads its own value and the overlap is split at the midpoint.
+       (Previous rule "the direct image wins the whole overlap" let the block
+       of one scatterer overwrite the folded main lobe of another up to
+       halfwidth away, which degraded separations near m*X +- halfwidth.)
+    3) Zero elsewhere.
+    """
+    arr = np.zeros(naz)
+    if not values_by_pixel:
+        return arr
+    pix = np.array(sorted(values_by_pixel), dtype=float)
+    val = np.array([max(values_by_pixel[p], key=abs) for p in sorted(values_by_pixel)], dtype=float)
+    cuts = np.flatnonzero(np.diff(pix) > 2 * halfwidth) + 1
+    blocks = list(zip(np.split(pix, cuts), np.split(val, cuts)))
+    dist = np.full(naz, np.inf)
+    for off in sorted(offsets, key=abs):
+        sh = float(np.round(off))
+        for bp, bv in blocks:
+            lo = int(max(0, np.floor(bp[0] + sh - halfwidth)))
+            hi = int(min(naz - 1, np.ceil(bp[-1] + sh + halfwidth)))
+            if lo > hi:
+                continue
+            x = np.arange(lo, hi + 1)
+            d = np.maximum(0.0, np.maximum(bp[0] + sh - x, x - (bp[-1] + sh)))
+            take = d < dist[x]
+            arr[x[take]] = np.interp(x[take] - sh, bp, bv)
+            dist[x[take]] = d[take]
+    return arr
+
+
 def build_delta_C0_array(cfg: ExperimentConfig, tracks: PlatformTracks,
                          channel: int, naz: int | None = None,
+                         mode: str = "footprint",
+                         footprint_halfwidth: int | None = None,
+                         include_aliases: bool = True,
                          pad_zero_outside: bool = False) -> np.ndarray:
     """
-    Build delta_C0_array[naz] from the extra scatterers of the Scene.
+    Build delta_C0_array[naz] (per-channel azimuth grid) from the extra
+    scatterers of the Scene.
 
-    Each extra scatterer (dx, dy, dh) is a piece of topography at along-track
-    position dx and height h0+dh. Its residual C0 (relative to the flat
-    reconstruction centre) is computed with `residual_C0`, placed at the
-    scatterer's azimuth pixel, and interpolated across azimuth so every pixel
-    gets a correction.
+    Each extra scatterer (dx, dy, dh) gets its residual C0 (`residual_C0`,
+    relative to the flat reconstruction centre).
 
-    pad_zero_outside : if False (default) pixels beyond the scatterer span are
-        held at the nearest endpoint value (the dominant target governs the
-        whole line -- correct for isolated targets). If True they are set to 0
-        (flat ground outside the topography patch).
+    mode="footprint" (DEFAULT)
+        The residual is present ONLY where the scatterer appears in the SATA
+        STFT (see `footprint_map`: neighbouring scatterers whose footprints
+        touch are treated as terrain and interpolated): pixels
+        az_pixel_of_scatterer(...) +- footprint_halfwidth (default
+        `sata_footprint_halfwidth`, the main lobe of the sub-aperture
+        spectrum) and, if include_aliases, the same footprint around the alias
+        images of the scatterer (`sata_image_offsets`: where its folded Doppler
+        lands when the line is sampled below its Doppler bandwidth).
+        Everywhere else the map is 0 (flat reference), so bins that do not see
+        a scatterer receive no correction.
+        CAVEAT: with several scatterers, an image of one can overlap the
+        footprint of another; each cell then takes the nearest component (see
+        `footprint_map`). Two scatterers whose separation is within the main
+        lobe of m*X share the same bins and cannot both be corrected
+        (Doppler-alias collision, inherent to any per-channel correction).
+    mode="hold" (LEGACY, previous behaviour)
+        One value per az_pixel_of_dx; a single pixel is held over the whole
+        line (or only that pixel if pad_zero_outside=True); several pixels are
+        linearly interpolated with the endpoints held.
 
-    Returns
-    -------
-    (naz,) float : the delta_C0 map ready for `sata_1d`. All zeros if the
-        Scene has no extra scatterers.
+    Returns (naz,) float; all zeros if the Scene has no extra scatterers.
     """
     if naz is None:
         naz = cfg.Na_ch
@@ -330,6 +466,19 @@ def build_delta_C0_array(cfg: ExperimentConfig, tracks: PlatformTracks,
     center = cfg.scene.ptg
     from collections import defaultdict
     by_pixel = defaultdict(list)
+
+    if mode == "footprint":
+        hw = sata_footprint_halfwidth(cfg) if footprint_halfwidth is None else int(footprint_halfwidth)
+        for (dx, dy, dh) in cfg.scene.extra_offsets:
+            ptg_real = center + np.array([dx, dy, dh], dtype=np.float64)
+            by_pixel[az_pixel_of_scatterer(cfg, dx, channel)].append(
+                residual_C0(cfg, tracks, ptg_real, channel))
+        offs = sata_image_offsets(cfg) if include_aliases else (0.0,)
+        return footprint_map(by_pixel, naz, hw, offs)
+
+    if mode != "hold":
+        raise ValueError(f"unknown mode {mode!r}; expected 'footprint' or 'hold'")
+
     for (dx, dy, dh) in cfg.scene.extra_offsets:
         ptg_real = center + np.array([dx, dy, dh], dtype=np.float64)
         by_pixel[az_pixel_of_dx(cfg, dx)].append(residual_C0(cfg, tracks, ptg_real, channel))
