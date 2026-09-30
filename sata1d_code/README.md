@@ -14,6 +14,7 @@ plot_irf_single_target.py           IRF of one target: no SATA / whole band / pe
 plot_sata_windows_single_target.py  SATA window by window for one target (PDF)
 run_geometry_sweep.py               sweep over target height profiles (incl. topographic ramp)
 verify_sata1d.py                    verification tests T1-T19 (writes verification/)
+run_one_case.py                     one scene, chosen modes, sequential (no multiprocessing): for reading the code
 plot_sweep_improvement_heatmaps.py  heatmaps of the SATA improvement over no SATA from the sweep CSV
 ```
 
@@ -29,6 +30,7 @@ python plot_sata_windows_single_target.py
 python run_geometry_sweep.py --quick          # a few cases
 python run_geometry_sweep.py --workers 4      # full sweep (362 cases)
 python verify_sata1d.py                       # tests T1-T19 (~15 min)
+python run_one_case.py --mode whole lut_whole # one scene, sequential; modes: none whole sub lut_whole lut_sub oracle
 python plot_sweep_improvement_heatmaps.py     # after the full sweep
 python run_geometry_sweep.py --families topo_ramp --bxt 100   # topographic ramp only
 ```
@@ -46,6 +48,10 @@ For each channel:
    scatterers whose blocks touch are linearly interpolated; where two images
    overlap the nearest one wins; zero elsewhere.
    `mode="hold"` gives the previous map (value held over the whole line).
+   `mode="lut"` gives the look-up table (`lookup_table`): delta_C0 computed at every
+   azimuth cell for the terrain height at that cell (`terrain_height`: linear between
+   the scatterers, held beyond), full range history, no fold images; the same table
+   is used by the whole-band kernel and by every sub-band kernel.
 2. **kernel** (`sata_1d`): triangular sub-apertures with 50 % overlap; each FFT bin
    f is mapped to the cell `posaux = centre + r tan(asin(wl f / 2v)) / v * PRF_op`
    and multiplied by `exp(-j * (-2 pi / wl) * delta_C0[posaux])`; weighted

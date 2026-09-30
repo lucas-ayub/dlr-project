@@ -192,15 +192,10 @@ def subaperture_grid(rref, prf_data, v, wl, r, f_centre=0.0,
     Nzp = int(2 ** np.ceil(np.log2(Tsubeff)) * sata_osf)
     marg_az = int(np.round(0.5 * (1 + Nzp - Tsubeff)))
 
-    # Sub-band centre, rounded onto the STFT bin grid, and its alias position
-    # inside the (aliased) channel spectrum -- that is what aligns fsub with
-    # the ordering of np.fft.fft(data).
-    dfc = np.round(f_centre * Nzp / prf_data) * prf_data / Nzp
-    pfc = np.round(np.mod(f_centre, prf_data) * Nzp / prf_data)
-
-    fsub = np.arange(Nzp) * prf_data / Nzp - prf_data * 0.5 + dfc
-    fsub[0] = prf_data * 0.5 + dfc          # wrap-around sample
-    fsub = np.roll(fsub, int(Nzp / 2 + pfc))
+    # Absolute Doppler of each STFT bin (np.fft.fft order): the baseband
+    # frequency of the bin wrapped into [f_centre - prf_data/2, f_centre + prf_data/2).
+    f_lo = f_centre - 0.5 * prf_data
+    fsub = f_lo + np.mod(np.fft.fftfreq(Nzp, d=1.0 / prf_data) - f_lo, prf_data)
 
     squint = float(np.arcsin(np.clip(wl * f_centre / (2.0 * v), -1.0, 1.0)))
     # [FIX C] azpos is the offset w.r.t. the image grid, which for the sub-band
@@ -236,7 +231,21 @@ def legacy_subaperture_grid(rref, prf, Nsb, v, wl, r, squint=0.0,
 # 2) The SATA kernel (weighted overlap-add over sub-apertures)
 # ---------------------------------------------------------------------------
 def _run_kernel(data, delta_C0_array, g: SubapertureGrid, wl,
-                inverse=False, verbose=False):
+                inverse=False, verbose=False, row_select=None, scheme="cola"):
+    """
+    Sub-aperture loop. ``delta_C0_array`` is one map [dimx], or a stack of maps
+    [K, dimx] with ``row_select`` [Nzp] naming the row each Doppler bin reads
+    (the range-cell-migration lookup of the 2-D driver).
+
+    ``scheme``  "cola": triangular analysis window, zero-padded FFT, overlap-add
+                normalised by the window sum;
+                "crossfade": rectangular block, zero-padded FFT, correction, then
+                the corrected blocks are cross-faded with the linear weights of
+                the reference code (triangular synthesis window);
+                "margin": as "crossfade" but the FFT block holds the Nzp real
+                samples around the sub-aperture (the IDL margin).
+    All three reproduce the input to machine precision when the map is zero.
+    """
     data = np.asarray(data, dtype=complex).copy()
     dimx = len(data)
     if g.Tsubeff <= 2:
@@ -248,10 +257,10 @@ def _run_kernel(data, delta_C0_array, g: SubapertureGrid, wl,
                          f"azimuth line ({dimx}).")
 
     L, hop, Nzp = g.Tsubeff, g.Tsub, g.Nzp
-    # Triangular analysis window: COLA at 50 % overlap, so delta_C0 == 0
-    # reproduces the input to machine precision.
     ramp = np.arange(hop) / (hop - 1)
     win = np.concatenate((ramp, ramp[::-1]))[:L]
+    D = np.atleast_2d(delta_C0_array)
+    sel = np.zeros(Nzp, int) if row_select is None else np.asarray(row_select, int)
 
     out = np.zeros(dimx, dtype=complex)
     wsum = np.zeros(dimx, dtype=float)
@@ -262,21 +271,23 @@ def _run_kernel(data, delta_C0_array, g: SubapertureGrid, wl,
         Lseg = len(seg)
         if Lseg < 2:
             break
-        buf = np.zeros(Nzp, dtype=complex)
-        buf[:Lseg] = seg * win[:Lseg]
-        spec = np.fft.fft(buf)                       # <- the STFT
-
-        # Each Doppler bin sees a different azimuth position: the centre of the
-        # sub-aperture, plus the offset its beam angle implies.
         centre = start + 0.5 * L
         posaux = np.clip(np.round(g.azpos + centre).astype(int), 0, dimx - 1)
-
-        ph = -2.0 * PI / wl * delta_C0_array[posaux]
+        ph = -2.0 * PI / wl * D[sel, posaux]
         ph[~np.isfinite(ph)] = 0.0
         max_ph = max(max_ph, float(np.max(np.abs(ph))))
+        rot = np.exp(-1j * ph) if inverse else np.exp(1j * ph)
 
-        spec *= np.exp(-1j * ph) if inverse else np.exp(1j * ph)
-        out[start:start + Lseg] += np.fft.ifft(spec)[:Lseg]
+        if scheme == "margin":
+            lo = int(round(centre - Nzp / 2))
+            ii = np.arange(lo, lo + Nzp)
+            buf = data[np.clip(ii, 0, dimx - 1)] * ((ii >= 0) & (ii < dimx))
+            corr = np.fft.ifft(np.fft.fft(buf) * rot)[start - lo:start - lo + Lseg]
+        else:
+            buf = np.zeros(Nzp, dtype=complex)
+            buf[:Lseg] = seg * (win[:Lseg] if scheme == "cola" else 1.0)
+            corr = np.fft.ifft(np.fft.fft(buf) * rot)[:Lseg]
+        out[start:start + Lseg] += corr if scheme == "cola" else corr * win[:Lseg]
         wsum[start:start + Lseg] += win[:Lseg]
 
     nz = wsum > 1e-12
@@ -290,14 +301,16 @@ def _run_kernel(data, delta_C0_array, g: SubapertureGrid, wl,
 
 
 def sata_1d(data, delta_C0_array, rref, prf_data, v, wl, r, f_centre=0.0,
-            inverse=False, sata_osf=1, squint_image=0.0, verbose=False):
+            inverse=False, sata_osf=1, squint_image=0.0, verbose=False,
+            row_select=None, scheme="cola"):
     """
     CORRECTED SATA. Apply the C0 (bulk-range) topography correction to one
     azimuth line, conditioned on the frequency beam of one sub-band.
 
     ``data``           [dimx] complex, one channel line at ``prf_data``.
     ``delta_C0_array`` [dimx] residual slant range [m] vs azimuth image
-                       position, on the SAME grid as ``data``.
+                       position, on the SAME grid as ``data`` (or [K, dimx]
+                       with ``row_select`` [Nzp], see :func:`_run_kernel`).
     ``f_centre``       absolute Doppler centre of the sub-band (``f_k``).
     ``inverse``        True REMOVES the residual, False injects it.
     """
@@ -305,7 +318,7 @@ def sata_1d(data, delta_C0_array, rref, prf_data, v, wl, r, f_centre=0.0,
                          squint_image=squint_image)
     if verbose:
         print(g.report())
-    return _run_kernel(data, delta_C0_array, g, wl, inverse, verbose)
+    return _run_kernel(data, delta_C0_array, g, wl, inverse, verbose, row_select, scheme)
 
 
 def legacy_sata_1d(data, delta_C0_array, rref, prf, Nsb, v, squint, wl, r,

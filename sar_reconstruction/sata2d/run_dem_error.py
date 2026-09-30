@@ -60,7 +60,7 @@ if __package__ in (None, ""):
 from .arrays import make_params_dpca, dpca_residual
 from .geometry import (build_tracks_3d, generate_reference_3d,
                        generate_channels_3d, CoeffTable3D, _coeff)
-from .reconstruction import (range_compress, build_delta_C0_map_3d,
+from .reconstruction import (range_compress, ResidualMaps, range_cell_halfwidth,
                              reconstruct_subband_2d, scatterer_range,
                              range_bin_of, METHOD_KW)
 
@@ -162,8 +162,7 @@ def reconstruct_at(p, tr, ch, eps: float, hw: int, args, mk: dict):
     h_dem = args.height + eps
     p_dem = params_with_height(mk, args.azimuth, h_dem)
     tab = CoeffTable3D(p, tr, n_nodes=16)          # flat earth, as in run_irf2d
-    maps = [build_delta_C0_map_3d(p_dem, tr, i, range_halfwidth=hw)
-            for i in range(p.Nrx)]
+    maps = ResidualMaps(p_dem, tr)
     if args.coreg:
         from .coreg import reconstruct_explicit_coreg
         return reconstruct_explicit_coreg(p, tr, ch, tab, sata_osf=args.sata_osf,
@@ -215,7 +214,7 @@ def main(argv=None):
     res_rg = C_LIGHT / 2.0 / p.rbw
     res_az = p.La / 2.0
     rcm = (p.ve * p.int_time / 2.0) ** 2 / (2.0 * p.r0)
-    hw = int(np.ceil(rcm / (2.0 * rho_r))) + 1
+    hw = range_cell_halfwidth(p)
 
     print(p.summary())
     print(f"array      : DPCA (residual {dpca_residual(p):.1e}), "

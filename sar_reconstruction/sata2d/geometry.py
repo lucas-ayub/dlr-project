@@ -171,6 +171,7 @@ class Params3D:
     r0: float
     extra_offsets: tuple     # ((dx_az, dy_ct, dh), ...) for GENERATION only
     name: str = "topo3d"
+    pulse: str = "ideal"     # range pulse of the generator: "ideal" (band-limited, exact delay) or "chirp"
 
     # ---- derived ---------------------------------------------------------
     @property
@@ -279,6 +280,7 @@ def make_params3d(Nrx: int = 4,
                   alpha_r: float = 0.15,
                   divfac: int = 256,
                   acq_factor: float = 2.0,
+                  r0_frac: float = 0.20,
                   name: str | None = None) -> Params3D:
     """
     Build the 3-D parameter set.  Defaults reproduce the geometry of the 1-D
@@ -302,9 +304,9 @@ def make_params3d(Nrx: int = 4,
     rbw = c / (2.0 * res_rg)
     rsf = (1.0 + alpha_r) * rbw
     Nr = int(2 ** np.ceil(np.log2(((2 * swath / c) + cd) * rsf)))
-    # Put the central range r0 at 20 % into the swath, so the topography (which
-    # spreads targets slightly in range) stays inside the recorded window.
-    r_start = r0 - 0.20 * Nr / rsf * c * 0.5
+    # Put the central range r0 at ``r0_frac`` (default 20 %) into the swath, so
+    # the topography (which spreads targets in range) stays inside the window.
+    r_start = r0 - r0_frac * Nr / rsf * c * 0.5
     r_scan = r_start + np.arange(Nr) / rsf * c * 0.5
 
     # ---- azimuth axis -----------------------------------------------------
@@ -658,19 +660,46 @@ def antenna_window(ptg, ps, v, prf, sq, theta):
     return np.abs(inst_sq) <= (sq + theta / 2.0)
 
 
-def echo_block(R, w, r_min, Nr, rbw, cd, rsf, wl, out=None):
+def echo_block(R, w, r_min, Nr, rbw, cd, rsf, wl, out=None, pulse="ideal"):
     """
     Eq. (2), vectorised: returns (or accumulates into ``out``) the [Na, Nr]
     echo of one scatterer.  ``R`` is HALF the two-way path (so the delay is
     2R/c), ``w`` the azimuth window.
+
+    ``pulse="chirp"``  samples the linear FM pulse of duration ``cd`` in fast
+                       time, as the reference generator does.  With
+                       ``cd * rsf`` samples per pulse (5.7 for the default
+                       preset) the rectangular edges of the pulse fall between
+                       samples, and a sub-sample delay difference between two
+                       channels changes which samples the pulse covers: the
+                       sampled channel is then not the delayed copy of the
+                       sampled reference that the reconstruction models
+                       (error-to-signal -6 dB for b_xt = 64 m, -17 dB for
+                       b_xt = 1.7 m).
+    ``pulse="ideal"``  builds the same echo in the range-frequency domain, as
+                       the band-limited pulse of bandwidth ``rbw`` with the
+                       chirp phase that ``range_compress`` removes, delayed by
+                       the exact 2R/c through the shift theorem.  Sampled
+                       channels are then exact delayed copies of each other,
+                       and the range-compressed data is the band-limited sinc
+                       at the true sub-sample position.
     """
     Na = len(R)
-    fast_time = 2 * r_min / C_LIGHT + np.arange(Nr) / rsf          # [Nr]
-    tau = fast_time[None, :] - 2.0 * R[:, None] / C_LIGHT          # [Na, Nr]
-    inside = (tau >= 0.0) & (tau <= cd)
-    ph = (-1j * PI * rbw / cd * (tau - 0.5 * cd) ** 2
-          - 4j * PI / wl * R[:, None])
-    blk = np.where(inside, np.exp(ph), 0.0) * w[:, None]
+    if pulse == "chirp":
+        fast_time = 2 * r_min / C_LIGHT + np.arange(Nr) / rsf          # [Nr]
+        tau = fast_time[None, :] - 2.0 * R[:, None] / C_LIGHT          # [Na, Nr]
+        inside = (tau >= 0.0) & (tau <= cd)
+        ph = (-1j * PI * rbw / cd * (tau - 0.5 * cd) ** 2
+              - 4j * PI / wl * R[:, None])
+        blk = np.where(inside, np.exp(ph), 0.0) * w[:, None]
+    else:
+        fr = np.fft.fftfreq(Nr, 1.0 / rsf)                             # [Nr], FFT order
+        band = (np.abs(fr) <= rbw / 2.0).astype(float)
+        chirp = np.exp(1j * PI * fr * cd * (fr / rbw - 1.0))          # conj of the matched filter
+        tau = 2.0 * (R - r_min) / C_LIGHT                              # [Na] delay in the window
+        X = (band * chirp)[None, :] * np.exp(-2j * PI * fr[None, :] * tau[:, None]
+                                             - 4j * PI / wl * R[:, None]) * w[:, None]
+        blk = np.fft.ifft(X, axis=1) * (rsf * cd)
     if out is None:
         return blk.astype(np.complex64)
     out += blk.astype(np.complex64)
@@ -701,7 +730,7 @@ def get_raw_data_3d(p, ptgs, ps_tx, ps_rx, v_tx, v_rx, ta, prf,
             continue
         R = 0.5 * range_history(ptg, ps_tx, ps_rx)
         echo_block(R, sigma[j] * w, p.r_scan[0], Nr, p.rbw, p.cd, p.rsf,
-                   p.wl, out=data)
+                   p.wl, out=data, pulse=getattr(p, "pulse", "ideal"))
     return data
 
 

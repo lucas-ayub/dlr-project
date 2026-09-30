@@ -48,21 +48,22 @@ def triangular_window(Tsubeff):
     return np.concatenate((half, half[::-1]))
 
 
-def sata_1d(data, delta_C0_array, rref, prf, v, wl, r, squint=0.0, inverse=False, sata_osf=1):
+def sata_kernel(data, delta_C0_array, Tsubeff, hop, Nzp, azpos, wl, inverse=False, scheme="cola"):
     """
-    data           : (naz,) complex azimuth line of one channel at prf (= PRF_op)
-    delta_C0_array : (naz,) residual range [m] per azimuth cell
-    inverse=True   : remove the residual (spec *= exp(-j ph)); False injects it.
+    Sub-aperture loop shared by the whole-band and the sub-band kernels.
+    scheme="cola"      : triangular analysis window, zero-padded FFT, overlap-add
+                         normalised by the window sum (constant overlap-add);
+    scheme="crossfade" : rectangular block, zero-padded FFT, correction, then the
+                         corrected blocks are cross-faded with the linear weights of
+                         the reference code (triangular synthesis window);
+    scheme="margin"    : as "crossfade" but the FFT block holds the Nzp real samples
+                         around the sub-aperture (the IDL margin), of which only the
+                         central Tsubeff are kept.
+    The three are the identity when delta_C0_array == 0.
     """
     data = np.asarray(data, dtype=complex)
     dimx = len(data)
-    Tsubeff, hop, Nzp = subaperture_sizing(rref, prf, v, wl, sata_osf)
-    if Tsubeff <= 2:
-        return data.copy()
     win = triangular_window(Tsubeff)
-
-    fsub, azpos = subaperture_axis(prf, Nzp, v, wl, r, squint)
-
     out = np.zeros(dimx, dtype=complex)
     wsum = np.zeros(dimx)
     for start in range(0, dimx, hop):
@@ -70,19 +71,44 @@ def sata_1d(data, delta_C0_array, rref, prf, v, wl, r, squint=0.0, inverse=False
         L = len(seg)
         if L < 2:
             break
-        buf = np.zeros(Nzp, dtype=complex)
-        buf[:L] = seg * win[:L]
-        spec = np.fft.fft(buf)
-        posaux = np.clip(np.round(azpos + start + 0.5 * Tsubeff).astype(int), 0, dimx - 1)
+        centre = start + 0.5 * Tsubeff
+        posaux = np.clip(np.round(azpos + centre).astype(int), 0, dimx - 1)
         ph = -2.0 * np.pi / wl * delta_C0_array[posaux]
         ph[~np.isfinite(ph)] = 0.0
-        spec *= np.exp(-1j * ph) if inverse else np.exp(1j * ph)
-        out[start:start + L] += np.fft.ifft(spec)[:L]
+        rot = np.exp(-1j * ph) if inverse else np.exp(1j * ph)
+        if scheme == "margin":
+            lo = int(round(centre - Nzp / 2))
+            idx = np.clip(np.arange(lo, lo + Nzp), 0, dimx - 1)
+            buf = data[idx] * ((np.arange(lo, lo + Nzp) >= 0) & (np.arange(lo, lo + Nzp) < dimx))
+            corr = np.fft.ifft(np.fft.fft(buf) * rot)[start - lo:start - lo + L]
+        else:
+            buf = np.zeros(Nzp, dtype=complex)
+            buf[:L] = seg * (win[:L] if scheme == "cola" else 1.0)
+            corr = np.fft.ifft(np.fft.fft(buf) * rot)[:L]
+        if scheme == "cola":
+            out[start:start + L] += corr
+        else:
+            out[start:start + L] += corr * win[:L]
         wsum[start:start + L] += win[:L]
     nz = wsum > 1e-12
     out[nz] /= wsum[nz]
     out[~nz] = data[~nz]
     return out
+
+
+def sata_1d(data, delta_C0_array, rref, prf, v, wl, r, squint=0.0, inverse=False, sata_osf=1,
+            scheme="cola"):
+    """
+    data           : (naz,) complex azimuth line of one channel at prf (= PRF_op)
+    delta_C0_array : (naz,) residual range [m] per azimuth cell
+    inverse=True   : remove the residual (spec *= exp(-j ph)); False injects it.
+    """
+    data = np.asarray(data, dtype=complex)
+    Tsubeff, hop, Nzp = subaperture_sizing(rref, prf, v, wl, sata_osf)
+    if Tsubeff <= 2:
+        return data.copy()
+    fsub, azpos = subaperture_axis(prf, Nzp, v, wl, r, squint)
+    return sata_kernel(data, delta_C0_array, Tsubeff, hop, Nzp, azpos, wl, inverse, scheme)
 
 
 # ---------------------------------------------------------------------------
@@ -173,17 +199,56 @@ def hold_map(values_by_pixel: dict, naz: int):
     return np.interp(np.arange(naz), np.array(pix, float), ys, left=ys[0], right=ys[-1])
 
 
+def terrain_height(cfg: ExperimentConfig, x):
+    """DEM used by the look-up table: height at azimuth x (absolute, same frame as ptg[0]),
+    linear between the scene's scatterers and held constant beyond the first and the last."""
+    pts = cfg.scene.points[1:]
+    if len(pts) == 0:
+        return np.zeros_like(np.asarray(x, float))
+    order = np.argsort(pts[:, 0])
+    return np.interp(x, pts[order, 0], pts[order, 2])
+
+
+def lookup_table(cfg: ExperimentConfig, tracks: PlatformTracks, channel, naz=None, step=4):
+    """
+    Look-up table: delta_C0 [m] computed at EVERY azimuth cell of the channel line, for the
+    terrain height terrain_height(x) at that cell (point placed on the iso-range surface),
+    with the full range history. The same table serves every kernel; there are no images.
+    step > 1 computes every step-th cell and interpolates in between.
+    """
+    naz = cfg.Na_ch if naz is None else naz
+    ds = cfg.system.vs / cfg.PRF_op
+    cells = np.arange(naz)
+    x = (cells - naz / 2) * ds - 0.5 * cfg.array.bat[channel]      # inverse of az_pixel_of_scatterer
+    H, r0 = cfg.scene.H, cfg.scene.r0
+    coarse = cells[::step]
+    val = np.zeros(len(coarse))
+    h = terrain_height(cfg, x[coarse])
+    for n, c in enumerate(coarse):
+        if h[n] == 0.0:
+            continue
+        p = np.array([x[c], np.sqrt(r0 ** 2 - (H - h[n]) ** 2), h[n]])
+        val[n] = residual_C0(cfg, tracks, p, channel)
+    return np.interp(cells, coarse, val)
+
+
 def build_delta_C0_array(cfg: ExperimentConfig, tracks: PlatformTracks, channel, naz=None,
                          mode="footprint", residual_fn=None, f_centre=0.0):
     """
     delta_C0 map [naz] of one channel from the scene's extra scatterers.
-    mode="footprint" (default): footprint_map; mode="hold": previous map.
+    mode="footprint" (default): footprint_map (block +- h_w at every scatterer and at its
+                    fold images, zero elsewhere);
+    mode="hold":    previous map (interpolated between scatterers, held beyond, no images);
+    mode="lut":     look-up table (delta_C0 of the terrain at every cell, no images; the same
+                    for every kernel, so residual_fn and f_centre are ignored).
     residual_fn(ptg, channel) overrides residual_C0 (used per sub-band);
     f_centre is the Doppler centre of the kernel that will read the map.
     """
     naz = cfg.Na_ch if naz is None else naz
     if not cfg.scene.extra_offsets:
         return np.zeros(naz)
+    if mode == "lut":
+        return lookup_table(cfg, tracks, channel, naz)
     residual_fn = residual_fn or (lambda p, ch: residual_C0(cfg, tracks, p, ch))
     ds = cfg.system.vs / cfg.PRF_op
     by_pixel = defaultdict(list)
@@ -198,12 +263,12 @@ def build_delta_C0_array(cfg: ExperimentConfig, tracks: PlatformTracks, channel,
 
 
 def sata_channels(cfg: ExperimentConfig, tracks: PlatformTracks, s_channel, remove=True,
-                  sata_osf=4, mode="footprint"):
+                  sata_osf=4, mode="footprint", scheme="cola"):
     """Whole-band SATA: correct every channel once, before the reconstruction."""
     out = np.asarray(s_channel, dtype=complex).copy()
     for kk in range(cfg.Nrx):
         dC0 = build_delta_C0_array(cfg, tracks, kk, mode=mode)
         out[kk] = sata_1d(out[kk], dC0, rref=cfg.scene.r0, prf=cfg.PRF_op, v=cfg.system.vs,
                           wl=cfg.system.wl, r=cfg.scene.r0, squint=cfg.sq_tx,
-                          inverse=remove, sata_osf=sata_osf)
+                          inverse=remove, sata_osf=sata_osf, scheme=scheme)
     return out

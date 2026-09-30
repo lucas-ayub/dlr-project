@@ -16,7 +16,7 @@ import numpy as np
 from .config import ExperimentConfig
 from .geometry import PlatformTracks
 from .reconstruction import channel_spectrum, reconstruct_from_spectra
-from .sata import build_delta_C0_array, subaperture_sizing, triangular_window
+from .sata import build_delta_C0_array, subaperture_sizing, sata_kernel
 
 
 def subband_frequency_beam(cfg: ExperimentConfig, k):
@@ -85,7 +85,10 @@ def residual_C0_subband(cfg: ExperimentConfig, tracks: PlatformTracks, ptg_real,
 
 def build_delta_C0_subband_array(cfg, tracks, channel, k, mode="footprint"):
     """delta_C0 map of one channel for sub-band k: values fitted over the sub-band's
-    look angles, alias images for a kernel centred on f_k."""
+    look angles, alias images for a kernel centred on f_k.
+    mode="lut": the look-up table, identical for every k."""
+    if mode == "lut":
+        return build_delta_C0_array(cfg, tracks, channel, mode="lut")
     f_k = subband_frequency_beam(cfg, k)[0]
     return build_delta_C0_array(cfg, tracks, channel, mode=mode, f_centre=f_k,
                                 residual_fn=lambda p, ch: residual_C0_subband(cfg, tracks, p, ch, k))
@@ -101,58 +104,42 @@ def subband_axis(prf, Nzp, v, wl, r, f_k):
     return fsub, r * np.tan(betasub) / v * prf
 
 
-def sata_1d_subband(data, delta_C0_array, rref, prf, v, wl, r, f_k, inverse=False, sata_osf=1):
+def sata_1d_subband(data, delta_C0_array, rref, prf, v, wl, r, f_k, inverse=False, sata_osf=1,
+                    scheme="cola"):
     """sata_1d for sub-band k: bins labelled with their absolute Doppler in the
     sub-band window (subband_axis), positions on the broadside grid."""
     data = np.asarray(data, dtype=complex)
-    dimx = len(data)
     Tsubeff, hop, Nzp = subaperture_sizing(rref, prf, v, wl, sata_osf)
     if Tsubeff <= 2:
         return data.copy()
-    win = triangular_window(Tsubeff)
     fsub, azpos = subband_axis(prf, Nzp, v, wl, r, f_k)
-
-    out = np.zeros(dimx, dtype=complex)
-    wsum = np.zeros(dimx)
-    for start in range(0, dimx, hop):
-        seg = data[start:start + Tsubeff]
-        L = len(seg)
-        if L < 2:
-            break
-        buf = np.zeros(Nzp, dtype=complex)
-        buf[:L] = seg * win[:L]
-        spec = np.fft.fft(buf)
-        posaux = np.clip(np.round(azpos + start + 0.5 * Tsubeff).astype(int), 0, dimx - 1)
-        ph = -2.0 * np.pi / wl * delta_C0_array[posaux]
-        ph[~np.isfinite(ph)] = 0.0
-        spec *= np.exp(-1j * ph) if inverse else np.exp(1j * ph)
-        out[start:start + L] += np.fft.ifft(spec)[:L]
-        wsum[start:start + L] += win[:L]
-    nz = wsum > 1e-12
-    out[nz] /= wsum[nz]
-    out[~nz] = data[~nz]
-    return out
+    return sata_kernel(data, delta_C0_array, Tsubeff, hop, Nzp, azpos, wl, inverse, scheme)
 
 
-def sata_channels_subband(cfg, tracks, s_channel, k, remove=True, sata_osf=4, mode="footprint"):
-    """Every channel SATA-corrected for output sub-band k."""
+def sata_channels_subband(cfg, tracks, s_channel, k, remove=True, sata_osf=4, mode="footprint",
+                          scheme="cola", maps=None):
+    """Every channel SATA-corrected for output sub-band k.
+    maps: optional list of ready-made delta_C0 maps, one per channel (used to share the
+    look-up table between the sub-bands)."""
     f_k = subband_frequency_beam(cfg, k)[0]
     out = np.asarray(s_channel, dtype=complex).copy()
     for kk in range(cfg.Nrx):
-        dC0 = build_delta_C0_subband_array(cfg, tracks, kk, k, mode=mode)
+        dC0 = maps[kk] if maps is not None else build_delta_C0_subband_array(cfg, tracks, kk, k, mode=mode)
         out[kk] = sata_1d_subband(out[kk], dC0, rref=cfg.scene.r0, prf=cfg.PRF_op, v=cfg.system.vs,
                                   wl=cfg.system.wl, r=cfg.scene.r0, f_k=f_k,
-                                  inverse=remove, sata_osf=sata_osf)
+                                  inverse=remove, sata_osf=sata_osf, scheme=scheme)
     return out
 
 
 def reconstruct_subband(cfg: ExperimentConfig, tracks: PlatformTracks, s_channel, use_sata=True,
-                        remove=True, sata_osf=4, mode="footprint", zeroOutBw=True):
+                        remove=True, sata_osf=4, mode="footprint", zeroOutBw=True, scheme="cola"):
     """Reconstruction where sub-band k uses the channels corrected for sub-band k.
     use_sata=False gives the standard reconstruction."""
     base = np.asarray(s_channel, dtype=complex)
+    maps = [build_delta_C0_array(cfg, tracks, kk, mode="lut") for kk in range(cfg.Nrx)] \
+        if (use_sata and mode == "lut") else None                     # one table for all sub-bands
     spec = []
     for k in range(cfg.Nrx):
-        corr = sata_channels_subband(cfg, tracks, base, k, remove, sata_osf, mode) if use_sata else base
+        corr = sata_channels_subband(cfg, tracks, base, k, remove, sata_osf, mode, scheme, maps) if use_sata else base
         spec.append([channel_spectrum(cfg, corr[j]) for j in range(cfg.Nrx)])
     return reconstruct_from_spectra(cfg, tracks, spec, zeroOutBw)

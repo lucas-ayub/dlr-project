@@ -46,7 +46,7 @@ from .geometry import (make_params3d, iso_range_offset, C0_LIGHT,     # noqa: E4
                        build_tracks_3d, CoeffTable3D, residual_C0_3d,
                        dC0_approx, generate_reference_3d, generate_channels_3d)
 from .sata import sata_1d                                            # noqa: E402
-from .reconstruction import (range_compress, build_delta_C0_map_3d,  # noqa: E402
+from .reconstruction import (range_compress, ResidualMaps,  # noqa: E402
                              reconstruct_subband_2d, range_bin_of,
                              scatterer_range)
 
@@ -131,7 +131,7 @@ def _run_case(Nrx, dx, dxt, dh, bxt_mode="linear", bxt_max=None, seed=0,
     tab_flat = CoeffTable3D(p, tr, n_nodes=n_nodes)            # flat earth
     tab_true = CoeffTable3D(p, tr, n_nodes=n_nodes, height=dh)  # knows the height
 
-    maps = [build_delta_C0_map_3d(p, tr, i) for i in range(p.Nrx)]
+    maps = ResidualMaps(p, tr)
     out = {}
     for tag, kw, tab in (("no",   dict(use_sata=False),        tab_flat),
                          ("whole", dict(use_sata="whole"),     tab_flat),
@@ -205,7 +205,7 @@ def test4_azimuth_topo(sata_osf=4, verbose=False, rDelay=None, quiet=False):
     ref_line = ref1[:, nb]
 
     tab = CoeffTable3D(p, tr, n_nodes=16)
-    maps = [build_delta_C0_map_3d(p, tr, i, verbose=True) for i in range(p.Nrx)]
+    maps = ResidualMaps(p, tr)
 
     res = {}
     for tag, kw in (("no", dict(use_sata=False)),

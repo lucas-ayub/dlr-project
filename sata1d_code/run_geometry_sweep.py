@@ -1,15 +1,15 @@
 """
-Geometry sweep: point targets on the iso-range surface, spaced in azimuth, with
-different height profiles; plus the topographic ramp of the reference scenes
-(targets at the same azimuth on a line dh = dy tan(alpha) through the scene centre). For every case: reference, no SATA, SATA whole band and
-SATA per sub-band (new delta_C0 map), plus both SATA versions with the previous
-("hold") map for comparison.
+Geometry sweep, SATA 1D: point targets on the iso-range surface, spaced 200 m in
+azimuth, with different height profiles (along-track ramps, zig-zag, cliffs, ...);
+plus the cross-track ramps (targets at the same azimuth, dh = dy tan(alpha)).
+For every case: reference, no SATA, SATA whole band, SATA per sub-band and the
+oracle (each scatterer corrected with its own delta_C0 before the channels are summed).
 
 Outputs (default ./geometry_sweep/):
-    bxt<..>/<family>/<id>_<slug>.png   one figure per case
+    bxt<..>/<family>/<id>_<slug>.png   one figure per case (IRFs, geometry in 2D and 3D)
+    bxt<..>/<family>/<id>_<slug>.npz   the focused envelopes of that case
     all_cases_bxt<..>.pdf              all figures of one bxt setting
     sweep_results.csv                  metrics of every case
-    summary_new_vs_hold.png            new map vs previous map
 Run:
     python run_geometry_sweep.py                  # full sweep
     python run_geometry_sweep.py --quick          # a few cases
@@ -30,6 +30,7 @@ import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 
 import sata1d as S
+from sweep_geometry_plots import scene_coordinates, geometry_2d, geometry_3d, coordinates_text
 
 ALPHAS_DEG = [0.1, 1, 1.5, 2, 3, 4, 5, 10, 15, 20, 30, 40, 50]
 N_TARGETS = [2, 3, 5, 7, 9, 13]
@@ -54,10 +55,10 @@ PEAK_WIN = 3
 
 FAMILIES = ["ramp", "zigzag", "piecewise", "steepening", "flattening",
             "cliff", "spike", "mesa", "random_heights", "topo_ramp"]
-LABEL = {"ramp": "Uniform ramp", "zigzag": "Zig-zag ramp", "piecewise": "Piecewise ramp",
+LABEL = {"ramp": "Along-track ramp", "zigzag": "Zig-zag ramp", "piecewise": "Piecewise ramp",
          "steepening": "Steepening ramp", "flattening": "Flattening ramp", "cliff": "Cliff",
          "spike": "Spike", "mesa": "Mesa", "random_heights": "Random heights",
-         "topo_ramp": "Topographic ramp"}
+         "topo_ramp": "Cross-track ramp"}
 PREFIX = {"ramp": "RA", "zigzag": "ZI", "piecewise": "PW", "steepening": "ST", "flattening": "FL",
           "cliff": "CL", "spike": "SK", "mesa": "ME", "random_heights": "RH",
           "topo_ramp": "TR"}
@@ -172,30 +173,39 @@ def oracle_channels(cfg, tr):
     return out
 
 
-def rangeline_channels(cfg, tr):
-    """Topographic ramp: every scatterer sits in its own range bin, so each is SATA-corrected
-    on its own line (map built from that scatterer only) before the lines are summed."""
-    out = 0
-    for o in cfg.scene.extra_offsets:
-        c1 = replace(cfg, scene=replace(cfg.scene, extra_offsets=(o,)))
-        out = out + S.sata_channels(c1, tr, S.generate_channels(c1, tr), sata_osf=SATA_OSF)
-    return out
-
-
 def simulate(case, bxt_max):
     cfg = make_cfg(case, bxt_max)
     tr = S.build_platform_tracks(cfg)
     sref = S.generate_reference(cfg, tr, cfg.scene.ptg[None, :])
     sig = S.generate_reference(cfg, tr)
     ch = S.generate_channels(cfg, tr)
-    rec = {"none": S.reconstruct(cfg, tr, ch), "oracle": S.reconstruct(cfg, tr, oracle_channels(cfg, tr))}
-    if case.offsets is not None:
-        rec["rangeline"] = S.reconstruct(cfg, tr, rangeline_channels(cfg, tr))
-    for mode, tag in (("footprint", ""), ("hold", "_hold")):
-        rec["whole" + tag] = S.reconstruct(cfg, tr, S.sata_channels(cfg, tr, ch, sata_osf=SATA_OSF, mode=mode))
-        rec["sub" + tag] = S.reconstruct_subband(cfg, tr, ch, sata_osf=SATA_OSF, mode=mode)
+    rec = {"none": S.reconstruct(cfg, tr, ch),
+           "whole": S.reconstruct(cfg, tr, S.sata_channels(cfg, tr, ch, sata_osf=SATA_OSF)),
+           "sub": S.reconstruct_subband(cfg, tr, ch, sata_osf=SATA_OSF),
+           "oracle": S.reconstruct(cfg, tr, oracle_channels(cfg, tr))}
     F = lambda x: np.roll(np.fft.ifft(np.fft.fft(x) * np.conj(np.fft.fft(sref))), cfg.Na // 2)
     return cfg, {"ref": F(sig), **{k: F(v) for k, v in rec.items()}}
+
+
+def ambiguity_times(cfg):
+    """Azimuth-time offset of the m-th azimuth ambiguity of a target: a Doppler shift of
+    m PRF_op moves the focused copy by m PRF_op / K_a, K_a = 2 vs^2 / (wl r0)."""
+    return cfg.PRF_op * cfg.system.wl * cfg.scene.r0 / (2.0 * cfg.system.vs ** 2)
+
+
+def ambiguity_level(t, env, pk, xs, vs, dt_amb, orders=(-2, -1, 1, 2), win=0.02, guard=0.02):
+    """Largest |IRF| inside +-win s of every ambiguity position x_j/vs + m dt_amb, in dB re. pk,
+    leaving out +-guard s around every target's own main lobe."""
+    lobe = np.zeros(len(t), bool)
+    for x in xs:
+        lobe |= np.abs(t - x / vs) <= guard
+    best = 0.0
+    for x in xs:
+        for m in orders:
+            sel = (np.abs(t - (x / vs + m * dt_amb)) <= win) & ~lobe
+            if sel.any():
+                best = max(best, float(env[sel].max()))
+    return 20 * np.log10(best / pk + 1e-15)
 
 
 def metrics(cfg, foc, case):
@@ -205,10 +215,13 @@ def metrics(cfg, foc, case):
     mask = np.ones(Na, bool)
     for i in idx:
         mask[max(0, i - AMB_MASK):i + AMB_MASK + 1] = False
+    t = (np.arange(Na) - Na // 2) / cfg.prf
+    dt_amb = ambiguity_times(cfg)
     out, tpk = {}, {}
     for k, v in foc.items():
         a = np.abs(v)
         out[f"amb_db_{k}"] = 20 * np.log10(a[mask].max() / pk)
+        out[f"ambpk_db_{k}"] = ambiguity_level(t, a, pk, case.xs, cfg.system.vs, dt_amb)
         tpk[k] = np.array([a[max(0, i - PEAK_WIN):i + PEAK_WIN + 1].max() for i in idx])
     for k in ("whole", "sub"):
         loss = 20 * np.log10(tpk[k] / tpk["ref"])
@@ -222,10 +235,12 @@ def make_figure(case, cfg, foc, m, bxt_max, case_id, out_png):
     t = (np.arange(cfg.Na) - cfg.Na // 2) / cfg.prf
     bxt_txt = (rf"$b_{{xt}}\sim U(0,{bxt_max:g})$ m = [" + ", ".join(f"{b:.1f}" for b in cfg.array.bxt) + "] m"
                if bxt_max > 0 else r"$b_{xt}=0$")
-    fig = plt.figure(figsize=(17, 8.6))
-    gs = GridSpec(2, 2, width_ratios=[1.75, 1.0], hspace=0.34, wspace=0.16, figure=fig)
-    spacing_txt = "" if case.offsets is not None else f", spacing {case.spacing:g} m"
-    fig.suptitle(rf"{case_id} | {LABEL[case.family]}: {case.desc}{spacing_txt}" + "\n"
+    topo = case.offsets is not None
+    xs, dys, hs = scene_coordinates(case.xs, case.heights, case.offsets)
+    fig = plt.figure(figsize=(17, 9.2))
+    gs = GridSpec(2, 2, width_ratios=[1.75, 1.0], hspace=0.36, wspace=0.14, figure=fig)
+    spacing_txt = "" if topo else f", spacing {case.spacing:g} m"
+    fig.suptitle(rf"{case_id} | SATA 1D | {LABEL[case.family]}: {case.desc}{spacing_txt}" + "\n"
                  + bxt_txt + rf" | $N_{{rx}}={cfg.Nrx}$ | PRF$={cfg.prf:.0f}$ Hz | $B_a={cfg.abw:.0f}$ Hz | "
                  rf"$\Delta b_{{at}}={cfg.array.bat[1]:.2f}$ m (DPCA)", fontsize=11.5, y=0.995)
     ax = fig.add_subplot(gs[0, 0])
@@ -233,35 +248,24 @@ def make_figure(case, cfg, foc, m, bxt_max, case_id, out_png):
     ax.plot(t, db["whole"], color="tab:blue", lw=1.6, ls=(0, (5, 3)), label="SATA whole band")
     ax.plot(t, db["sub"], color="tab:orange", lw=1.8, ls=(0, (1, 2)), label="SATA per sub-band")
     ax.set_title(f"IRF | worst ambiguity: ref {m['amb_db_ref']:.1f} dB, SATA whole {m['amb_db_whole']:.1f} dB, "
-                 f"SATA sub {m['amb_db_sub']:.1f} dB\n(previous map: whole {m['amb_db_whole_hold']:.1f} dB, "
-                 f"sub {m['amb_db_sub_hold']:.1f} dB | oracle {m['amb_db_oracle']:.1f} dB"
-                 + (f" | SATA per range line {m['amb_db_rangeline']:.1f} dB" if "amb_db_rangeline" in m else "")
-                 + ")", fontsize=9.5)
+                 f"SATA sub {m['amb_db_sub']:.1f} dB (oracle {m['amb_db_oracle']:.1f} dB)", fontsize=9.5)
     az = fig.add_subplot(gs[1, 0])
     az.plot(t, db["ref"], color="tab:green", lw=2.2, label="Reference")
     az.plot(t, db["none"], color="tab:red", lw=1.6, ls=(0, (5, 3)), label="no SATA")
     az.set_title(f"IRF | worst ambiguity: ref {m['amb_db_ref']:.1f} dB, no SATA {m['amb_db_none']:.1f} dB",
                  fontsize=9.5)
-    for a in (ax, az):
-        a.set_xlim(t[0], t[-1]); a.set_ylim(-90, 5); a.grid(alpha=0.3)
-        a.set_xlabel("Azimuth time [s]"); a.set_ylabel("[dB]"); a.legend(fontsize=10, loc="upper right")
-    ag = fig.add_subplot(gs[:, 1])
-    topo = case.offsets is not None
-    xs, hs = (case.offsets[:, 1], case.heights) if topo else (case.xs, case.heights)
-    step = np.min(np.diff(xs)) if topo else case.spacing
-    lo, span = min(0.0, hs.min()), np.ptp(hs)
-    ag.fill_between(xs, lo - 0.05 * (span + 1), hs, color="#D7C9A7", alpha=0.45, lw=0)
-    ag.plot(xs, hs, "-", color="#6D4C2F", lw=1.6)
-    ag.scatter(xs, hs, s=55, color="#1F4E79", edgecolor="k", zorder=3, label="point targets")
-    ag.axhline(0.0, color="k", ls="--", lw=0.9, label=r"reconstruction reference $h_0=0$")
-    for xi, hi in zip(xs, hs):
-        ag.annotate(f"{hi:.0f} m", (xi, hi), textcoords="offset points", xytext=(7, -4), fontsize=8, color="#1F4E79")
-    pad = 0.25 * span if span > 0 else 10.0
-    ag.set_ylim(lo - pad, hs.max() + pad); ag.set_xlim(min(0.0, xs.min()) - 1.5 * step, xs.max() + 1.5 * step)
-    ag.set_xlabel("Ground-range offset $\\Delta y$ [m] (all targets at azimuth 0)" if topo else "Azimuth position [m]"); ag.set_ylabel("Height above reference [m]")
-    ag.grid(alpha=0.3); ag.legend(fontsize=8, loc="upper left")
+    for a_ in (ax, az):
+        a_.set_xlim(t[0], t[-1]); a_.set_ylim(-90, 5); a_.grid(alpha=0.3)
+        a_.set_xlabel("Azimuth time [s]"); a_.set_ylabel("[dB]"); a_.legend(fontsize=10, loc="upper right")
     slope = case.params["alpha"] if topo else np.max(np.abs(case.slopes_deg))
-    ag.set_title(f"Target geometry | $\\Delta h_{{max}}$={span:.0f} m, steepest |slope| {slope:.3g}°", fontsize=9.5)
+    span = np.ptp(hs)
+    geometry_2d(fig.add_subplot(gs[0, 1]), xs, dys, hs, topo,
+                title=f"Target geometry | $\\Delta h_{{max}}$={span:.0f} m, steepest |slope| {slope:.3g}\u00b0")
+    a3 = fig.add_subplot(gs[1, 1], projection="3d")
+    geometry_3d(a3, xs, dys, hs, topo, title="Target geometry in 3D (x, $\\Delta y$, h)")
+    a3.text2D(0.99, 0.02, coordinates_text(xs, dys, hs), transform=a3.transAxes, fontsize=5.8,
+              family="monospace", ha="right", va="bottom",
+              bbox=dict(boxstyle="round", fc="white", ec="0.7", alpha=0.9))
     fig.savefig(out_png, dpi=100, bbox_inches="tight")
     plt.close(fig)
 
@@ -271,37 +275,16 @@ def _job(args):
     cfg, foc = simulate(case, bxt_max)
     m = metrics(cfg, foc, case)
     make_figure(case, cfg, foc, m, bxt_max, case_id, out_png)
+    xs, dys, hs = scene_coordinates(case.xs, case.heights, case.offsets)
+    np.savez_compressed(out_png[:-4] + ".npz", t=(np.arange(cfg.Na) - cfg.Na // 2) / cfg.prf,
+                        **{f"env_{k}": np.abs(v).astype(np.float32) for k, v in foc.items()},
+                        xs=xs, dys=dys, hs=hs, bxt=cfg.array.bxt, metrics=np.array([m], dtype=object))
     row = {"case_id": case_id, "family": case.family, "slug": case.slug, "bxt_max": bxt_max, "N": case.N,
            "dh_span": float(np.ptp(case.heights)), "max_jump": float(np.max(np.abs(np.diff(case.heights)))),
            "max_abs_slope": float(np.max(np.abs(case.slopes_deg))),
            "heights": " ".join(f"{h:.2f}" for h in case.heights), "png": out_png}
     row.update({k: round(float(v), 3) for k, v in m.items()})
     return row
-
-
-def summary(rows, out_png):
-    R = [r for r in rows if r["bxt_max"] > 0]
-    if not R:
-        return
-    fams = [f for f in FAMILIES if any(r["family"] == f for r in R)]
-    fig, axs = plt.subplots(1, 3, figsize=(20, 5.5))
-    for ax, (kn, ko, lab) in zip(axs[:2], (("amb_db_whole", "amb_db_whole_hold", "SATA whole band"),
-                                         ("amb_db_sub", "amb_db_sub_hold", "SATA per sub-band"))):
-        for f in fams:
-            ax.scatter([r[ko] for r in R if r["family"] == f], [r[kn] for r in R if r["family"] == f], s=16, label=f)
-        ax.plot((-60, 0), (-60, 0), "k--", lw=.8); ax.set_xlim(-60, 0); ax.set_ylim(-60, 0)
-        ax.set_xlabel("worst ambiguity, previous map [dB]"); ax.set_ylabel("worst ambiguity, new map [dB]")
-        ax.set_title(f"{lab} (below the diagonal = new map better)"); ax.grid(alpha=.3)
-    axs[0].legend(fontsize=8, ncol=2)
-    keys = (("amb_db_ref", "reference"), ("amb_db_none", "no SATA"), ("amb_db_whole_hold", "whole, previous"),
-            ("amb_db_whole", "whole, new"), ("amb_db_sub_hold", "sub, previous"), ("amb_db_sub", "sub, new"))
-    for j, (k, lab) in enumerate(keys):
-        med = [np.median([r[k] for r in R if r["family"] == f]) for f in fams]
-        axs[2].bar(np.arange(len(fams)) + (j - 2.5) * 0.13, med, 0.13, label=lab)
-    axs[2].set_xticks(range(len(fams)), fams, rotation=30, ha="right"); axs[2].invert_yaxis()
-    axs[2].set_ylabel("median worst ambiguity [dB]"); axs[2].set_title("Per family (lower = better)")
-    axs[2].legend(fontsize=8, ncol=3); axs[2].grid(alpha=.3, axis="y")
-    fig.tight_layout(); fig.savefig(out_png, dpi=120, bbox_inches="tight"); plt.close(fig)
 
 
 def pngs_to_pdf(pngs, out_pdf):
@@ -345,7 +328,6 @@ def main():
     with open(os.path.join(args.out, "sweep_results.csv"), "w", newline="") as fh:
         keys = list(dict.fromkeys(k for r in rows for k in r))
         w = csv.DictWriter(fh, fieldnames=keys, restval=""); w.writeheader(); w.writerows(rows)
-    summary(rows, os.path.join(args.out, "summary_new_vs_hold.png"))
     for bxt in args.bxt:
         pngs_to_pdf([r["png"] for r in rows if r["bxt_max"] == bxt],
                     os.path.join(args.out, f"all_cases_bxt{bxt:g}.pdf"))

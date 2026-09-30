@@ -59,7 +59,9 @@ __all__ = [
     "get_inversion_filters", "create_ref_dataset", "interp_filter",
     "generalized_rd", "run_two_step", "finish_spectrum",
     "scatterer_range", "scatterer_range_bistatic", "range_bin_of",
-    "az_pixel_of", "build_delta_C0_map_3d", "channels_subband_3d",
+    "az_pixel_of", "sata_footprint_halfwidth", "sata_image_offsets", "footprint_map",
+    "range_cell_migration", "range_cell_halfwidth", "ResidualMaps",
+    "azimuth_envelope", "worst_ambiguity", "build_delta_C0_map_3d", "channels_subband_3d",
     "reconstruct_subband_2d",
     "run_irf", "plot_irf_single", "plot_irf_all",
 ]
@@ -487,92 +489,245 @@ def range_bin_of(p, r: float) -> int:
     return int(round((r - p.r_scan[0]) * 2.0 * p.rsf / C0_LIGHT))
 
 
-def az_pixel_of(p, x_az: float) -> float:
+def az_pixel_of(p, x_az: float, channel: int | None = None) -> float:
     """
     Azimuth pixel of an along-track position, on the per-channel grid.
 
     The channel line is sampled at ``PRF_op``, so the along-track sample
-    spacing is ``vs / PRF_op`` and the scene centre sits at ``Na_ch/2``.
+    spacing is ``vs / PRF_op`` and the scene centre sits at ``Na_ch/2``.  With
+    ``channel`` given, the pixel is the closest approach of that TX/RX pair:
+    its phase centre trails the transmitter by ``bat/2``.
     """
-    return p.Na_ch / 2.0 + (x_az - p.x0) / (p.vs / p.PRF_op)
+    shift = 0.0 if channel is None else 0.5 * p.bat[channel]
+    return p.Na_ch / 2.0 + (x_az - p.x0 + shift) / (p.vs / p.PRF_op)
 
 
 # ---------------------------------------------------------------------------
 # 2) The residual map
 # ---------------------------------------------------------------------------
-def build_delta_C0_map_3d(p, tracks, channel: int, range_halfwidth: int = 3,
-                          pad_zero_outside: bool = False, verbose: bool = False):
-    """
-    ``(dmap, active_bins)`` with ``dmap`` of shape ``[Nr, Na_ch]``.
+def sata_footprint_halfwidth(p) -> int:
+    """Half-width [cells] of one scatterer in a sub-aperture spectrum: the
+    triangular window up to its 2nd null (4 PRF_op / Tsubeff), through the ruler."""
+    from .sata import subaperture_grid
+    g = subaperture_grid(p.r0, p.PRF_op, p.vs, p.wl, p.r0)
+    f_edge = 4.0 * p.PRF_op / g.Tsubeff
+    b1 = np.arcsin(np.clip(p.wl * f_edge / (2.0 * p.vs), -1.0, 1.0))
+    return int(np.ceil(p.r0 * np.tan(b1) / p.vs * p.PRF_op))
 
-    For every scatterer, Eq. (1) is evaluated for this channel and deposited at
-    its (range bin, azimuth pixel).  Within one range bin the values are
-    interpolated across azimuth, so every azimuth pixel gets a correction;
-    ``pad_zero_outside=False`` holds the endpoints outside the scatterer span
-    (the dominant target governs the line, right for isolated targets).
-    The range bin is the BISTATIC one of Eq. (2) -- per channel -- because that
-    is where the channel's energy sits.  ``range_halfwidth`` copies each bin's
-    profile to its neighbours, covering the residual range cell migration
-    (about ``(v T_int/2)^2/(2 r0)`` = 45 m here, i.e. ~2 bins).
-    """
-    Nr, Na_ch = p.Nr, p.Na_ch
-    dmap = np.zeros([Nr, Na_ch])
-    pts = p.points
-    if len(pts) == 0:
-        return dmap, []
 
-    by_bin: dict[int, list] = {}
-    for ptg in pts:
-        r = scatterer_range_bistatic(p, tracks, ptg, channel)
-        n = range_bin_of(p, r)
-        if not (0 <= n < Nr):
+def sata_image_offsets(p, f_centre: float = 0.0) -> np.ndarray:
+    """Cell offsets where one scatterer appears for a kernel whose bins carry the
+    absolute Doppler in [f_centre - PRF_op/2, f_centre + PRF_op/2): a true
+    Doppler f (|f| <= B/2) is labelled f + m PRF_op and lands m X cells away."""
+    prf, v, wl, r = p.PRF_op, p.vs, p.wl, p.r0
+    X = r * np.tan(np.arcsin(np.clip(wl * prf / (2.0 * v), -1.0, 1.0))) / v * prf
+    B = 4.0 * v * np.sin(p.theta_tx / 2.0) / wl
+    m_lo = int(np.round((f_centre - B / 2.0) / prf))
+    m_hi = int(np.round((f_centre + B / 2.0) / prf))
+    return np.array([m * X for m in range(m_lo, m_hi + 1)], dtype=float)
+
+
+def footprint_map(values_by_pixel: dict, naz: int, halfwidth: int, offsets=(0.0,)):
+    """
+    1) terrain blocks: scatterers whose footprints touch (gap <= 2 hw) form one
+       block, linearly interpolated between them over [first - hw, last + hw];
+       an isolated scatterer gives a constant block pixel +- hw;
+    2) images: every block is drawn at each offset (0 = direct, m X = folded
+       copies); where images overlap, a cell takes the image whose core
+       [first, last] + offset is nearest (ties: the direct image, then the
+       smaller |offset|);
+    3) zero elsewhere.
+    ``values_by_pixel`` may also be a dict {offset: values_by_pixel} giving each
+    image its own scatterer set (the range-cell-migration lookup).
+    """
+    arr = np.zeros(naz)
+    per_image = (values_by_pixel if values_by_pixel and
+                 all(isinstance(v, dict) for v in values_by_pixel.values())
+                 else {off: values_by_pixel for off in offsets})
+    dist = np.full(naz, np.inf)
+    for off in sorted(per_image, key=abs):
+        vbp = per_image[off]
+        if not vbp:
             continue
-        d = residual_C0_3d(p, tracks, ptg, channel)
-        by_bin.setdefault(n, []).append((az_pixel_of(p, ptg[0]), d))
+        pix = np.array(sorted(vbp), dtype=float)
+        val = np.array([max(vbp[q], key=abs) for q in sorted(vbp)])
+        cuts = np.flatnonzero(np.diff(pix) > 2 * halfwidth) + 1
+        sh = float(np.round(off))
+        for bp, bv in zip(np.split(pix, cuts), np.split(val, cuts)):
+            lo = int(max(0, np.floor(bp[0] + sh - halfwidth)))
+            hi = int(min(naz - 1, np.ceil(bp[-1] + sh + halfwidth)))
+            if lo > hi:
+                continue
+            x = np.arange(lo, hi + 1)
+            d = np.maximum(0.0, np.maximum(bp[0] + sh - x, x - (bp[-1] + sh)))
+            take = d < dist[x]
+            arr[x[take]] = np.interp(x[take] - sh, bp, bv)
+            dist[x[take]] = d[take]
+    return arr
 
-    grid = np.arange(Na_ch)
-    active = set()
-    for n, entries in by_bin.items():
-        entries.sort(key=lambda e: e[0])
-        xs = np.array([e[0] for e in entries])
-        ys = np.array([e[1] for e in entries])
-        if xs.size == 1:
-            prof = (np.zeros(Na_ch) if pad_zero_outside
-                    else np.full(Na_ch, ys[0]))
-            if pad_zero_outside:
-                prof[int(np.clip(xs[0], 0, Na_ch - 1))] = ys[0]
-        else:
-            left = 0.0 if pad_zero_outside else ys[0]
-            right = 0.0 if pad_zero_outside else ys[-1]
-            prof = np.interp(grid, xs, ys, left=left, right=right)
-        for m in range(max(0, n - range_halfwidth),
-                       min(Nr, n + range_halfwidth + 1)):
-            dmap[m, :] = prof
-            active.add(m)
 
+def range_cell_migration(p, f=None) -> float:
+    """Range cell migration [bins] at Doppler ``f`` (the range grows from the
+    closest approach r0 to r0 / cos(beta) at beam angle beta); without ``f``
+    the value at the beam edge, i.e. over the whole illuminated aperture."""
+    rho_r = C0_LIGHT / (2.0 * p.rsf)
+    if f is None:
+        beta = p.theta_tx / 2.0
+    else:
+        beta = np.arcsin(np.clip(p.wl * np.asarray(f, float) / (2.0 * p.vs), -1.0, 1.0))
+    return p.r0 * (1.0 / np.cos(beta) - 1.0) / rho_r
+
+
+def range_cell_halfwidth(p) -> int:
+    """Bins beyond the closest-approach bin that still hold energy of a
+    scatterer: the migration (one-sided, towards larger range) plus two bins
+    for the compressed pulse and its first sidelobe."""
+    return int(np.ceil(range_cell_migration(p))) + 2
+
+
+class ResidualMaps:
+    """
+    Residual maps of every channel, rendered for any kernel centre frequency.
+
+    For each scatterer and channel the deposit is (bistatic range bin ``n`` of
+    Eq. (2) at closest approach, azimuth cell of that closest approach, dC0 of
+    Eq. (1)).  A scatterer's energy at Doppler ``f`` sits ``rcm(f)`` bins beyond
+    ``n`` (range cell migration, towards larger range), so the map that a
+    Doppler bin of data range bin ``m`` reads holds the scatterers with
+    ``|n + rcm(f_true) - m| <= gate`` (``gate`` = 3 bins: pulse main lobe and
+    first sidelobes); where two of them claim the same azimuth cell the nearest
+    in range wins.  ``f_true`` is the Doppler of the energy behind each image
+    of the footprint map (label f of the bin, minus m_img PRF_op for the fold
+    image at +m_img X), so every image is gated with its own migration.
+    Within a bin the azimuth map is the footprint map: block x_t +- hw at the
+    direct position and at the fold images of the kernel (``f_centre``), zero
+    elsewhere.  ``rows(channel, f_centre)`` renders the maps in ``n_groups``
+    groups of Doppler bins; ``get`` renders one map per bin with the
+    Doppler-independent rule (nearest energy centroid, ``rcm/3``).
+    """
+
+    def __init__(self, p, tracks, range_halfwidth: int | None = None, gate: float = 3.0,
+                 n_groups: int = 16):
+        self.p = p
+        self.hw_r = range_cell_halfwidth(p) if range_halfwidth is None else int(range_halfwidth)
+        self.centroid = range_cell_migration(p) / 3.0
+        self.gate = float(gate)
+        self.n_groups = int(n_groups)
+        self.hw_az = sata_footprint_halfwidth(p)
+        self.deposits = [[] for _ in range(p.Nrx)]        # per channel: (n, pixel, dC0)
+        for i in range(p.Nrx):
+            for ptg in p.points:
+                n = range_bin_of(p, scatterer_range_bistatic(p, tracks, ptg, i))
+                if 0 <= n < p.Nr:
+                    self.deposits[i].append((n, int(round(az_pixel_of(p, ptg[0], i))),
+                                             residual_C0_3d(p, tracks, ptg, i)))
+        self._cache = {}
+
+    # -- one map per data range bin (Doppler-independent) ------------------
+    def get(self, channel: int, f_centre: float = 0.0):
+        key = ("bin", channel, float(f_centre))
+        if key not in self._cache:
+            self._cache[key] = self._render(channel, f_centre)
+        return self._cache[key]
+
+    def _render(self, channel, f_centre):
+        p = self.p
+        dmap = np.zeros([p.Nr, p.Na_ch])
+        offsets = sata_image_offsets(p, f_centre)
+        by_bin: dict[int, dict] = {}
+        for n, pix, d in self.deposits[channel]:
+            for m in range(max(0, n - 2), min(p.Nr, n + self.hw_r + 1)):
+                cell = by_bin.setdefault(m, {}).setdefault(pix, [])
+                cell.append((abs(m - n - self.centroid), d))
+        active = []
+        for m, cells in by_bin.items():
+            by_pixel = {}
+            for pix, entries in cells.items():
+                dmin = min(e[0] for e in entries)
+                by_pixel[pix] = [d for dist, d in entries if dist == dmin]
+            dmap[m] = footprint_map(by_pixel, p.Na_ch, self.hw_az, offsets)
+            active.append(m)
+        return dmap, sorted(active)
+
+    # -- one map per (data range bin, group of Doppler bins) ----------------
+    def group_edges(self, f_centre):
+        P = self.p.PRF_op
+        return f_centre - P / 2.0 + np.arange(self.n_groups + 1) * P / self.n_groups
+
+    def group_of(self, f_label, f_centre):
+        """Group index of a kernel bin labelled ``f_label`` (absolute Doppler)."""
+        P = self.p.PRF_op
+        g = np.floor((np.asarray(f_label, float) - (f_centre - P / 2.0)) / (P / self.n_groups))
+        return np.clip(g.astype(int), 0, self.n_groups - 1)
+
+    def rows(self, channel: int, f_centre: float = 0.0):
+        """{m: rows [n_groups, Na_ch]} for the active data range bins ``m``."""
+        key = ("rows", channel, float(f_centre))
+        if key not in self._cache:
+            self._cache[key] = self._render_rows(channel, f_centre)
+        return self._cache[key]
+
+    def _render_rows(self, channel, f_centre):
+        p = self.p
+        P = p.PRF_op
+        offsets = sata_image_offsets(p, f_centre)
+        X = p.r0 * np.tan(np.arcsin(np.clip(p.wl * P / (2.0 * p.vs), -1.0, 1.0))) / p.vs * P
+        m_img = np.round(offsets / X).astype(int)
+        edges = self.group_edges(f_centre)
+        f_rep = 0.5 * (edges[:-1] + edges[1:])
+        active = sorted({m for n, _, _ in self.deposits[channel]
+                         for m in range(max(0, n - 2), min(p.Nr, n + self.hw_r + 1))})
+        out = {}
+        for m in active:
+            rows = np.zeros([self.n_groups, p.Na_ch])
+            for g, fg in enumerate(f_rep):
+                per_image = {}
+                for off, mi in zip(offsets, m_img):
+                    q = float(range_cell_migration(p, fg - mi * P))
+                    cells: dict[int, list] = {}
+                    for n, pix, d in self.deposits[channel]:
+                        dist = abs(n + q - m)
+                        if dist <= self.gate:
+                            cells.setdefault(pix, []).append((dist, d))
+                    per_image[float(off)] = {pix: [d for dist, d in e if dist == min(x[0] for x in e)]
+                                             for pix, e in cells.items()}
+                rows[g] = footprint_map(per_image, p.Na_ch, self.hw_az, offsets)
+            out[m] = rows
+        return out
+
+
+def build_delta_C0_map_3d(p, tracks, channel: int, range_halfwidth: int | None = None,
+                          f_centre: float = 0.0, verbose: bool = False):
+    """``(dmap, active_bins)`` of one channel, ``dmap`` [Nr, Na_ch], for a kernel
+    centred on ``f_centre`` (see :class:`ResidualMaps`)."""
+    dmap, active = ResidualMaps(p, tracks, range_halfwidth).get(channel, f_centre)
     if verbose:
         pk = np.max(np.abs(dmap))
         print(f"  channel {channel}: {len(active)} active range bins, "
               f"max |dC0| = {pk*1e3:.1f} mm = {360*pk/p.wl:.0f} deg")
-    return dmap, sorted(active)
+    return dmap, active
 
 
 # ---------------------------------------------------------------------------
 # 3) SATA-condition every channel for one output sub-band
 # ---------------------------------------------------------------------------
 def channels_subband_3d(p, tracks, s_channel, k: int, remove: bool = True,
-                             sata_osf: int = 4, legacy: bool = False,
-                             maps=None, f_centre=None,
-                             verbose: bool = False) -> np.ndarray:
+                        sata_osf: int = 4, legacy: bool = False,
+                        maps=None, f_centre=None, rcm_lookup: bool = True,
+                        scheme: str = "cola", verbose: bool = False) -> np.ndarray:
     """
     Copy of the range-compressed cube ``[Nrx, Na_ch, Nr]`` with every channel
     conditioned for output sub-band ``k``.
 
     The kernel is called with ``prf_data = PRF_op`` (the channel line's own
     rate), ``f_centre = f_k`` (the sub-band's frequency window) and
-    ``squint_image = 0`` (the reconstructed image is broadside).  ``maps`` can
-    carry pre-computed residual maps, since they do not depend on ``k``.
+    ``squint_image = 0`` (the reconstructed image is broadside).  ``maps`` may
+    be a pre-built :class:`ResidualMaps` (its rendering depends on ``f_k``).
+    ``rcm_lookup=True`` reads, for every Doppler bin, the map of the range bin
+    the scatterer's energy comes from (range cell migration, see
+    :class:`ResidualMaps`); ``False`` reads one map per data range bin.
     """
+    from .sata import subaperture_grid
     Nrx, Na_ch, Nr = s_channel.shape
     out = np.array(s_channel, dtype=complex, copy=True)
     f_k = (subband_centre_frequency(k, Nrx, p.prf) if f_centre is None
@@ -582,21 +737,32 @@ def channels_subband_3d(p, tracks, s_channel, k: int, remove: bool = True,
         print(f"  sub-band {k}: f_k = {f_k:8.1f} Hz -> "
               f"beta_k = {np.degrees(beta_k):8.4f} deg")
 
+    if not isinstance(maps, ResidualMaps):
+        maps = ResidualMaps(p, tracks)
+    g = subaperture_grid(p.r0, p.PRF_op, p.vs, p.wl, p.r0, f_k, sata_osf, squint_image=0.0)
+    sel = maps.group_of(g.fsub, f_k) if rcm_lookup else None
     for i in range(Nrx):
-        dmap, active = (maps[i] if maps is not None
-                        else build_delta_C0_map_3d(p, tracks, i))
-        for n in active:
-            line = out[i, :, n]
-            if legacy:
+        if legacy:
+            dmap, active = maps.get(i, f_k)
+            for n in active:
                 out[i, :, n] = legacy_sata_1d(
-                    line, dmap[n], rref=p.r0, prf=p.PRF_op, Nsb=Nrx, v=p.vs,
-                    squint=beta_k, wl=p.wl, r=p.r0, inverse=remove,
-                    sata_osf=sata_osf)
-            else:
+                    out[i, :, n], dmap[n], rref=p.r0, prf=p.PRF_op, Nsb=Nrx, v=p.vs,
+                    squint=beta_k, wl=p.wl, r=p.r0, inverse=remove, sata_osf=sata_osf)
+            continue
+        if rcm_lookup:
+            rows = maps.rows(i, f_k)
+            for n, D in rows.items():
                 out[i, :, n] = sata_1d(
-                    line, dmap[n], rref=p.r0, prf_data=p.PRF_op, v=p.vs,
+                    out[i, :, n], D, rref=p.r0, prf_data=p.PRF_op, v=p.vs,
                     wl=p.wl, r=p.r0, f_centre=f_k, squint_image=0.0,
-                    inverse=remove, sata_osf=sata_osf)
+                    inverse=remove, sata_osf=sata_osf, row_select=sel, scheme=scheme)
+        else:
+            dmap, active = maps.get(i, f_k)
+            for n in active:
+                out[i, :, n] = sata_1d(
+                    out[i, :, n], dmap[n], rref=p.r0, prf_data=p.PRF_op, v=p.vs,
+                    wl=p.wl, r=p.r0, f_centre=f_k, squint_image=0.0,
+                    inverse=remove, sata_osf=sata_osf, scheme=scheme)
     return out
 
 
@@ -607,7 +773,8 @@ def reconstruct_subband_2d(p, tracks, s_channel_rc, coeff_fn,
                            use_sata="subband", sata_osf: int = 4,
                            legacy: bool = False, apply_rcmc: bool = True,
                            analytic: bool = False, maps=None,
-                           verbose: bool = True):
+                           verbose: bool = True, rcm_lookup: bool = True,
+                           scheme: str = "cola"):
     """
     Two-step 2-D reconstruction with SATA.
 
@@ -639,15 +806,16 @@ def reconstruct_subband_2d(p, tracks, s_channel_rc, coeff_fn,
                               coeff_fn=coeff_fn, return_spectrum=True)
         return finish_spectrum(rec, p.prf, p.abw, Na)
 
-    # The residual maps do not depend on the sub-band: build them once.
-    if maps is None:
-        maps = [build_delta_C0_map_3d(p, tracks, i, verbose=verbose)
-                for i in range(Nrx)]
+    # The deposits of the residual maps do not depend on the sub-band: build
+    # them once, render per kernel centre frequency.
+    if not isinstance(maps, ResidualMaps):
+        maps = ResidualMaps(p, tracks)
 
     if use_sata == "whole":
         ch = channels_subband_3d(p, tracks, s_channel_rc, 0, remove=True,
-                                      sata_osf=sata_osf, legacy=legacy,
-                                      maps=maps, f_centre=0.0, verbose=verbose)
+                                 sata_osf=sata_osf, legacy=legacy, maps=maps,
+                                 f_centre=0.0, rcm_lookup=rcm_lookup,
+                                 scheme=scheme, verbose=verbose)
         rec, _ = run_two_step(p, ch, fmax, fmin, analytic=analytic,
                               apply_rcmc=apply_rcmc, verbose=verbose,
                               coeff_fn=coeff_fn, return_spectrum=True)
@@ -656,14 +824,54 @@ def reconstruct_subband_2d(p, tracks, s_channel_rc, coeff_fn,
     stacked = np.zeros([Na, Nr], np.complex64)
     for k in range(Nrx):
         ch_k = channels_subband_3d(p, tracks, s_channel_rc, k,
-                                        remove=True, sata_osf=sata_osf,
-                                        legacy=legacy, maps=maps,
-                                        verbose=verbose)
+                                   remove=True, sata_osf=sata_osf,
+                                   legacy=legacy, maps=maps,
+                                   rcm_lookup=rcm_lookup, scheme=scheme,
+                                   verbose=verbose)
         rec_k, _ = run_two_step(p, ch_k, fmax, fmin, analytic=analytic,
                                 apply_rcmc=apply_rcmc, verbose=False,
                                 coeff_fn=coeff_fn, return_spectrum=True)
         stacked[k * Na_ch:(k + 1) * Na_ch, :] = rec_k[k * Na_ch:(k + 1) * Na_ch, :]
     return finish_spectrum(stacked, p.prf, p.abw, Na)
+
+
+# ---------------------------------------------------------------------------
+# 5) Azimuth impulse response of a scene (2-D matched filter per scatterer)
+# ---------------------------------------------------------------------------
+def focus2d(x, ref):
+    """2-D matched filter against the ideal monostatic signal of one
+    scatterer; the scatterer ends up at the centre of the array."""
+    return np.fft.fftshift(np.fft.ifft2(np.fft.fft2(x) * np.conj(np.fft.fft2(ref))))
+
+
+def azimuth_envelope(p, tracks, img, ptgs=None):
+    """
+    |IRF| along azimuth of a range-compressed image ``img`` [Na, Nr]: every
+    scatterer is focused with its own 2-D matched filter (range cell migration
+    included), the azimuth cut through its range row is placed at its
+    along-track position, and the envelope (maximum over scatterers) is
+    returned on the full-PRF azimuth grid.
+    """
+    ptgs = p.points if ptgs is None else np.atleast_2d(ptgs)
+    ds = p.vs / p.prf
+    env = np.zeros(p.Na)
+    for ptg in ptgs:
+        ref_one = range_compress(generate_reference_3d(p, tracks, ptgs=ptg[None, :]),
+                                 p.cd, p.rbw, p.rsf, axis=1)
+        row = np.abs(focus2d(img, ref_one)[:, p.Nr // 2])
+        env = np.maximum(env, np.roll(row, int(round((ptg[0] - p.x0) / ds))))
+    return env
+
+
+def worst_ambiguity(p, env, env_ref, xs, mask=40):
+    """Largest value of ``env`` outside +-``mask`` samples of every scatterer
+    azimuth ``xs`` [m], in dB relative to the peak of the reference envelope."""
+    ds = p.vs / p.prf
+    keep = np.ones(p.Na, bool)
+    for x in np.atleast_1d(xs):
+        i = p.Na // 2 + int(round((x - p.x0) / ds))
+        keep[max(0, i - mask):i + mask + 1] = False
+    return float(20 * np.log10(env[keep].max() / env_ref.max()))
 
 
 # ============================================================================
@@ -710,7 +918,7 @@ def run_irf(target_azimuth, target_height, Nrx, dxt, sata_osf,
     ref_line = ref[:, nb]
 
     tab = CoeffTable3D(p, tr, n_nodes=16)
-    maps = [build_delta_C0_map_3d(p, tr, i) for i in range(p.Nrx)]
+    maps = ResidualMaps(p, tr)
 
     res = {}
     for tag in methods:

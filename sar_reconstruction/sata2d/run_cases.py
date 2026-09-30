@@ -75,7 +75,7 @@ if __package__ in (None, ""):
 from .arrays import make_params_dpca, dpca_residual
 from .geometry import (build_tracks_3d, generate_reference_3d,
                        generate_channels_3d, CoeffTable3D, residual_C0_3d)
-from .reconstruction import (range_compress, build_delta_C0_map_3d,
+from .reconstruction import (range_compress, ResidualMaps,
                              reconstruct_subband_2d, scatterer_range,
                              range_bin_of, METHOD_KW)
 from .run_irf2d import focus2d, zoom2d, cut_metrics
@@ -190,9 +190,7 @@ def run_case(case, res_rg=6.0, swath=300.0, sata_osf=4, verbose=True):
     ch = range_compress(generate_channels_3d(p, tr), p.cd, p.rbw, p.rsf, axis=2)
 
     tab = CoeffTable3D(p, tr, n_nodes=16)
-    hw = int(np.ceil(rcm / (2.0 * rho_r))) + 1
-    maps = [build_delta_C0_map_3d(p, tr, i, range_halfwidth=hw)
-            for i in range(p.Nrx)]
+    maps = ResidualMaps(p, tr)
 
     rec = {}
     for m in METHODS:

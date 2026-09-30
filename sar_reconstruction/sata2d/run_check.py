@@ -15,7 +15,7 @@ if __package__ in (None, ""):
     __package__ = os.path.basename(_pkg)
 from .geometry import (make_params3d, build_tracks_3d, generate_reference_3d,
                        generate_channels_3d)
-from .reconstruction import (range_compress, CoeffTable3D, build_delta_C0_map_3d,
+from .reconstruction import (range_compress, CoeffTable3D, ResidualMaps,
                              reconstruct_subband_2d, scatterer_range, range_bin_of,
                              matched_filter, METHOD_KW)
 C = 3.0e8
@@ -24,7 +24,7 @@ p = make_params3d(Nrx=4, dxt=150.0, specs=((0.0, 240.0),))
 tr = build_tracks_3d(p); nb = range_bin_of(p, scatterer_range(p, p.points[0]))
 ref = range_compress(generate_reference_3d(p, tr), p.cd, p.rbw, p.rsf, axis=1)
 ch  = range_compress(generate_channels_3d(p, tr), p.cd, p.rbw, p.rsf, axis=2)
-tab = CoeffTable3D(p, tr, n_nodes=16); maps = [build_delta_C0_map_3d(p, tr, i) for i in range(p.Nrx)]
+tab = CoeffTable3D(p, tr, n_nodes=16); maps = ResidualMaps(p, tr)
 rec = {t: reconstruct_subband_2d(p, tr, ch, tab, sata_osf=4, maps=maps, **METHOD_KW[t])
        for t in ("no", "sub")}
 S_ref = np.fft.fftshift(np.fft.fft2(ref))

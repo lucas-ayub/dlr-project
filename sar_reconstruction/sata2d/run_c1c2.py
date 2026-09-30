@@ -8,7 +8,7 @@ if __package__ in (None, ""):
     __package__ = os.path.basename(_pkg)
 from .geometry import (make_params3d, build_tracks_3d, generate_reference_3d,
                        generate_channels_3d, CoeffTable3D, _coeff)
-from .reconstruction import (range_compress, build_delta_C0_map_3d, reconstruct_subband_2d,
+from .reconstruction import (range_compress, ResidualMaps, reconstruct_subband_2d,
                              scatterer_range, range_bin_of, matched_filter, METHOD_KW)
 
 import argparse
@@ -58,7 +58,7 @@ ch  = range_compress(generate_channels_3d(p, tr), p.cd, p.rbw, p.rsf, axis=2)
 nb  = range_bin_of(p, scatterer_range(p, ptg))
 tab_flat = CoeffTable3D(p, tr, n_nodes=16)                       # filter at h0 (current)
 tab_true = CoeffTable3D(p, tr, n_nodes=16, height=float(ptg[2])) # ORACLE: all of C0,C1,C2 right
-maps = [build_delta_C0_map_3d(p, tr, i) for i in range(p.Nrx)]
+maps = ResidualMaps(p, tr)
 
 runs = {
     "no SATA":        (tab_flat, dict(use_sata=False)),

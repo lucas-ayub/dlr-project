@@ -17,7 +17,7 @@ if __package__ in (None, ""):
 
 from .geometry import (make_params3d, build_tracks_3d, generate_reference_3d,
                        generate_channels_3d)
-from .reconstruction import (range_compress, CoeffTable3D, build_delta_C0_map_3d,
+from .reconstruction import (range_compress, CoeffTable3D, ResidualMaps,
                              reconstruct_subband_2d, scatterer_range, range_bin_of,
                              matched_filter, _param_box)
 
@@ -35,7 +35,7 @@ print(p.summary()); print("target range bin", nb, "/", p.Nr)
 ref = range_compress(generate_reference_3d(p, tr), p.cd, p.rbw, p.rsf, axis=1)
 ch  = range_compress(generate_channels_3d(p, tr), p.cd, p.rbw, p.rsf, axis=2)
 tab = CoeffTable3D(p, tr, n_nodes=16)
-maps = [build_delta_C0_map_3d(p, tr, i) for i in range(p.Nrx)]
+maps = ResidualMaps(p, tr)
 rec = reconstruct_subband_2d(p, tr, ch, tab, sata_osf=OSF, maps=maps,
                              use_sata="subband")
 

@@ -6,7 +6,7 @@ if __package__ in (None, ""):
     __package__ = os.path.basename(_pkg)
 from .geometry import (make_params3d, build_tracks_3d, generate_reference_3d,
                        generate_channels_3d, CoeffTable3D)
-from .reconstruction import (range_compress, build_delta_C0_map_3d, reconstruct_subband_2d,
+from .reconstruction import (range_compress, ResidualMaps, reconstruct_subband_2d,
                              scatterer_range, range_bin_of, matched_filter)
 C = 3.0e8
 import argparse
@@ -36,7 +36,7 @@ for dxt in _SWEEP:
     ref = range_compress(generate_reference_3d(p, tr), p.cd, p.rbw, p.rsf, axis=1)
     ch  = range_compress(generate_channels_3d(p, tr), p.cd, p.rbw, p.rsf, axis=2)
     tab = CoeffTable3D(p, tr, n_nodes=16, height=float(ptg[2]))   # oracle: phase is exact
-    maps = [build_delta_C0_map_3d(p, tr, i) for i in range(p.Nrx)]
+    maps = ResidualMaps(p, tr)
     rec = reconstruct_subband_2d(p, tr, ch, tab, sata_osf=4, maps=maps, use_sata=False)
     rl = ref[:, nb]
     pm = float(np.abs(matched_filter(rl, rl)).max())

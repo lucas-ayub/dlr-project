@@ -36,7 +36,7 @@ if __package__ in (None, ""):
 
 from .geometry import (make_params3d, build_tracks_3d, generate_reference_3d,
                        generate_channels_3d, CoeffTable3D)
-from .reconstruction import (range_compress, build_delta_C0_map_3d,
+from .reconstruction import (range_compress, ResidualMaps,
                              reconstruct_subband_2d, scatterer_range,
                              range_bin_of, matched_filter, METHOD_KW)
 from .arrays import make_params_dpca, dpca_residual
@@ -143,7 +143,7 @@ def stage_pipeline(b: Bench, out):
     """no SATA / SATA standard / SATA with the explicit co-registration."""
     p, tr = b.p, b.tr
     tab = CoeffTable3D(p, tr, n_nodes=16)
-    maps = [build_delta_C0_map_3d(p, tr, i) for i in range(p.Nrx)]
+    maps = ResidualMaps(p, tr)
     common = dict(sata_osf=4, maps=maps, verbose=False)
     labels, pct, esr, irfs = [], [], [], []
 

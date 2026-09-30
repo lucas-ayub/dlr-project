@@ -37,7 +37,7 @@ from .sata import (sata_1d, legacy_sata_1d, subaperture_grid,
 from .reconstruction import (DataStore, range_compress, range_matched_filter,
                              get_inversion_filters, create_ref_dataset,
                              interp_filter, generalized_rd, run_two_step,
-                             finish_spectrum, build_delta_C0_map_3d,
+                             finish_spectrum, build_delta_C0_map_3d, ResidualMaps,
                              channels_subband_3d, reconstruct_subband_2d,
                              scatterer_range_bistatic, range_bin_of,
                              scatterer_range)
@@ -53,6 +53,6 @@ __all__ = [
     "DataStore", "range_compress", "range_matched_filter",
     "get_inversion_filters", "create_ref_dataset", "interp_filter",
     "generalized_rd", "run_two_step", "finish_spectrum",
-    "build_delta_C0_map_3d", "channels_subband_3d", "reconstruct_subband_2d",
+    "build_delta_C0_map_3d", "ResidualMaps", "channels_subband_3d", "reconstruct_subband_2d",
     "scatterer_range_bistatic", "range_bin_of", "scatterer_range",
 ]

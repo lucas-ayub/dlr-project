@@ -34,3 +34,8 @@ plots/
 # Build artifacts
 *.egg-info/
 
+
+# per-case sweep image dumps (kept locally, see results/README.md)
+results/sata1d/sweeps/
+results/sata2d/geometry_sweep_2d/
+_to_delete/

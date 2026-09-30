@@ -140,6 +140,9 @@ def make_config(targets, nrx: int = 4, prf: float = 2000.0, bxt_max: float = 100
     dx = 2.0 * sysp.vs / prf
     bat = dx * np.arange(nrx)
     bxt = np.random.default_rng(seed).uniform(0.0, bxt_max, nrx) if bxt_max > 0 else np.zeros(nrx)
-    Na, Na_ch, ta = build_time_axis(prf, nrx, 2.0 * integration_time(sysp, scene))
+    x_max = max([abs(float(x)) for x, _ in targets], default=0.0)
+    dt_amb = (prf / nrx) * sysp.wl * r0 / (2.0 * sysp.vs ** 2)
+    acq = max(2.0 * integration_time(sysp, scene), 2.0 * (x_max / sysp.vs + 2.0 * dt_amb + 0.35))
+    Na, Na_ch, ta = build_time_axis(prf, nrx, acq)
     return ExperimentConfig(system=sysp, scene=scene, array=ArrayGeometry(bat=bat, bxt=bxt),
                             prf=prf, PRF_op=prf / nrx, Na=Na, Na_ch=Na_ch, ta=ta)

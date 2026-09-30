@@ -49,7 +49,7 @@ if __package__ in (None, ""):
 
 from .geometry import (make_params3d, build_tracks_3d, generate_reference_3d,
                        generate_channels_3d, CoeffTable3D)
-from .reconstruction import (range_compress, build_delta_C0_map_3d,
+from .reconstruction import (range_compress, ResidualMaps,
                              reconstruct_subband_2d, scatterer_range,
                              range_bin_of, METHOD_KW)
 
@@ -201,10 +201,8 @@ def compute(args):
         tab = CoeffTable3D(p, tr, n_nodes=16)
         # the RCM has to fit inside the width of the dC0 map, otherwise the
         # correction does not follow the target along the aperture
-        hw = int(np.ceil(rcm / (2.0 * rho_r))) + 1
-        maps = [build_delta_C0_map_3d(p, tr, i, range_halfwidth=hw)
-                for i in range(p.Nrx)]
-        print(f"  (range_halfwidth = {hw} cells, to cover the RCM)")
+        maps = ResidualMaps(p, tr)
+        print(f"  (range_halfwidth = {maps.hw_r} cells, to cover the RCM)")
         if args.coreg:
             from .coreg import reconstruct_explicit_coreg
             rec = reconstruct_explicit_coreg(p, tr, ch, tab, sata_osf=args.sata_osf,
