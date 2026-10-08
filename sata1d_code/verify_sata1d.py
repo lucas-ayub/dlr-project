@@ -30,6 +30,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 import sata1d as S
+from legacy.subband_beam_window import residual_C0_subband   # previous per-sub-band fit
 from sata1d.sata import subaperture_sizing, subaperture_axis, triangular_window
 from sata1d.subband import subband_axis
 
@@ -210,7 +211,7 @@ for i in range(cfg.Nrx):
     ideal = ch[i] * np.exp(1j * 2 * np.pi / wl * d)
     errs9.append(rel(S.sata_1d(ch[i], S.build_delta_C0_array(cfg, tr, i), inverse=True, **kw), ideal, ill))
     for k, f_k in enumerate(f_bands):
-        dk = S.residual_C0_subband(cfg, tr, tgt, i, k)
+        dk = residual_C0_subband(cfg, tr, tgt, i, k)
         idk = ch[i] * np.exp(1j * 2 * np.pi / wl * dk)
         errs9.append(rel(S.sata_1d_subband(ch[i], S.build_delta_C0_subband_array(cfg, tr, i, k), f_k=f_k,
                                            inverse=True, **kw), idk, ill))

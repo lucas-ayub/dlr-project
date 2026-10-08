@@ -199,76 +199,116 @@ def hold_map(values_by_pixel: dict, naz: int):
     return np.interp(np.arange(naz), np.array(pix, float), ys, left=ys[0], right=ys[-1])
 
 
-def terrain_height(cfg: ExperimentConfig, x):
-    """DEM used by the look-up table: height at azimuth x (absolute, same frame as ptg[0]),
-    linear between the scene's scatterers and held constant beyond the first and the last."""
+def delta_C0_per_target(cfg: ExperimentConfig, tracks: PlatformTracks):
+    """delta_C0 [m] of every extra scatterer of the scene in every channel, shape [Np, Nrx],
+    from the full range history (residual_C0). Computed once and shared by all the maps."""
     pts = cfg.scene.points[1:]
-    if len(pts) == 0:
-        return np.zeros_like(np.asarray(x, float))
-    order = np.argsort(pts[:, 0])
-    return np.interp(x, pts[order, 0], pts[order, 2])
+    return np.array([[residual_C0(cfg, tracks, p, i) for i in range(cfg.Nrx)] for p in pts])
 
 
-def lookup_table(cfg: ExperimentConfig, tracks: PlatformTracks, channel, naz=None, step=4):
+def lookup_table(cfg: ExperimentConfig, tracks: PlatformTracks, channel, naz=None, dC0=None, max_gap=2):
     """
-    Look-up table: delta_C0 [m] computed at EVERY azimuth cell of the channel line, for the
-    terrain height terrain_height(x) at that cell (point placed on the iso-range surface),
-    with the full range history. The same table serves every kernel; there are no images.
-    step > 1 computes every step-th cell and interpolates in between.
+    Look-up table of one channel: the scene IS the targets, so the table holds, at the cell
+    of every target (az_pixel_of_scatterer, with the channel's bat/2 shift), that target's
+    delta_C0 from the full range history; the mean where several targets share a cell.
+    A cell without a target takes the value of the nearest target if that target is at most
+    max_gap cells away (a dense grid of targets then fills its whole extent); zero elsewhere.
+    No fold images: the same table serves the whole-band kernel and every sub-band kernel.
+    dC0: delta_C0_per_target(cfg, tracks), computed here if not given.
+    """
+    naz = cfg.Na_ch if naz is None else naz
+    arr = np.zeros(naz)
+    if not cfg.scene.extra_offsets:
+        return arr
+    dC0 = delta_C0_per_target(cfg, tracks) if dC0 is None else dC0
+    cells = np.array([az_pixel_of_scatterer(cfg, dx, channel) for (dx, _, _) in cfg.scene.extra_offsets])
+    acc, cnt = np.zeros(naz), np.zeros(naz)
+    ok = (cells >= 0) & (cells < naz)
+    np.add.at(acc, cells[ok], dC0[ok, channel]); np.add.at(cnt, cells[ok], 1.0)
+    filled = cnt > 0
+    arr[filled] = acc[filled] / cnt[filled]
+    if max_gap > 0 and filled.any():
+        idx = np.flatnonzero(filled)
+        n = np.arange(naz)
+        j = np.clip(np.searchsorted(idx, n), 1, len(idx) - 1)
+        left, right = idx[j - 1], idx[j]
+        nearest = np.where(np.abs(n - left) <= np.abs(right - n), left, right)
+        gap = np.abs(n - nearest)
+        fill = ~filled & (gap <= max_gap)
+        arr[fill] = arr[nearest[fill]]
+    return arr
+
+
+def terrain_lookup_table(cfg: ExperimentConfig, tracks: PlatformTracks, channel, height_fn, naz=None,
+                         step=8, x_max=None):
+    """
+    Look-up table of one channel from a terrain h(x) (x = azimuth relative to the reference
+    point): at every cell, the delta_C0 (full range history, residual_C0) of a point placed on
+    the iso-range surface at the height of the terrain there. Computed every step-th cell and
+    interpolated linearly in between. x_max=None fills the whole line; with a value, the table
+    is zero beyond |x| > x_max. The whole line is needed: the sub-band kernels read the table up
+    to Nsb - 1 folds (3 X = 18.7 km) away from a target, the whole-band kernel up to one fold.
+    The cell index follows az_pixel_of_scatterer (bat/2 shift of the channel).
     """
     naz = cfg.Na_ch if naz is None else naz
     ds = cfg.system.vs / cfg.PRF_op
     cells = np.arange(naz)
-    x = (cells - naz / 2) * ds - 0.5 * cfg.array.bat[channel]      # inverse of az_pixel_of_scatterer
-    H, r0 = cfg.scene.H, cfg.scene.r0
-    coarse = cells[::step]
+    x = (cells - naz / 2) * ds - 0.5 * cfg.array.bat[channel] - cfg.scene.x0
+    H, r0, y0 = cfg.scene.H, cfg.scene.r0, cfg.scene.y0
+    inside = np.arange(naz) if x_max is None else np.flatnonzero(np.abs(x) <= x_max)
+    coarse = np.unique(np.r_[inside[::step], inside[-1]])
+    h = np.asarray(height_fn(x[coarse]), float)
     val = np.zeros(len(coarse))
-    h = terrain_height(cfg, x[coarse])
     for n, c in enumerate(coarse):
-        if h[n] == 0.0:
-            continue
-        p = np.array([x[c], np.sqrt(r0 ** 2 - (H - h[n]) ** 2), h[n]])
-        val[n] = residual_C0(cfg, tracks, p, channel)
-    return np.interp(cells, coarse, val)
+        if h[n] != 0.0:
+            p = cfg.scene.ptg + np.array([x[c], np.sqrt(r0 ** 2 - (H - h[n]) ** 2) - y0, h[n]])
+            val[n] = residual_C0(cfg, tracks, p, channel)
+    arr = np.zeros(naz)
+    arr[inside] = np.interp(cells[inside], coarse, val)
+    return arr
 
 
 def build_delta_C0_array(cfg: ExperimentConfig, tracks: PlatformTracks, channel, naz=None,
-                         mode="footprint", residual_fn=None, f_centre=0.0):
+                         mode="footprint", residual_fn=None, f_centre=0.0, dC0=None):
     """
     delta_C0 map [naz] of one channel from the scene's extra scatterers.
-    mode="footprint" (default): footprint_map (block +- h_w at every scatterer and at its
-                    fold images, zero elsewhere);
-    mode="hold":    previous map (interpolated between scatterers, held beyond, no images);
-    mode="lut":     look-up table (delta_C0 of the terrain at every cell, no images; the same
-                    for every kernel, so residual_fn and f_centre are ignored).
-    residual_fn(ptg, channel) overrides residual_C0 (used per sub-band);
-    f_centre is the Doppler centre of the kernel that will read the map.
+    mode="lut":     look-up table (lookup_table): the targets' delta_C0 at the targets' cells,
+                    no fold images; the same for every kernel (f_centre is ignored);
+    mode="footprint": footprint_map (block +- h_w at every scatterer and at its fold images,
+                    zero elsewhere), images placed for a kernel whose Doppler centre is f_centre;
+    mode="hold":    previous map (interpolated between scatterers, held beyond, no images).
+    dC0: delta_C0_per_target(cfg, tracks) [Np, Nrx], computed once and shared; if not given it
+    is computed here (residual_fn(ptg, channel) may override residual_C0 for that computation).
     """
     naz = cfg.Na_ch if naz is None else naz
     if not cfg.scene.extra_offsets:
         return np.zeros(naz)
+    if dC0 is None:
+        residual_fn = residual_fn or (lambda p, ch: residual_C0(cfg, tracks, p, ch))
+        dC0 = np.array([[residual_fn(cfg.scene.ptg + np.array(o), i) for i in range(cfg.Nrx)]
+                        for o in cfg.scene.extra_offsets])
     if mode == "lut":
-        return lookup_table(cfg, tracks, channel, naz)
-    residual_fn = residual_fn or (lambda p, ch: residual_C0(cfg, tracks, p, ch))
+        return lookup_table(cfg, tracks, channel, naz, dC0)
     ds = cfg.system.vs / cfg.PRF_op
     by_pixel = defaultdict(list)
-    for (dx, dy, dh) in cfg.scene.extra_offsets:
-        p = cfg.scene.ptg + np.array([dx, dy, dh])
+    for j, (dx, dy, dh) in enumerate(cfg.scene.extra_offsets):
         pix = az_pixel_of_scatterer(cfg, dx, channel) if mode == "footprint" \
             else int(round(cfg.Na_ch / 2 + dx / ds))
-        by_pixel[pix].append(residual_fn(p, channel))
+        by_pixel[pix].append(float(dC0[j, channel]))
     if mode == "hold":
         return hold_map(by_pixel, naz)
     return footprint_map(by_pixel, naz, sata_footprint_halfwidth(cfg), sata_image_offsets(cfg, f_centre))
 
 
 def sata_channels(cfg: ExperimentConfig, tracks: PlatformTracks, s_channel, remove=True,
-                  sata_osf=4, mode="footprint", scheme="cola"):
-    """Whole-band SATA: correct every channel once, before the reconstruction."""
+                  sata_osf=4, mode="footprint", scheme="cola", dC0=None):
+    """Whole-band SATA: correct every channel once, before the reconstruction.
+    dC0: delta_C0_per_target (computed once here if not given)."""
     out = np.asarray(s_channel, dtype=complex).copy()
+    dC0 = delta_C0_per_target(cfg, tracks) if dC0 is None else dC0
     for kk in range(cfg.Nrx):
-        dC0 = build_delta_C0_array(cfg, tracks, kk, mode=mode)
-        out[kk] = sata_1d(out[kk], dC0, rref=cfg.scene.r0, prf=cfg.PRF_op, v=cfg.system.vs,
+        M = build_delta_C0_array(cfg, tracks, kk, mode=mode, dC0=dC0)
+        out[kk] = sata_1d(out[kk], M, rref=cfg.scene.r0, prf=cfg.PRF_op, v=cfg.system.vs,
                           wl=cfg.system.wl, r=cfg.scene.r0, squint=cfg.sq_tx,
                           inverse=remove, sata_osf=sata_osf, scheme=scheme)
     return out

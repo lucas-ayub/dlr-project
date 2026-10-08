@@ -11,7 +11,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 import sata1d as S
-from sata1d.subband import getcoeff_beam, subband_frequency_beam, sata_channels_subband
+from sata1d.subband import subband_frequency_beam, sata_channels_subband
+from legacy.subband_beam_window import getcoeff_beam
 from sata1d.reconstruction import GetCoeffNu
 
 WL = 0.25

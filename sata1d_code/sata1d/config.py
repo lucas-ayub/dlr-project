@@ -47,6 +47,7 @@ class Scene:
     h0: float = 0.0
     c0: float = C0_LIGHT
     extra_offsets: tuple = ()
+    amplitudes: tuple = ()             # complex amplitude of each extra scatterer (empty = all 1)
 
     @property
     def r0(self) -> float:
@@ -65,6 +66,12 @@ class Scene:
         """Reference point followed by the extra scatterers, shape [Np, 3]."""
         pts = [self.ptg] + [self.ptg + np.array(o, dtype=np.float64) for o in self.extra_offsets]
         return np.array(pts, dtype=np.float64)
+
+    @property
+    def amps(self) -> np.ndarray:
+        """Complex amplitude of every extra scatterer, shape [Np - 1]."""
+        n = len(self.extra_offsets)
+        return np.ones(n, np.complex128) if not self.amplitudes else np.asarray(self.amplitudes, np.complex128)
 
 
 @dataclass
@@ -90,6 +97,12 @@ class ExperimentConfig:
 
     @property
     def Nrx(self) -> int:
+        return self.array.Nrx
+
+    @property
+    def Nsb(self) -> int:
+        """Number of output sub-bands of the reconstruction (each PRF_op wide). The square
+        reconstruction needs as many sub-bands as channels, so Nsb = Nrx."""
         return self.array.Nrx
 
     @property
@@ -125,21 +138,28 @@ def build_time_axis(prf: float, Nrx: int, acq_time: float, divfac: int = 1024):
 
 
 def make_config(targets, nrx: int = 4, prf: float = 2000.0, bxt_max: float = 100.0,
-                seed: int = 0, rdelay: float = RDELAY_DEFAULT) -> ExperimentConfig:
+                seed: int = 0, rdelay: float = RDELAY_DEFAULT, amplitudes=None,
+                tx_rx_channel0: bool = False) -> ExperimentConfig:
     """
-    targets : list of (x [m], h [m]); each target is placed on the iso-range
-              surface of the reference point (same slant range r0).
-    Array   : along-track baselines on the DPCA condition (step 2 vs / prf),
-              cross-track baselines bxt ~ U(0, bxt_max) (bxt = 0 if bxt_max = 0).
+    targets    : list of (x [m], h [m]); each target is placed on the iso-range
+                 surface of the reference point (same slant range r0).
+    amplitudes : optional complex amplitude per target (default 1 for all).
+    Array      : along-track baselines on the DPCA condition (step 2 vs / prf),
+                 cross-track baselines bxt ~ U(0, bxt_max) (bxt = 0 if bxt_max = 0).
+    tx_rx_channel0 : True puts channel 0 on the transmitter (bat = bxt = 0: the satellite that
+                 transmits also receives); the other channels keep their random bxt.
     """
     sysp = SystemParams()
     base = Scene(rDelay=rdelay, c0=sysp.c0)
     r0, H, y0 = base.r0, base.H, base.y0
     extra = tuple((float(x), float(np.sqrt(r0 ** 2 - (H - h) ** 2) - y0), float(h)) for x, h in targets)
-    scene = Scene(rDelay=rdelay, c0=sysp.c0, extra_offsets=extra)
+    amps = () if amplitudes is None else tuple(complex(a) for a in amplitudes)
+    scene = Scene(rDelay=rdelay, c0=sysp.c0, extra_offsets=extra, amplitudes=amps)
     dx = 2.0 * sysp.vs / prf
     bat = dx * np.arange(nrx)
     bxt = np.random.default_rng(seed).uniform(0.0, bxt_max, nrx) if bxt_max > 0 else np.zeros(nrx)
+    if tx_rx_channel0:
+        bxt[0] = 0.0                       # bat[0] is already 0: channel 0 is the transmitter itself
     x_max = max([abs(float(x)) for x, _ in targets], default=0.0)
     dt_amb = (prf / nrx) * sysp.wl * r0 / (2.0 * sysp.vs ** 2)
     acq = max(2.0 * integration_time(sysp, scene), 2.0 * (x_max / sysp.vs + 2.0 * dt_amb + 0.35))

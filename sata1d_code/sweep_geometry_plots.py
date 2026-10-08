@@ -26,13 +26,15 @@ def scene_coordinates(xs, heights, offsets=None):
     return xs, iso_range_dy(hs), hs
 
 
-def geometry_2d(ax, xs, dys, hs, topo, title=None, annotate=True):
-    """Height profile: against azimuth (iso-range scenes) or against ground range (cross-track)."""
+def geometry_2d(ax, xs, dys, hs, topo, title=None, annotate=True, connect=True):
+    """Height profile: against azimuth (iso-range scenes) or against ground range (cross-track).
+    connect=False draws the targets only (no line / fill between them)."""
     u = dys if topo else xs
     step = np.min(np.diff(u)) if len(u) > 1 else 200.0
     lo, span = min(0.0, hs.min()), np.ptp(hs)
-    ax.fill_between(u, lo - 0.05 * (span + 1), hs, color="#D7C9A7", alpha=0.45, lw=0)
-    ax.plot(u, hs, "-", color="#6D4C2F", lw=1.6)
+    if connect:
+        ax.fill_between(u, lo - 0.05 * (span + 1), hs, color="#D7C9A7", alpha=0.45, lw=0)
+        ax.plot(u, hs, "-", color="#6D4C2F", lw=1.6)
     ax.scatter(u, hs, s=55, color="#1F4E79", edgecolor="k", zorder=3, label="point targets")
     ax.axhline(0.0, color="k", ls="--", lw=0.9, label=r"reconstruction reference $h_0=0$")
     if annotate and len(u) <= 13:
@@ -50,15 +52,17 @@ def geometry_2d(ax, xs, dys, hs, topo, title=None, annotate=True):
         ax.set_title(title, fontsize=9.5)
 
 
-def geometry_3d(ax, xs, dys, hs, topo, title=None):
-    """The same targets in 3D: drop lines to the reference plane, a line through the targets."""
+def geometry_3d(ax, xs, dys, hs, topo, title=None, connect=True):
+    """The same targets in 3D: drop lines to the reference plane, a line through the targets
+    (connect=False: no line)."""
     xr = (min(xs.min(), -600.0) - 200.0, max(xs.max(), 600.0) + 200.0)
     yr = (min(dys.min(), 0.0) - 200.0, max(dys.max(), 400.0) + 200.0)
     X_, Y_ = np.meshgrid(xr, yr)
     ax.plot_surface(X_, Y_, np.zeros_like(X_), color="0.6", alpha=0.15, linewidth=0, shade=False)
     for x, y, h in zip(xs, dys, hs):
         ax.plot([x, x], [y, y], [0.0, h], color="0.55", lw=0.8)
-    ax.plot(xs, dys, hs, "-", color="#6D4C2F", lw=1.4)
+    if connect:
+        ax.plot(xs, dys, hs, "-", color="#6D4C2F", lw=1.4)
     ax.scatter(xs, dys, hs, s=28, color="#1F4E79", edgecolor="k", depthshade=False, zorder=5)
     ax.plot(xs, dys, np.zeros_like(hs), "o", ms=3, color="0.4")
     if len(xs) <= 9:

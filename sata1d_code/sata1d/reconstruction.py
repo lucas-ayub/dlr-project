@@ -8,9 +8,11 @@ from .geometry import PlatformTracks
 
 
 def GetCoeffNu(ptg, ptx, prx, vtx, vrx, pax, vax, prf, wl, ta, sq_tx, sq_rx, theta_tx, theta_rx,
-               N_time=2, dN_time=2):
+               N_time=2, dN_time=2, return_fit=False):
     """(C0, C1, C2, Dt) of the bistatic-minus-monostatic range history of point ptg.
-    Parabolas are fitted over the common illuminated aperture; prf is the full PRF."""
+    Parabolas are fitted over the common illuminated aperture; prf is the full PRF.
+    return_fit=True also returns the fitted data: dict(tau [s], d_range [m], coeffs (a0, a1, a2))
+    with d_range = bistatic - monostatic range, each taken from its own closest approach."""
     rhT = np.sqrt(np.sum((ptx - ptg[None, :]) ** 2, axis=1))
     inst_sqT = np.arcsin(np.gradient(rhT, 1 / prf) / vtx)
     valid_idxT = np.where(abs(inst_sqT) <= (sq_tx + theta_tx / 2))[0]
@@ -47,6 +49,8 @@ def GetCoeffNu(ptg, ptx, prx, vtx, vrx, pax, vax, prf, wl, ta, sq_tx, sq_rx, the
     C0 = dc[0] + c[1] ** 2 / 4 / c[2] - (c[1] + dc[1]) ** 2 / 4 / (c[2] + dc[2])
     C1 = (c[2] * dc[1] - c[1] * dc[2]) / 2 / c[2] / (c[2] + dc[2])
     C2 = dc[2] / 4 / c[2] / (c[2] + dc[2])
+    if return_fit:
+        return C0, C1, C2, tbc_bs - tbc_ms, dict(tau=ta_bs - tbc_bs, d_range=rh_bs - rh_ms, coeffs=dc)
     return C0, C1, C2, tbc_bs - tbc_ms
 
 
@@ -79,15 +83,15 @@ def filter_matrix(cfg: ExperimentConfig, tracks: PlatformTracks, fsub):
 
 
 def reconstruct_from_spectra(cfg: ExperimentConfig, tracks: PlatformTracks, spec, zeroOutBw=True):
-    """spec[k][j]: spectrum of channel j used for output sub-band k (already rolled).
-    Returns the reconstructed full-PRF azimuth line."""
-    Nrx, Na_ch, prfCh = cfg.Nrx, cfg.Na_ch, cfg.PRF_op
-    prfFinal, Na = prfCh * Nrx, Na_ch * Nrx
+    """spec[k][j]: spectrum of channel j used for output sub-band k (already rolled),
+    k = 0..Nsb-1, j = 0..Nrx-1. Returns the reconstructed full-PRF azimuth line."""
+    Nrx, Nsb, Na_ch, prfCh = cfg.Nrx, cfg.Nsb, cfg.Na_ch, cfg.PRF_op
+    prfFinal, Na = prfCh * Nsb, Na_ch * Nsb
     fsub = -prfFinal / 2 + np.arange(Na_ch) * prfCh / Na_ch
     iHf = GetInversionFilters(filter_matrix(cfg, tracks, fsub))
     srec = np.zeros(Na, np.complex64)
-    for kk in range(Nrx):
-        for jj in range(Nrx):
+    for kk in range(Nsb):                       # output sub-band
+        for jj in range(Nrx):                   # channel
             srec[kk * Na_ch:(kk + 1) * Na_ch] += spec[kk][jj] * iHf[kk * Na_ch:(kk + 1) * Na_ch, jj]
     if zeroOutBw:
         fa = -prfFinal / 2 + np.arange(Na) * prfFinal / Na
@@ -104,4 +108,4 @@ def channel_spectrum(cfg: ExperimentConfig, line):
 def reconstruct(cfg: ExperimentConfig, tracks: PlatformTracks, s_channel, zeroOutBw=True):
     """Standard reconstruction: every output sub-band uses the same channels."""
     specs = [channel_spectrum(cfg, s_channel[j]) for j in range(cfg.Nrx)]
-    return reconstruct_from_spectra(cfg, tracks, [specs] * cfg.Nrx, zeroOutBw)
+    return reconstruct_from_spectra(cfg, tracks, [specs] * cfg.Nsb, zeroOutBw)

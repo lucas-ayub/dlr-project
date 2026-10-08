@@ -21,6 +21,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 import sata1d as S
+from legacy.subband_beam_window import residual_C0_subband   # previous per-sub-band fit
 from sata1d.sata import subaperture_sizing, triangular_window
 from sata1d.subband import subband_axis, subband_frequency_beam
 
@@ -38,7 +39,7 @@ f_k, beta_k, _, _ = subband_frequency_beam(cfg, K)
 s = S.generate_channels(cfg, tr)[CH]
 dimx = len(s)
 tgt = cfg.scene.points[1]
-dC0 = S.residual_C0_subband(cfg, tr, tgt, CH, K)
+dC0 = residual_C0_subband(cfg, tr, tgt, CH, K)
 dmap = S.build_delta_C0_subband_array(cfg, tr, CH, K)
 xt = S.az_pixel_of_scatterer(cfg, 0.0, CH)
 X = r * np.tan(np.arcsin(wl * P / (2 * v))) / v * P
