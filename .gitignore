@@ -27,7 +27,7 @@ __pycache__/
 .env
 .env.*
 
-# SAR reconstruction plots
+# Plot folders written by the scripts
 plots/
 **/plots/
 
@@ -35,7 +35,20 @@ plots/
 *.egg-info/
 
 
-# per-case sweep image dumps (kept locally, see results/README.md)
-results/sata1d/sweeps/
-results/sata2d/geometry_sweep_2d/
+# Generated outputs (figures, reports, caches, logs): not versioned
+*.pdf
+*.png
+*.jpg
+*.gif
+*.mp4
+*.npz
+*.npy
+*.json
+*.jsonl
+*.csv
+*.zip
+*.log
+*.tex
+log*.txt
 _to_delete/
+_backup/

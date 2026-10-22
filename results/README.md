@@ -1,22 +1,14 @@
 # Results
 
-Outputs of `sata1d_code/` and `sar_reconstruction/sata2d/`. Nothing here is needed to run the code.
+The generated outputs (PDF reports, figures, CSV/JSON numbers, caches) are not versioned. This folder only keeps the
+scripts that assemble the report PDFs from those outputs:
 
 ```
-sata1d/
-  reports/                    PDFs (current)
-    sata1d_ramps_distance_height_part1.pdf     ramps, targets 200 m apart: summary, heatmaps, IRFs
-    sata1d_ramps_distance_height_part2.pdf     ramps, targets 2.6 km and 10 km apart
-    sata1d_random_distance_height_part1.pdf    random heights, piecewise ramps, zig-zag
-    sata1d_random_distance_height_part2.pdf    steepening, flattening, cliff, spike, mesa
-    sata1d_open_points.pdf                     sub-band vs whole band, metric, saturation (+ IRFs at 5 and 10 km)
-    sata1d_algorithm_and_verification.pdf, sata1d_report.pdf, sata1d_summary.pdf, guia_sata_novo.pdf, ...
-    previous_versions/        superseded PDFs (older metric / with the oracle)
-  sweep_csv/                  metrics of every case of each sweep (one row per case)
-    sweep_distance_height_results.csv          the current sweep (sweep_v4.py, 1053 cases)
-    sweep_open_points_*.csv                    sweep_v3.py (flat-reference metric)
-    sweep_200m_*, sweep_2600m_*                the earlier ramp sweeps
-  figures/                    single figures (summary pages of the current sweep, early heatmaps, ...)
-  sweeps/                     older sweep outputs with one PNG/NPZ per case, verification figures
-sata2d/                       SATA 2D sweep, review figures, sata_review.pdf
+sata1d/figures/combined_main_results/make_combined.py          combined PDF of the main SATA 1D results
+sata1d/figures/combined_main_results_tx_rx/                    same, with channel 0 on the transmitter
+    make_combined.py, make_compare.py, sweep_v4_tx_rx.py, tx_rx.py
+sata2d/guia_joint2d/                                           data, figures and minimal example of the 2-D joint guide
+    dados_guia.py, graficos_guia.py, exemplo_joint2d.py
 ```
+
+Each script writes its outputs next to itself (PYTHONPATH must contain `sata1d_code` for the SATA 1D ones).

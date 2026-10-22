@@ -11,13 +11,13 @@ sata1d/                     package
   sata.py                   SATA whole band: delta_C0 map + kernel sata_1d + sata_channels
   subband.py                SATA per sub-band + sub-band reconstruction
   joint.py                  reconstruction inside the SATA sub-apertures (joint SATA + reconstruction)
+  joint_line.py             joint reconstruction over the whole line (DEM applied at every position, no sub-apertures)
 plot_irf_single_target.py           IRF of one target: no SATA / whole band / per sub-band
 plot_sata_windows_single_target.py  SATA window by window for one target (PDF)
 run_geometry_sweep.py               sweep over target height profiles (incl. topographic ramp)
 verify_sata1d.py                    verification tests T1-T19 (writes verification/)
 run_one_case.py                     one scene, chosen modes and map, sequential (no multiprocessing); sweep-style figure
-legacy/subband_beam_window.py       previous per-sub-band coefficient fit (not used by the pipeline)
-plot_sweep_improvement_heatmaps.py  heatmaps of the SATA improvement over no SATA from the sweep CSV
+legacy/subband_beam_window.py       previous per-sub-band coefficient fit (used only by the verification scripts)
 ```
 
 ## Requirements
@@ -34,7 +34,6 @@ python run_geometry_sweep.py --workers 4      # full sweep (362 cases)
 python verify_sata1d.py                       # tests T1-T19 (~15 min)
 python run_one_case.py --scene dense_ramp     # one scene (abc | one | dense_ramp | dense_hill | custom), sequential
 python run_one_case.py --mode none joint oracle --map lut   # modes: none | whole | sub | joint | oracle; map: lut | footprint
-python plot_sweep_improvement_heatmaps.py     # after the full sweep
 python run_geometry_sweep.py --families topo_ramp --bxt 100   # topographic ramp only
 ```
 
@@ -99,3 +98,40 @@ dense hill 1000 m: −22.0 dB (oracle −25.6), ramp 0 → 100 m: −25.6 dB (= 
 The remaining gap on steep terrain is the sub-aperture resolution: the energy of a
 target spreads over ± ~20 cells of bins (window width and chirp drift within T_sub)
 and the terrain changes within that spread.
+
+## Joint reconstruction over the whole line (`joint_line.py`)
+
+`reconstruct_joint` reads the DEM once per sub-aperture bin, i.e. it takes the phase of the terrain as constant over
+the ground that one bin of a 40 ms block covers (about +-600 m). With steep terrain and long cross-track baselines the
+phase of a channel changes inside that ground and the result degrades. `reconstruct_joint_line` writes the same
+equations for the whole line: the topographic residual of a scatterer is constant over its aperture, so in the focused
+line it is a multiplication,
+
+    channel_i = decimate{ k_i (*) [ g(x) exp(-j 2 pi dC0_i(x) / wl) ] },
+
+with g the focused full-rate line, dC0_i(x) the delta_C0 of channel i on the terrain at x (`line_maps`: from the DEM
+only) and k_i the response of channel i to the reference point (the chirp filtered by the reference-point filter of the
+standard reconstruction). The channels are solved for g by regularised least squares with conjugate gradients (two
+passes); with dC0 = 0 the result is the standard reconstruction (within 0.1 % rms). No information about the targets is used.
+
+    from sata1d import line_maps, channel_maps, reconstruct_joint_line
+    s = reconstruct_joint_line(cfg, tracks, channels, line_maps(cfg, tracks, terrain))    # terrain: h(x) [m]
+
+`channel_maps(cfg, tracks, terrain)` gives the tables of the channels for the sub-aperture methods (the values of
+`terrain_lookup_table`, through a table of delta_C0 against height: 10 to 20 times faster).
+
+## Audit with a DEM only (`joint_cases/audit_checks.py`, `joint_cases/audit_dem.py`)
+
+```
+python joint_cases/audit_checks.py --part kernel base periodic predict cells line blind noise   # 83 checks, PASS / FAIL
+python joint_cases/audit_checks.py --report
+python joint_cases/audit_dem.py --budget 160 --workers 4          # numbers of 780 runs (resumable): joint_cases/audit_dem/numbers
+python joint_cases/audit_dem.py --pages --budget 160 --workers 4  # the 51 pages of joint_cases/audit_dem/audit_dem.pdf
+python joint_cases/audit_dem.py --pdf
+python joint_cases/audit_dem_distributed.py                       # distributed scenes (needs the cache of distributed_test.py)
+```
+
+Every method reads only the look-up table from the terrain. SATA before the reconstruction (whole band, per sub-band)
+reaches the oracle when the terrain has the same height at x and x +- X (X = 6.23 km, one fold of the channel PRF on the
+ground: flat terrain, or a terrain of period X) and not otherwise: every bin of a channel holds the parcels of positions
+X apart and gets one phase. The level it leaves is predicted from the fold addresses within 1 dB (`--part predict`).

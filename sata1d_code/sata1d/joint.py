@@ -13,7 +13,10 @@ bin phi of the channel spectra, the Nrx x Nsb system
 
 is solved for the parcels u_q, with x_q = c + a(f_q) the ground position of parcel q (the
 same f -> beta -> x ruler as the SATA kernel) and dC0_i(x_q) read from the look-up table of
-channel i at THAT position. The reference-point filters H_i are those of the standard
+channel i at THAT position. The parcels u_q are monostatic (the line the reconstruction
+delivers), so x_q is a monostatic position; the tables are indexed like the channel lines
+(az_pixel_of_scatterer: cell of a point = its monostatic cell + bat_i / 2 ds), so channel i
+reads its table at c + a(f_q) + bat_i / (2 ds). The reference-point filters H_i are those of the standard
 reconstruction, evaluated at the true frequency of every parcel of every bin, so that the
 sub-aperture processing is the standard reconstruction done block-wise (zero-padded FFTs,
 overlap-add of the analysis windows, which sum to one). With dC0 = 0 the method reduces to the standard reconstruction; with the true dC0 of every
@@ -59,11 +62,13 @@ def joint_maps(cfg: ExperimentConfig, tracks: PlatformTracks, dC0=None, max_gap=
     return [lookup_table(cfg, tracks, i, dC0=dC0, max_gap=gap) for i in range(cfg.Nrx)]
 
 
-def reconstruct_joint(cfg: ExperimentConfig, tracks: PlatformTracks, s_channel, maps=None, dC0=None,
+def reconstruct_joint(cfg: ExperimentConfig, tracks: PlatformTracks, s_channel, maps,
                       sata_osf=4, zeroOutBw=True, occupied=True):
     """
-    s_channel [Nrx, Na_ch] channel lines at PRF_op; maps: list of Nrx look-up tables [Na_ch]
-    (joint_maps if not given). occupied: solve only for the parcels that carry signal (least
+    s_channel [Nrx, Na_ch] channel lines at PRF_op; maps: Nrx look-up tables [Na_ch] from the DEM
+    (channel_maps or terrain_lookup_table), indexed like the channel lines. Required: there is no
+    default, so that no run reads the targets (joint_maps uses the targets' positions and is only
+    for explicit comparisons). occupied: solve only for the parcels that carry signal (least
     squares) instead of the full Nrx x Nsb system. Returns the reconstructed line [Na] at the
     full PRF.
     """
@@ -72,16 +77,18 @@ def reconstruct_joint(cfg: ExperimentConfig, tracks: PlatformTracks, s_channel, 
     Na = Na_ch * Nsb
     s = np.asarray(s_channel, dtype=complex)
     if maps is None:
-        maps = joint_maps(cfg, tracks, dC0)
+        raise ValueError("reconstruct_joint needs maps from the DEM (channel_maps / terrain_lookup_table)")
     maps = np.asarray(maps, float)                                    # [Nrx, Na_ch]
+    shift = 0.5 * np.asarray(cfg.array.bat, float) / (v / P)          # bat_i / 2 in cells: monostatic -> table index
     coef = reference_coefficients(cfg, tracks)                        # [Nrx, 4]: C0, C1, C2, Dt
 
     # 1) sub-aperture grid; parcel frequencies and ground positions of every bin
     Tsub, hop, Nzp = subaperture_sizing(r0, P, v, wl, sata_osf)
     win = triangular_window(Tsub)
     phi = np.arange(Nzp) * P / Nzp                                    # bin b <-> b P / Nzp, as filter_matrix
-    fq0 = -Nsb * P / 2.0 + np.arange(Nsb) * P                         # start of parcel q
-    f = fq0[:, None] + phi[None, :]                                   # [Nsb, Nzp] true Doppler of parcel q in bin b
+    # true Doppler of parcel q in bin b: congruent to phi_b mod P and inside [-Nsb P / 2, Nsb P / 2) for any Nsb
+    # (-Nsb P / 2 + q P + phi_b is off by P / 2 when Nsb is odd)
+    f = -Nsb * P / 2.0 + np.mod(phi + Nsb * P / 2.0, P)[None, :] + (np.arange(Nsb) * P)[:, None]   # [Nsb, Nzp]
     a = r0 * np.tan(np.arcsin(np.clip(wl * f / (2.0 * v), -1.0, 1.0))) / v * P   # cell offset of that position
     # 2) the reference-point filters of the standard reconstruction, on the bin grid
     Hq = np.zeros((Nzp, Nrx, Nsb), complex)                           # [bin, channel (row), parcel (column)]
@@ -103,21 +110,23 @@ def reconstruct_joint(cfg: ExperimentConfig, tracks: PlatformTracks, s_channel, 
     out = np.zeros(Na + Lb + 2 * pad, complex)
     wsum = np.zeros(Na + Lb + 2 * pad)
     spad = np.concatenate([s, np.zeros((Nrx, Tsub), complex)], axis=1)
-    roll = (Nzp * Nsb) // 2
+    idx = np.mod(np.round(f / (P / Nzp)).astype(int), Lb).reshape(-1)      # FFT index of every (parcel, bin)
+    U = np.zeros(Lb, complex)
     buf = np.zeros((Nrx, Nzp), complex)
     for start in range(0, Na_ch, hop):
         c = start + 0.5 * Tsub
         buf[:] = 0.0
         buf[:, lo:lo + Tsub] = spad[:, start:start + Tsub] * win
         S = np.fft.fft(buf, axis=1)                                             # [Nrx, Nzp]
-        pos = np.clip(np.round(c + a).astype(int), 0, Na_ch - 1)               # [Nsb, Nzp]
-        theta = maps[:, pos]                                                    # [Nrx, Nsb, Nzp]
+        pos = np.clip(np.round(c + a[None] + shift[:, None, None]).astype(int), 0, Na_ch - 1)   # [Nrx, Nsb, Nzp]
+        theta = np.take_along_axis(maps, pos.reshape(Nrx, -1), axis=1).reshape(pos.shape)       # [Nrx, Nsb, Nzp]
         G = Hq * np.exp(-2j * np.pi * theta.transpose(2, 0, 1) / wl)            # [Nzp, Nrx, Nsb]: s_i = sum_q G_iq u_q
         if occupied:                                                            # empty parcels: zero column, left out
             u = Nsb * (np.linalg.pinv(G * occ[:, None, :]) @ S.T[:, :, None])[:, :, 0]
         else:
             u = Nsb * np.linalg.solve(G, S.T[:, :, None])[:, :, 0]              # [Nzp, Nsb]
-        U = np.roll(u.T.reshape(-1), roll)                                      # f = fq0[q] + phi[b] -> fft order
+        U[:] = 0.0
+        U[idx] = u.T.reshape(-1)                                                # parcel q of bin b -> FFT index of f
         y = np.fft.ifft(U)                                                      # Lb samples at the full PRF
         i0 = (start - lo) * Nsb + pad                                           # block start in the padded output
         out[i0:i0 + Lb] += y

@@ -1,10 +1,10 @@
 # dlr-project
 
-Numerical investigation of **topography-dependent azimuth reconstruction in
-multistatic SAR systems**.
+Numerical investigation of **topography-dependent azimuth reconstruction in multichannel / multistatic SAR systems**
+(HRWS), developed at the DLR Microwaves and Radar Institute.
 
-**Research question:** what is the impact of unaccounted scene topography on
-multichannel SAR azimuth reconstruction?
+**Research question:** what is the impact of unaccounted scene topography on multichannel SAR azimuth reconstruction,
+and how well can it be corrected (SATA and the joint SATA + reconstruction) using only system parameters and a DEM?
 
 ---
 
@@ -14,52 +14,49 @@ multichannel SAR azimuth reconstruction?
 git clone https://github.com/lucas-ayub/dlr-project.git
 cd dlr-project
 pip install -r requirements.txt
-pip install -e .
+pip install -e .          # makes `import sar_recon` / `import sata2d` work from anywhere
 ```
 
-`pip install -e .` requires the `pyproject.toml` at the repo root (points at
-`sar_reconstruction/` as the package source) and makes `import sar_recon`
-work from anywhere, without manually setting `PYTHONPATH`.
+`sar_reconstruction/sata2d` also needs `scipy`.
 
 ---
 
-## Architecture
+## Structure
 
 ```
 dlr-project/
+├── sata1d_code/                     SATA 1D (azimuth only) — main code, see sata1d_code/README.md
+│   ├── sata1d/                      package: config, geometry, signal model, reconstruction,
+│   │                                SATA (whole band / per sub-band), joint, joint_line
+│   ├── joint_cases/                 joint reconstruction: case runs, sweeps, audits with a DEM only, guides
+│   ├── joint_standalone/            minimal standalone copy of the whole-line joint reconstruction (joint1d)
+│   ├── legacy/                      previous per-sub-band fit (used by the verification scripts)
+│   └── *.py                         run, sweep, plot and verification scripts
+│
 ├── sar_reconstruction/
-│   ├── sar_recon/                  # the package (import sar_recon)
-│   │   ├── config.py
-│   │   ├── geometry.py
-│   │   ├── signal_model.py
-│   │   ├── reconstruction.py
-│   │   ├── analysis.py
-│   │   └── plotting.py
+│   ├── sar_recon/                   original reconstruction package (import sar_recon)
+│   ├── sata2d/                      SATA 2D with 3-D geometry and the 2-D joint, see sata2d/README.md
 │   └── CUSTOMIZATION_GUIDE.md
 │
-├── runs/
-│   ├── core/                       # main reconstruction pipeline
-│   │   ├── run_experiment.py
-│   │   └── run_coeff_sweep.py
-│   └── validation/                 # validation against the analytic model
-│       ├── run_band_comparison.py
-│       ├── run_height_sweep_isorange.py
-│       └── run_model_validation_report.py
+├── runs/                            scripts of the original sar_recon pipeline
+│   ├── core/                        reconstruction, coefficient and sub-band experiments
+│   ├── validation/                  validation against the analytic model
+│   └── sata/                        reference SATA code (IDL and Python port)
 │
-├── archive/
-│   └── main_legacy.py              # original prototype, pre-modularization
-│
-├── plots/                          # generated figures (git-ignored)
+├── results/                         scripts that assemble the report PDFs (outputs are not versioned)
 ├── pyproject.toml
-├── requirements.txt
-└── .gitignore
+└── requirements.txt
 ```
 
-All scripts run from the repo root:
+Generated figures, PDFs and numbers are written by the scripts to `plots/` or next to them and are git-ignored.
+
+## Quick start
 
 ```bash
-python runs/core/run_experiment.py
-python runs/validation/run_model_validation_report.py
-```
+cd sata1d_code
+python run_one_case.py --scene dense_ramp --mode none joint oracle --map lut
+cd joint_standalone && python run_example.py && cd ..
 
-Each writes its figures to `plots/<category>/<script_name>/`.
+cd ../sar_reconstruction
+python -m sata2d.run_sata2d_topo --plots
+```

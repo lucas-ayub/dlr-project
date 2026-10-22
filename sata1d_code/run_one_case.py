@@ -193,7 +193,9 @@ def main():
         elif mode == "sub":
             rec = S.reconstruct_subband(cfg, tr, ch, **kw)
         elif mode == "joint":
-            rec = S.reconstruct_joint(cfg, tr, ch, dC0=dC0, sata_osf=SATA_OSF)
+            xt, ht = np.array(targets, float).T; o = np.argsort(xt)
+            dem = lambda x: np.interp(np.asarray(x, float), xt[o], ht[o])   # DEM of the scene: the terrain through the targets
+            rec = S.reconstruct_joint(cfg, tr, ch, maps=S.channel_maps(cfg, tr, dem), sata_osf=SATA_OSF)
         elif mode == "oracle":
             rec = S.reconstruct(cfg, tr, oracle_channels(cfg, tr, dC0))
         env[mode] = F(rec)

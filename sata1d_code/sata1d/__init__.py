@@ -10,3 +10,4 @@ from .sata import (sata_1d, residual_C0, build_delta_C0_array, sata_channels,
 from .subband import (subband_frequency_beam, build_delta_C0_subband_array,
                       sata_1d_subband, sata_channels_subband, reconstruct_subband)
 from .joint import reference_coefficients, joint_maps, reconstruct_joint
+from .joint_line import line_maps, channel_maps, reconstruct_joint_line
