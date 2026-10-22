@@ -7,7 +7,7 @@ range-compressed data, and \code{sata2d/joint2d.py} extends the joint reconstruc
 
 \section{Model}
 
-The unknown is the focused image $g[n,m]$ on azimuth positions $x_n$ (full PRF) and slant ranges of closest approach $r_m$.
+The unknown is the focused image $g[n,m]$ (\cref{fig:chain2d}) on azimuth positions $x_n$ (full PRF) and slant ranges of closest approach $r_m$.
 The range-compressed data of channel $i$ are modelled as
 \begin{equation}
   \bm s_i = \mathcal D\Bigl\{ K_i \cdot \mathcal F_r\bigl[\, Q_i \cdot \mathcal F_a( S_i\, g )\bigr] \Bigr\}
@@ -16,8 +16,8 @@ The range-compressed data of channel $i$ are modelled as
 with
 \begin{itemize}
   \item $S_i$, the terrain screen at every pixel, $\exp\bigl(-\jj 2\pi\Delta C_{0,i}(x,r)/\lambda\bigr)$, computed from the DEM in radar
-        geometry (the ground range of each pixel is found by a fixed-point iteration, which converges for range slopes below
-        $\tan\theta$, i.e.\ without layover);
+        geometry (the ground range of each pixel is found by a fixed-point iteration, \cref{fig:demradar}, which converges for
+        range slopes below $\tan\theta$, i.e.\ without layover);
   \item $Q_i(f;r)$, what changes with the range of closest approach in the range-Doppler domain: the azimuth chirp relative
         to the reference range and the differences of the coefficients $C_0,C_1,C_2,\Delta t$ of the channel;
   \item $K_i(f,f_r)$, the 2-D kernel: the 2-D FFT of the simulated echo of the reference point in channel $i$ at the full PRF
@@ -25,6 +25,24 @@ with
   \item the envelope term, the first-order shift of the range envelope by $\frac12[\Delta C_{0,i} + C_{0,i}(r)-C_{0,i}(r_\mathrm{ref})]$,
         valid while this shift is small compared with the range resolution.
 \end{itemize}
+\begin{figure}[htbp]
+\centering
+\input{tikz/dem_radar}
+\caption[The DEM in radar geometry]{The DEM in radar geometry: a pixel at slant range $r$ lies on the terrain at another ground
+range than on flat terrain. The ground range is found by the fixed-point iteration $y\leftarrow\sqrt{r^2-[H-h(x,y)]^2}$, which
+contracts while the range slope stays below $\tan\theta$.}
+\label{fig:demradar}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\input{tikz/chain_2d}
+\caption[The model of the 2-D joint reconstruction]{The model of the 2-D joint reconstruction and its adjoint (the envelope
+term is omitted). The relief acts per pixel, the range-dependent focusing per range line in the range-Doppler domain, and the
+2-D kernel of the channel in the two-dimensional frequency domain.}
+\label{fig:chain2d}
+\end{figure}
+
 The image is kept on a range grid twice as fine as the data, because a phase that varies with range shifts the range spectrum.
 The adjoint passes the adjoint test to $2.6\times10^{-7}$; the solver is the same CGLS as in 1-D ($\mu=0.03\,\sigma_{\max}$,
 two passes of up to 60 iterations).

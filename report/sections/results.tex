@@ -13,7 +13,7 @@ $[0,50,100,150]$\,\si{m}) and \code{pm50}. Channel~0 is always the transmitter.
 \Cref{tab:audit,fig:audit} compare the methods on \AuditRuns{} runs (\AuditScenes{} scenes $\times$ 20 baseline sets;
 median reference \SI{\AuditMedRef}{dB}).
 
-\begin{table}[ht]
+\begin{table}[htbp]
 \centering
 \caption[Comparison of all methods]{All methods with the DEM only (\AuditRuns{} runs, \code{joint\_cases/audit\_dem.py}).}
 \label{tab:audit}
@@ -30,7 +30,7 @@ Joint reconstruction in the sub-apertures & $-30.9$ & 36.3 \\
 \end{tabular}
 \end{table}
 
-\begin{figure}[ht]
+\begin{figure}[htbp]
 \centering
 \begin{tikzpicture}
 \begin{axis}[
@@ -68,7 +68,7 @@ The medians are \SI{\SweepOneMedRef}{dB} (reference), \SI{\SweepOneMedNone}{dB} 
 \SI{\SweepOneMedJoint}{dB} (joint); \SweepOneWithinTen\,\% of the runs are within \SI{10}{dB} of the reference.
 \Cref{fig:nrx1d} splits the result by the number of channels and \cref{fig:scatter} shows every run.
 
-\begin{figure}[ht]
+\begin{figure}[htbp]
 \centering
 \begin{tikzpicture}
 \begin{groupplot}[group style={group size=2 by 1, horizontal sep=1.8cm},
@@ -91,7 +91,7 @@ level rises with $\Nrx$ because $\PRFop$ falls and more ambiguity orders fall in
 \label{fig:nrx1d}
 \end{figure}
 
-\begin{figure}[ht]
+\begin{figure}[htbp]
 \centering
 \begin{tikzpicture}
 \begin{groupplot}[group style={group size=2 by 1, horizontal sep=1.6cm},
@@ -137,7 +137,7 @@ $7\times7$ grid) with the same 20 baseline sets, \SweepTwoRuns{} runs in total. 
 (reference), \SI{\SweepTwoMedNone}{dB} (no correction) and \SI{\SweepTwoMedJoint}{dB} (joint), all in the common range band.
 The joint reconstruction is never worse than the uncorrected one.
 
-\begin{table}[ht]
+\begin{table}[htbp]
 \centering
 \caption[2-D sweep by number of channels]{2-D sweep by number of channels: median gap between the joint reconstruction and
 the reference, and fraction of runs within \SI{3}{dB} of the reference.}
@@ -166,12 +166,12 @@ With three or more channels the joint reconstruction is within a fraction of a d
 baseline (\cref{fig:demerror}). With an rms height error of \SI{5}{m}, the joint reconstruction stays at \SI{-36}{dB} for
 $\bxt=\SI{135}{m}$ but rises to \SI{-20}{dB} for \SI{300}{m}.
 
-\begin{figure}[ht]
+\begin{figure}[htbp]
 \centering
 \begin{tikzpicture}
 \begin{axis}[width=0.55\linewidth, height=5.2cm, xlabel={rms DEM error [m]}, ylabel={highest ambiguity [dB]},
   xmin=0, xmax=11, ymin=-50, ymax=-5, xtick={0,2,5,10}, grid=major, grid style={gray!25},
-  legend pos=south east, legend style={font=\small,draw=none}]
+  legend pos=north west, legend style={font=\small,draw=none}]
   \addplot[cocc,thick,mark=*] coordinates {(0,-43.5) (2,-43.6) (5,-36.1) (10,-29.9)};
   \addplot[cnone,thick,mark=square*] coordinates {(2,-28.9) (5,-19.6) (10,-12.0)};
   \legend{$\bxt^{\max}=\SI{135}{m}$, $\bxt^{\max}=\SI{300}{m}$}

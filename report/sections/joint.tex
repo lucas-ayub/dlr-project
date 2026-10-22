@@ -13,13 +13,23 @@ With the same sub-apertures as SATA, for every sub-aperture and every bin $\phi$
   \qquad x_q = x_c + \frac{\lambda r_0}{2v} f_q ,
 \end{equation}
 and solved for the parcels $U_q$, which are then placed at their true Doppler, transformed back and overlap-added at the
-full PRF (\code{reconstruct\_joint}). With $\dC=0$ this is the standard reconstruction ($\sim10^{-7}$); with one target it
+full PRF (\code{reconstruct\_joint}). The steps are summarised in \cref{fig:flowsubap}. With $\dC=0$ this is the standard reconstruction ($\sim10^{-7}$); with one target it
 equals the oracle. Its limit is the resolution of the sub-aperture: the DEM is read once per bin of a \SI{40}{ms} block, i.e.\
 the terrain phase is taken as constant over about $\pm\SI{600}{m}$ of ground. A slope $s$ with a cross-track baseline is
 equivalent to shifting the phase centre of the channel by $\bxt s/(2\tan\theta)$; when that shift is not small compared with
 the block, the per-bin model breaks. With $\Delta\varphi=\frac{2\pi}{\lambda}\,\frac{\bxt^{\max}\,s\,\delta x}{r_0\tan\theta}$
 the phase change inside one SATA cell, the method stays within about \SI{10}{dB} of the reference for
 $\Delta\varphi\lesssim\SI{0.5}{rad}$ and fails by 10 to \SI{35}{dB} above \SI{1}{rad}.
+
+\begin{figure}[p]
+\centering
+\input{tikz/flow_subap}
+\caption[Flowchart of the joint reconstruction in the sub-apertures]{The joint reconstruction in the sub-apertures, as implemented in
+\code{reconstruct\_joint}. Green: preparation, done once. Blue: the loop over the blocks of 20 samples; inside each block a small
+least-squares system is solved for every bin. Violet: finishing. The DEM is read once per bin, at the position the ruler gives to
+each parcel.}
+\label{fig:flowsubap}
+\end{figure}
 
 \section{Joint reconstruction over the whole line}
 
@@ -33,7 +43,7 @@ channels are modelled as
 \end{equation}
 where $\varphi_i(x)$ comes from the DEM only (\code{line\_maps}), $k_i$ is the response of channel $i$ to the reference
 point (the azimuth chirp filtered by the reference-point filter $H_i$ of the standard reconstruction) and $\mathcal D$ is
-the decimation to $\PRFop$. Writing \eqref{eq:jointmodel} as $\bm s=\mathbf A\bm g$, the line is estimated by Tikhonov-regularised
+the decimation to $\PRFop$ (\cref{fig:chainline}). Writing \eqref{eq:jointmodel} as $\bm s=\mathbf A\bm g$, the line is estimated by Tikhonov-regularised
 least squares,
 \begin{equation}
   \hat{\bm g} = \arg\min_{\bm g}\ \sum_{i}\bigl\|\bm s_i-\mathbf A_i\bm g\bigr\|^2 + \mu^2\|\bm g\|^2 ,
@@ -43,12 +53,33 @@ application of $\mathbf A$ and of its adjoint $\mathbf A\Hm$ (two FFTs per chann
 $\mu=0.03\,\sigma_{\max}$, with $\sigma_{\max}$ estimated by a few power iterations, and the problem is solved in two passes
 (iterated Tikhonov: the second pass solves for what the first one left), which turns the filter factor
 $\sigma^2/(\sigma^2+\mu^2)$ into $1-(1-\sigma^2/(\sigma^2+\mu^2))^2$. Each pass runs up to 60 iterations. The output is
-re-chirped with the reference response, $U=k*\hat g$, so that it has the same form as the standard reconstruction.
+re-chirped with the reference response, $U=k*\hat g$, so that it has the same form as the standard reconstruction. The
+complete algorithm is in \cref{fig:flowline}.
 
-\begin{figure}[ht]
+\begin{figure}[htbp]
+\centering
+\input{tikz/chain_line}
+\caption[The model of the whole-line joint reconstruction]{The model $\mathbf A$ and its adjoint. Each operation is done in the
+domain where it is simple: the relief phase is a multiplication in \emph{position}, the chirp and the channel filter a
+multiplication in \emph{Doppler frequency}, the sampling a selection of samples in \emph{time}; the FFTs only move between the
+domains. The adjoint is the usual SAR processor: it focuses each channel, removes its relief phase and sums the channels.}
+\label{fig:chainline}
+\end{figure}
+
+\begin{figure}[p]
+\centering
+\input{tikz/flow_line}
+\caption[Flowchart of the joint reconstruction over the whole line]{The joint reconstruction over the whole line, as implemented in
+\code{reconstruct\_joint\_line}. Green: preparation, done once. Blue: the CGLS iterations, in two passes (iterated Tikhonov);
+each iteration applies $\mathbf A$ and $\mathbf A\Hm$ once (two FFTs per channel each). Violet: back to the raw full-rate line,
+in the same form as the standard reconstruction.}
+\label{fig:flowline}
+\end{figure}
+
+\begin{figure}[htbp]
 \centering
 \begin{tikzpicture}[>=Latex, node distance=0.45cm and 0.45cm,
-  box/.style={draw,rounded corners=2pt,fill=white,align=center,font=\small,minimum height=0.95cm,text width=2.05cm},
+  box/.style={draw,rounded corners=2pt,fill=white,align=center,font=\small,minimum height=0.95cm,text width=2.3cm},
   dem/.style={draw,rounded corners=2pt,fill=terrainfill,align=center,font=\small,minimum height=0.85cm,text width=2.05cm}]
   % (a) SATA + standard reconstruction
   \node[font=\small\bfseries,anchor=west] at (-1.2,1.3) {(a) SATA on each channel, then the standard reconstruction};

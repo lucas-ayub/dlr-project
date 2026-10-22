@@ -3,9 +3,9 @@
 \section{Conclusions}
 
 \begin{itemize}
-  \item Cross-track baselines turn topography into a channel-dependent phase, $\varphi_i\approx 2\pi\bxt_{,i}h/(\lambda r_0\tan\theta)$,
-        that the standard multichannel reconstruction cannot absorb. Without correction the median highest ambiguity of the sweeps is
-        \SI{\SweepOneMedNone}{dB} in 1-D and \SI{\SweepTwoMedNone}{dB} in 2-D, against a reference near \SI{-48}{dB}.
+  \item Cross-track baselines turn topography into a channel-dependent phase that the standard multichannel
+        reconstruction cannot absorb, $\varphi_i\approx 2\pi\bxt_{,i}h/(\lambda r_0\tan\theta)$. Without correction the median highest ambiguity of the sweeps is \SI{\SweepOneMedNone}{dB} in 1-D and
+        \SI{\SweepTwoMedNone}{dB} in 2-D, against a reference near \SI{-48}{dB}.
   \item SATA computes the right phase from the DEM, but applied to each aliased channel before the reconstruction it can give
         only one phase to the parcels of positions $X\approx\SI{6.2}{km}$ apart that share a Doppler bin. It is exact only
         when the terrain has the same height at all those positions; elsewhere it leaves a structural residual that is predicted
@@ -31,6 +31,3 @@
   \item Use of the conditioning analysis (\cref{sec:mismatch}) as a design rule for the cross-track baselines of a formation.
   \item Computational cost: block-wise or GPU implementation of the model and its adjoint for full scenes.
 \end{itemize}
-
-\todo{Add acknowledgements (DLR-HR, DAAD, supervision) and any results or discussions from the last weeks of the
-fellowship.}

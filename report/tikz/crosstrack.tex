@@ -1,0 +1,77 @@
+% Plane perpendicular to the track and zoom around the scatterer: origin of Delta C0 (adapted from the guides)
+\begin{tikzpicture}[x=0.8cm,y=0.8cm]
+  \def\rr{5.6}\def\ha{5.0}
+  \coordinate (Tx) at (0,\ha);
+  \coordinate (Rx) at (1.35,\ha);
+  \pgfmathsetmacro{\zg}{\ha-\rr*cos(33)}
+  \pgfmathsetmacro{\zp}{\ha-\rr*cos(50)}
+  \pgfmathsetmacro{\xq}{\rr*sin(33)}
+  \pgfmathsetmacro{\xp}{\rr*sin(50)}
+  \coordinate (P0) at (\xq,\zg);
+  \coordinate (P1) at (\xp,\zp);
+  % terrain
+  \fill[terrainfill] (1.5,\zg) -- (3.2,\zg) .. controls (3.75,\zg) and (\xp-0.5,\zp) .. (P1)
+     .. controls (\xp+0.55,\zp) and (5.2,\zg) .. (5.9,\zg) -- (6.7,\zg) -- (6.7,\zg-0.18) -- (1.5,\zg-0.18) -- cycle;
+  \draw[terrain,line width=0.9pt] (1.5,\zg) -- (3.2,\zg) .. controls (3.75,\zg) and (\xp-0.5,\zp) .. (P1)
+     .. controls (\xp+0.55,\zp) and (5.2,\zg) .. (5.9,\zg) -- (6.7,\zg);
+  \draw[inkb,dashed] (-0.6,\zg) -- (6.7,\zg) node[right,nota]{$h=0$};
+  % vertical and look angle
+  \draw[inkb,densely dotted] (Tx) -- (0,\zg);
+  \draw[inkb] (Tx) ++(-90:1.15) arc[start angle=-90,end angle=-57,radius=1.15];
+  \node[nota] at ($(Tx)+(-74:1.42)$) {$\theta$};
+  % arc of equal range to the Tx
+  \draw[cblue!75,line width=0.7pt,densely dashed] (Tx) ++(-63:\rr) arc[start angle=-63,end angle=-31,radius=\rr];
+  \node[nota,text=cblue,anchor=south west,align=left] at ($(Tx)+(-31:\rr)+(0.08,-0.05)$) {same range\\ $r_0$ to the Tx};
+  % paths
+  \draw[cblue,line width=0.9pt] (Tx) -- node[below,sloped,pos=0.50,nota,text=cblue]{$r_0$} (P0);
+  \draw[cblue,line width=0.9pt] (Tx) -- node[above,sloped,pos=0.62,nota,text=cblue]{$r_0$} (P1);
+  \draw[corange,line width=0.9pt] (Rx) -- (P0);
+  \draw[corange,line width=0.9pt] (Rx) -- (P1);
+  % height and displacement on the arc
+  \draw[cota] (\xp,\zg) -- node[right=-1pt,nota,text=ink]{$h$} (\xp,\zp);
+  \draw[cred,line width=1.5pt,->] (P0) -- node[above left=-1.5pt,pos=0.52,nota,text=cred]{$s$} ($(P0)!0.95!(P1)$);
+  \fill[ink] (P0) circle (2pt);
+  \fill[ink] (P1) circle (2pt);
+  \node[nota,anchor=north east,align=right] at ($(P0)+(-0.12,-0.24)$) {reference\\ point};
+  \node[nota,anchor=south west] at ($(P1)+(0.45,0.0)$) {scatterer};
+  % platforms and baseline
+  \node[sat] at (Tx) {};
+  \node[sat] at (Rx) {};
+  \node[nota,anchor=east] at ($(Tx)+(-0.15,0)$) {Tx};
+  \node[nota,anchor=west] at ($(Rx)+(0.15,0)$) {Rx$_i$};
+  \draw[cota] ($(Tx)+(0,0.42)$) -- node[above,nota]{$\bxt_{,i}$} ($(Rx)+(0,0.42)$);
+  \draw[inkb,line width=0.4pt] ($(Tx)+(0,0.14)$) -- ++(0,0.38); \draw[inkb,line width=0.4pt] ($(Rx)+(0,0.14)$) -- ++(0,0.38);
+  \draw[cota] (-0.95,\zg) -- node[left,nota]{$H$} (-0.95,\ha);
+  % ----------------------------------------------------------- zoom around the scatterer
+  \begin{scope}[shift={(11.0,1.0)}]
+    \def\tq{42}\def\dq{20}\def\sq{2.5}
+    \draw[rule,rounded corners=3pt,line width=0.6pt,fill=paper] (-2.45,-2.3) rectangle (4.75,4.75);
+    \node[nota,anchor=north,text=ink] at (1.15,4.62) {\textbf{zoom around the scatterer}};
+    \coordinate (Q0) at (0,0);
+    \coordinate (Q1) at (\tq:\sq);
+    \pgfmathsetmacro{\sfq}{\sq*cos(\dq)}
+    \coordinate (F) at (\tq-\dq:\sfq);
+    \draw[corange,dashed,line width=0.7pt] (Q0) -- ($(Q0)+(\tq-\dq:\sfq+0.75)$);
+    \draw[cblue,line width=0.9pt,->] ($(Q0)+(\tq+90:2.9)$) -- ($(Q0)+(\tq+90:0.07)$);
+    \draw[cblue,line width=0.9pt,->] ($(Q1)+(\tq+90:2.2)$) -- ($(Q1)+(\tq+90:0.07)$);
+    \draw[corange,line width=0.9pt,->] ($(Q0)+(\tq+90-\dq:2.9)$) -- ($(Q0)+(\tq+90-\dq:0.07)$);
+    \draw[corange,line width=0.9pt,->] ($(Q1)+(\tq+90-\dq:2.2)$) -- ($(Q1)+(\tq+90-\dq:0.07)$);
+    \node[nota,text=cblue,anchor=south] at ($(Q0)+(\tq+90:2.95)$) {from Tx};
+    \node[nota,text=corange,anchor=south] at ($(Q0)+(\tq+90-\dq:2.95)$) {from Rx$_i$};
+    \draw[ink,line width=0.6pt] (Q0) ++(\tq+90-\dq:1.9) arc[start angle=\tq+90-\dq,end angle=\tq+90,radius=1.9];
+    \node[nota,text=ink] at ($(Q0)+(\tq+80:2.22)$) {$\Delta\theta$};
+    \draw[ink,line width=0.6pt] (Q0) ++(\tq-\dq:1.25) arc[start angle=\tq-\dq,end angle=\tq,radius=1.25];
+    \node[nota,text=ink] at ($(Q0)+(\tq-10:1.58)$) {$\Delta\theta$};
+    \draw[cblue,line width=0.5pt] ($(Q0)+(\tq:0.22)$) -- ++(\tq+90:0.22) -- ++(\tq:-0.22);
+    \draw[corange,line width=0.5pt] ($(F)+(\tq-\dq:-0.2)$) -- ++(\tq-\dq+90:0.2) -- ++(\tq-\dq:0.2);
+    \draw[cred,line width=1.5pt,->] (Q0) -- node[above left=-1.5pt,pos=0.62,nota,text=cred]{$s$} ($(Q0)!0.96!(Q1)$);
+    \draw[corange!85!black,line width=2.6pt] (Q1) -- (F);
+    \node[nota,text=corange!80!black,anchor=west] at ($(Q1)!0.5!(F)+(0.12,0.05)$) {$s\,\Delta\theta$};
+    \fill[ink] (Q0) circle (2pt);
+    \fill[ink] (Q1) circle (2pt);
+    \node[nota,anchor=north,align=center] at ($(Q0)+(-0.25,-0.14)$) {reference\\ point};
+    \node[nota,anchor=south west] at ($(Q1)+(0.12,0.05)$) {scatterer};
+    \node[nota,anchor=north,text=ink,align=center] at (1.15,-1.12) {$\Delta\theta=\dfrac{\bxt_{,i}\cos\theta}{r_0}$,\qquad
+       $s=\dfrac{h}{\sin\theta}$};
+  \end{scope}
+\end{tikzpicture}

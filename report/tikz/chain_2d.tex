@@ -1,0 +1,29 @@
+% Model of the 2-D joint reconstruction and its adjoint
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \node[nota,anchor=west,text=ink] at (-0.9,1.25) {\textbf{model}: from the focused image to the range-compressed data of channel $i$};
+  \node[opx] (g) at (0,0) {$g[n,m]$};
+  \node[opx] (s) at (2.05,0) {$\times\,S_i$\\ relief};
+  \node[opf] (fa) at (3.95,0) {$\mathcal F_a$};
+  \node[opf] (q) at (5.85,0) {$\times\,Q_i$\\ per range};
+  \node[opt] (fr) at (7.75,0) {$\mathcal F_r$};
+  \node[opt] (k) at (9.65,0) {$\times\,K_i$\\ 2-D kernel};
+  \node[opt] (d) at (11.55,0) {$\mathcal D$\\ decimate};
+  \node[bdata,minimum height=9mm] (o) at (13.45,0) {$s_i[k,m]$};
+  \foreach \a/\b in {g/s,s/fa,fa/q,q/fr,fr/k,k/d,d/o} \draw[seta] (\a) -- (\b);
+  \draw[caqua,line width=2pt] (-0.6,-0.95) -- (2.95,-0.95) node[midway,below,nota,text=caqua!70!black]{azimuth $\times$ range};
+  \draw[cblue,line width=2pt] (3.25,-0.95) -- (6.85,-0.95) node[midway,below,nota,text=cblue!85!black]{Doppler $\times$ range};
+  \draw[corange,line width=2pt] (7.15,-0.95) -- (12.4,-0.95) node[midway,below,nota,text=corange!85!black]{Doppler $\times$ range frequency};
+  \begin{scope}[yshift=-3.3cm]
+  \node[nota,anchor=west,text=ink] at (-0.9,1.25) {\textbf{adjoint}: repeat the spectrum, 2-D matched filter, remove the relief, sum the channels};
+  \node[bdata,minimum height=9mm] (o') at (0,0) {$s_i[k,m]$};
+  \node[opt] (d') at (1.9,0) {$\mathcal D\Hm$\\ repeat};
+  \node[opt] (k') at (3.8,0) {$\times\,K_i^{*}$};
+  \node[opt] (fr') at (5.7,0) {$\mathcal F_r^{-1}$};
+  \node[opf] (q') at (7.6,0) {$\times\,Q_i^{*}$};
+  \node[opf] (fa') at (9.5,0) {$\mathcal F_a^{-1}$};
+  \node[opx] (s') at (11.4,0) {$\times\,S_i^{*}$};
+  \node[opx] (sum) at (13.3,0) {$\sum_i$};
+  \foreach \a/\b in {o'/d',d'/k',k'/fr',fr'/q',q'/fa',fa'/s',s'/sum} \draw[seta] (\a) -- (\b);
+  \node[nota,below=1.5mm of k'] {RCMC, azimuth\\ compression,\\ co-registration};
+  \end{scope}
+\end{tikzpicture}

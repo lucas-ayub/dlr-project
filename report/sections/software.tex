@@ -4,7 +4,7 @@ The code is in the repository \code{github.com/lucas-ayub/dlr-project}. \Cref{ta
 report to it. Generated outputs (figures, numbers) are not versioned; the numbers of \cref{ch:results} are extracted from the
 sweep outputs by \code{report/scripts/make\_data.py}.
 
-\begin{table}[ht]
+\begin{table}[htbp]
 \centering
 \caption{Methods and the code that implements them.}\label{tab:software}
 \begin{tabularx}{\linewidth}{@{}l >{\raggedright\arraybackslash}X@{}}
@@ -28,15 +28,17 @@ Reference SATA code & \code{runs/sata/sata\_idl.txt}, \code{runs/sata/reference\
 \end{table}
 
 A minimal use of the final method:
+{\small
 \begin{verbatim}
 import numpy as np
 import sata1d as S
 
-terrain  = lambda x: 1000.0 * np.exp(-x**2 / (2 * 1500.0**2))   # DEM h(x) [m]
-points   = [(x, terrain(x)) for x in (-2000.0, 0.0, 2000.0)]     # targets (x, h) [m]
+terrain  = lambda x: 1000.0 * np.exp(-x**2 / (2 * 1500.0**2))  # DEM [m]
+points   = [(x, terrain(x)) for x in (-2000.0, 0.0, 2000.0)]    # (x, h)
 cfg      = S.make_config(points, bxt_max=100.0, tx_rx_channel0=True)
 tracks   = S.build_platform_tracks(cfg)
-channels = S.generate_channels(cfg, tracks)                      # simulated channel data
-dC0      = S.line_maps(cfg, tracks, terrain)                     # from the DEM only
-image    = S.reconstruct_joint_line(cfg, tracks, channels, dC0)  # line at the full PRF
+channels = S.generate_channels(cfg, tracks)                     # data
+dC0      = S.line_maps(cfg, tracks, terrain)                    # DEM only
+image    = S.reconstruct_joint_line(cfg, tracks, channels, dC0)
 \end{verbatim}
+}

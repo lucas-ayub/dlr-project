@@ -19,15 +19,15 @@ and long enough that the frequency resolution resolves the ground. The optimum g
 $\delta x=\sqrt{\lambda r_0/2}=\SI{309.5}{m}$; at $\PRFop=\SI{500}{Hz}$ this is a block of 20 samples (\SI{40}{ms}),
 a hop of 10 samples and a zero-padded FFT of 128 points.
 
-\begin{figure}[ht]
+\begin{figure}[htbp]
 \centering
-\begin{tikzpicture}[>=Latex, node distance=0.55cm and 0.5cm,
-  box/.style={draw,rounded corners=2pt,fill=white,align=center,font=\small,minimum height=1.0cm,text width=2.2cm},
+\begin{tikzpicture}[>=Latex, node distance=0.55cm and 0.4cm,
+  box/.style={draw,rounded corners=2pt,fill=white,align=center,font=\small,minimum height=1.0cm,text width=1.8cm},
   dem/.style={draw,rounded corners=2pt,fill=terrainfill,align=center,font=\small,minimum height=0.9cm,text width=2.4cm}]
   \node[box] (in) {channel $i$\\ at $\PRFop$};
   \node[box,right=of in] (win) {sub-apertures\\ (triangular, \SI{50}{\%})};
   \node[box,right=of win] (fft) {FFT of each\\ sub-aperture};
-  \node[box,right=of fft,fill=cwhole!15] (mul) {bin $f$ $\times$\\ $\e^{+\jj 2\pi\Delta C_{0,i}(x(f))/\lambda}$};
+  \node[box,right=of fft,fill=cwhole!15,text width=2.6cm] (mul) {bin $f$ $\times$\\ $\e^{+\jj 2\pi\Delta C_{0,i}(x(f))/\lambda}$};
   \node[box,right=of mul] (ola) {IFFT and\\ overlap-add};
   \node[dem,below=0.8cm of mul] (dem) {DEM $h(x)$\\ $\to\Delta C_{0,i}(x)$};
   \node[dem,below=0.8cm of fft,fill=gray!10] (ruler) {ruler\\ $f\mapsto x(f)$};
@@ -76,6 +76,15 @@ the same leakage structure as \eqref{eq:cm}, now driven by the \emph{height diff
         phase of its own position (about \SIlist{78;52;39;26;20}{\percent} for $\Nrx=2,3,4,6,8$); in the per-sub-band
         variant the output parcel is right but all the others leak into it.
 \end{itemize}
+\begin{figure}[htbp]
+\centering
+\input{tikz/binconflict}
+\caption[The conflict of one bin]{The conflict of one bin. Its parcels come from places $X$ apart, with different heights.
+SATA on the channel applies one phase to the whole bin; the joint reconstruction applies the phase of each place to its own
+parcel, inside the system of equations.}
+\label{fig:binconflict}
+\end{figure}
+
 Correcting each parcel needs the parcels separated, and separating them needs the phases corrected: the two steps cannot be
 done one after the other. This is what the joint reconstruction of \cref{ch:joint} does in a single system.
 

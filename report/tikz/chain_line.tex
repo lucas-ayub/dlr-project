@@ -1,0 +1,34 @@
+% Model A of the whole-line joint reconstruction and its adjoint
+\begin{tikzpicture}[x=1cm,y=1cm]
+  % ---------------- forward model
+  \node[nota,anchor=west,text=ink] at (-0.9,1.25) {\textbf{model} $\mathbf A_i$: from the focused line to channel $i$};
+  \node[opx] (g) at (0,0) {$g[n]$};
+  \node[opx] (m1) at (2.2,0) {$\times\,\e^{-\jj\varphi_i[n]}$};
+  \node[opf] (f1) at (4.4,0) {FFT};
+  \node[opf] (m2) at (6.4,0) {$\times\,K_i(f)$};
+  \node[opf] (f2) at (8.4,0) {IFFT};
+  \node[opt] (dec) at (10.4,0) {$\downarrow\Nrx$};
+  \node[opt] (s) at (12.6,0) {$s_i[k]$};
+  \foreach \a/\b in {g/m1,m1/f1,f1/m2,m2/f2,f2/dec,dec/s} \draw[seta] (\a) -- (\b);
+  \node[nota,below=1.5mm of m1,text=caqua!70!black] {DEM screen};
+  \node[nota,below=1.5mm of m2,text=cblue!85!black] {$K_i=K\,H_i$: chirp\\ and channel filter};
+  \node[nota,below=1.5mm of dec,text=corange!85!black] {keep 1 sample\\ in $\Nrx$};
+  % domains
+  \draw[caqua,line width=2pt] (-0.6,-1.55) -- (3.3,-1.55) node[midway,below,nota,text=caqua!70!black]{position (focused line)};
+  \draw[cblue,line width=2pt] (3.6,-1.55) -- (7.4,-1.55) node[midway,below,nota,text=cblue!85!black]{Doppler frequency};
+  \draw[corange,line width=2pt] (7.7,-1.55) -- (13.3,-1.55) node[midway,below,nota,text=corange!85!black]{time (raw channel line)};
+  % ---------------- adjoint
+  \begin{scope}[yshift=-3.9cm]
+  \node[nota,anchor=west,text=ink] at (-0.9,1.25) {\textbf{adjoint} $\mathbf A_i\Hm$: the same steps backwards, each conjugated; then the sum over the channels};
+  \node[opt] (s') at (0,0) {$s_i[k]$};
+  \node[opt] (z') at (2.2,0) {zeros\\ between};
+  \node[opf] (f1') at (4.4,0) {FFT};
+  \node[opf] (m2') at (6.4,0) {$\times\,K_i^{*}(f)$};
+  \node[opf] (f2') at (8.4,0) {IFFT};
+  \node[opx] (m1') at (10.4,0) {$\times\,\e^{+\jj\varphi_i[n]}$};
+  \node[opx,minimum width=14mm] (sum) at (12.6,0) {$\sum_i$};
+  \foreach \a/\b in {s'/z',z'/f1',f1'/m2',m2'/f2',f2'/m1',m1'/sum} \draw[seta] (\a) -- (\b);
+  \node[nota,below=1.5mm of m2'] {matched filter:\\ focuses the channel};
+  \node[nota,below=1.5mm of m1'] {removes the\\ relief phase};
+  \end{scope}
+\end{tikzpicture}

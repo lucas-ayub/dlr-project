@@ -35,12 +35,45 @@
 \definecolor{terrain}{RGB}{120,90,60}
 \definecolor{terrainfill}{RGB}{235,228,214}
 
+\definecolor{ink}{HTML}{0B0B0B}
+\definecolor{inkb}{HTML}{52514E}
+\definecolor{paper}{HTML}{F6F5F1}
+\definecolor{rule}{HTML}{D9D7D0}
+\definecolor{cblue}{HTML}{2A78D6}
+\definecolor{corange}{HTML}{EB6834}
+\definecolor{caqua}{HTML}{1BAF7A}
+\definecolor{cyellow}{HTML}{EDA100}
+\definecolor{cviolet}{HTML}{4A3AA7}
+\definecolor{cred}{HTML}{D62728}
+\colorlet{ch0}{dlrblue}\colorlet{ch1}{cwhole}\colorlet{ch2}{cref}\colorlet{ch3}{cjoint}
+
+% ---------------------------------------------------------------- TikZ styles of the diagrams
+\tikzset{
+  >={Stealth[length=5pt,width=4pt]},
+  seta/.style={->,line width=0.7pt,draw=ink},
+  cota/.style={<->,line width=0.5pt,draw=inkb},
+  nota/.style={font=\footnotesize,text=inkb,align=center},
+  blk/.style={draw=inkb,fill=white,rounded corners=2pt,align=flush center,inner sep=4pt,minimum height=8mm,line width=0.6pt,font=\small},
+  bprep/.style={blk,draw=caqua!80!black,fill=caqua!10},
+  bloop/.style={blk,draw=cblue,fill=cblue!8},
+  bfin/.style={blk,draw=cviolet,fill=cviolet!8},
+  bdata/.style={blk,draw=inkb,fill=paper},
+  bdem/.style={blk,draw=terrain,fill=terrainfill},
+  bdec/.style={draw=cyellow!90!black,fill=cyellow!15,diamond,aspect=2.4,align=center,inner sep=1.5pt,font=\footnotesize,line width=0.6pt},
+  stepn/.style={circle,fill=corange,text=white,font=\scriptsize\bfseries,inner sep=1.2pt,minimum size=5.2mm},
+  op/.style={draw=inkb,fill=white,rounded corners=2pt,align=center,inner sep=3pt,minimum height=9mm,minimum width=12mm,font=\small,line width=0.6pt},
+  opx/.style={op,draw=caqua!80!black,fill=caqua!10},
+  opf/.style={op,draw=cblue,fill=cblue!8},
+  opt/.style={op,draw=corange,fill=corange!10},
+  sat/.style={circle,draw=ink,fill=white,line width=0.8pt,inner sep=2.2pt},
+}
+
 % ---------------------------------------------------------------- layout
 \setlength{\parindent}{0pt}
 \setlength{\parskip}{0.6em}
 \captionsetup{font=small,labelfont=bf,width=0.95\linewidth}
 \setlist{itemsep=0.2em,topsep=0.3em}
-\titleformat{\chapter}[hang]{\Huge\bfseries\color{dlrblue}}{\thechapter}{0.6em}{}
+\titleformat{\chapter}[hang]{\huge\bfseries\color{dlrblue}}{\thechapter}{0.6em}{}
 \titlespacing*{\chapter}{0pt}{-10pt}{18pt}
 \pagestyle{fancy}
 \fancyhf{}

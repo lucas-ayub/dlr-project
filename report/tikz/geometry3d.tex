@@ -1,0 +1,40 @@
+% Bistatic geometry of one channel (adapted from the guides of the joint reconstruction)
+\begin{tikzpicture}[x=1cm,y=1cm]
+  % axes
+  \coordinate (O) at (-3.4,0.2);
+  \draw[->,ink,line width=0.8pt] (O) -- ++(0,4.6) node[left,nota]{$z$};
+  \draw[->,ink,line width=0.8pt] (O) -- ++(-1.5,-0.5) node[below,nota]{$x$ (azimuth)};
+  \draw[->,ink,line width=0.8pt] (O) -- ++(5.6,-2.0) node[below,nota]{$y$ (ground range)};
+  % tracks
+  \coordinate (T0) at (-4.2,2.95); \coordinate (T1) at (3.1,5.35);
+  \coordinate (R0) at (-3.0,1.55); \coordinate (R1) at (4.6,4.05);
+  \draw[cblue,dashed,line width=0.9pt] (T0) -- (T1) node[above,nota,text=cblue]{track of the Tx};
+  \draw[corange,dashed,line width=0.9pt] (R0) -- (R1) node[right,nota,text=corange]{track of Rx$_i$};
+  % platforms, paths and target
+  \coordinate (Tx) at ($(T0)!0.36!(T1)$);
+  \coordinate (Rx) at ($(R0)!0.70!(R1)$);
+  \coordinate (CA) at ($(T0)!0.56!(T1)$);
+  \coordinate (Tg) at (1.35,0.35);
+  \coordinate (Gr) at (1.35,-1.25);
+  \draw[cviolet,line width=0.9pt] (Tx) -- node[left=1pt,pos=0.55,nota,text=cviolet]{$r_{\mathrm T}(t)$} (Tg);
+  \draw[caqua!80!black,line width=0.9pt] (Rx) -- node[right=1pt,pos=0.45,nota,text=caqua!70!black]{$r_{\mathrm R,i}(t)$} (Tg);
+  \draw[cred,line width=0.9pt] (CA) -- node[right,pos=0.30,nota,text=cred]{$r_0$} (Tg);
+  \fill[cblue] (CA) circle (1.8pt);
+  \node[nota,text=cblue,anchor=south east] at ($(CA)+(-0.05,0.08)$) {$t=t_p$};
+  \node[sat] at (Tx) {};
+  \node[sat] at (Rx) {};
+  \node[nota,anchor=north east] at ($(Tx)+(-0.08,-0.26)$) {Tx};
+  \node[nota,below right=2pt] at (Rx) {Rx$_i$};
+  \draw[->,ink,line width=0.8pt] (Tx) -- ++(-0.62,-0.20) node[above left=-2pt,nota]{$v$};
+  \draw[->,ink,line width=0.8pt] (Rx) -- ++(-0.62,-0.20) node[above left=-2pt,nota]{$v$};
+  \fill[ink] (Tg) circle (2pt);
+  \node[nota,anchor=west] at ($(Tg)+(0.55,0.05)$) {scatterer $(x,y,h)$};
+  \draw[cota] (Tg) -- node[right,nota]{$h$} (Gr);
+  % baselines
+  \coordinate (Ta) at ($(Tx)+(-0.42,1.28)$); \coordinate (Tb) at ($(Rx)+(-1.52,2.78)$);
+  \draw[ink,dashed,line width=0.6pt] (Tx) -- (Ta);
+  \draw[ink,dashed,line width=0.6pt] ($(Rx)+(-1.2,1.4)$) -- (Tb);
+  \draw[cota] ($(Ta)+(0.05,-0.12)$) -- node[above,nota]{$\bat_{,i}$} ($(Tb)+(0.05,-0.12)$);
+  \draw[cota] ($(T0)!0.93!(T1)+(0,-0.05)$) -- node[right,nota]{$\bxt_{,i}$} ($(R0)!0.80!(R1)+(0,0.05)$);
+  \draw[cota,cred] (-4.25,0.05) -- node[left,nota,text=cred]{$H$} (-4.25,2.9);
+\end{tikzpicture}

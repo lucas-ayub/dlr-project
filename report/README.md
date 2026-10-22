@@ -16,7 +16,7 @@ written by `scripts/make_data.py` from the sweep outputs (`all_numbers.json` of 
 from the sweeps.
 
 ```
-report.tex          main file (chapters in sections/)
+report.tex          main file (chapters in sections/, TikZ diagrams in tikz/)
 preamble.tex        packages, colours and notation macros
 references.bib      bibliography
 numbers.tex         numbers quoted in the text (generated)

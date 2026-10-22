@@ -1,0 +1,16 @@
+% DEM in radar geometry: the same slant range lands on another ground range when the terrain is high
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \fill[terrainfill] (0,0) -- (0,0.25) .. controls (2.5,0.25) and (3.5,0.4) .. (4.6,1.25) .. controls (5.6,2.0) and (6.6,1.7) .. (8,1.2) -- (8,0) -- cycle;
+  \draw[terrain,line width=0.9pt] (0,0.25) .. controls (2.5,0.25) and (3.5,0.4) .. (4.6,1.25) .. controls (5.6,2.0) and (6.6,1.7) .. (8,1.2);
+  \draw[inkb,dashed] (0,0.25) -- (8,0.25) node[right,nota] {flat terrain};
+  \node[sat] at (-1.2,4.6) {};
+  \node[nota,above=2pt] at (-1.2,4.65) {platform (track into the page)};
+  \draw[cblue,line width=0.8pt] (3.47,0.25) arc[start angle=-43.0,end angle=-30.5,radius=6.39];
+  \draw[cblue,->] (-1.2,4.6) -- (4.25,0.95) node[midway,above,sloped,nota,text=cblue] {slant range $r$};
+  \fill[cblue] (4.25,0.95) circle (2pt);
+  \fill[inkb] (3.47,0.25) circle (2pt);
+  \draw[cota] (3.47,-0.25) -- (4.25,-0.25) node[midway,below,nota] {same $r$, other $y$};
+  \draw[inkb,densely dotted] (4.25,0.95) -- (4.25,-0.25); \draw[inkb,densely dotted] (3.47,0.25) -- (3.47,-0.25);
+  \draw[cota] (4.75,0.25) -- (4.75,0.95) node[midway,right,nota] {$h$};
+  \draw[->,inkb] (0,-0.95) -- (8,-0.95) node[right,nota] {ground range $y$};
+\end{tikzpicture}

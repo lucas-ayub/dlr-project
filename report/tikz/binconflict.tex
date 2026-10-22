@@ -1,0 +1,14 @@
+% The conflict of one bin: parcels from places X apart, with different heights
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \fill[terrainfill] (0,0) -- plot[smooth,tension=0.7] coordinates {(0,0.3) (1.4,0.4) (3.0,0.6) (4.4,1.9) (5.6,2.5) (7.0,1.6) (8.6,0.7) (10,0.5) (11.2,0.45)} -- (11.2,0) -- cycle;
+  \draw[terrain,line width=0.9pt] plot[smooth,tension=0.7] coordinates {(0,0.3) (1.4,0.4) (3.0,0.6) (4.4,1.9) (5.6,2.5) (7.0,1.6) (8.6,0.7) (10,0.5) (11.2,0.45)};
+  \draw[inkb] (0,0) -- (11.2,0);
+  \foreach \x/\h/\c/\q in {2.4/0.52/ch1/0, 5.6/2.5/ch2/1, 8.8/0.67/ch3/2}{
+     \draw[dashed,inkb] (\x,0) -- (\x,\h);
+     \fill[\c] (\x,\h) circle (3pt);
+     \node[above=3pt,nota,text=\c!80!black,fill=white,inner sep=1pt] at (\x,\h) {parcel $q=\q$};}
+  \draw[cota] (2.4,-0.45) -- node[below,nota]{$X=\SI{6.23}{km}$} (5.6,-0.45);
+  \draw[cota] (5.6,-0.45) -- node[below,nota]{$X$} (8.8,-0.45);
+  \node[nota,align=left,anchor=north west] at (0.1,4.35) {one bin $\phi$ of channel $i$ adds these three echoes;\\
+     each needs the phase $\e^{-\jj 2\pi \Delta C_{0,i}(x_q)/\lambda}$ of its own height};
+\end{tikzpicture}

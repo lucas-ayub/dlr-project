@@ -1,0 +1,29 @@
+% DPCA arrangement seen from above (adapted from the guide of the sub-aperture joint)
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \draw[->,inkb,line width=0.6pt] (-6.6,2.3) -- (5.0,2.3) node[right,nota]{flight, $v$};
+  \node[draw=ink,fill=cyellow,star,star points=5,star point ratio=2.3,inner sep=1.6pt] (tx) at (2.6,1.4) {};
+  \node[nota,right=1.5mm of tx] {Tx};
+  \foreach \i/\c in {0/ch0,1/ch1,2/ch2,3/ch3}{
+     \pgfmathsetmacro{\xx}{2.6-1.9*\i}
+     \fill[\c] (\xx,0.0) circle (4.2pt);
+     \node[nota,below=2mm] at (\xx,0.0) {Rx$_\i$};
+     \pgfmathsetmacro{\xc}{2.6-0.95*\i}
+     \draw[\c,densely dotted,line width=0.6pt] (2.6,1.4) -- (\xx,0.0);
+     \draw[\c,fill=white,line width=1pt] (\xc,0.7) circle (2.6pt);
+  }
+  \draw[cota] (2.6,-1.0) -- node[below,nota]{$\bat_{,1}=2d$} (0.7,-1.0);
+  \draw[cota] (2.6,1.95) -- node[above,nota]{$d$} (1.65,1.95);
+  \draw[cota] (1.65,1.95) -- node[above,nota]{$d$} (0.7,1.95);
+  \draw[cota] (0.7,1.95) -- node[above,nota]{$d$} (-0.25,1.95);
+  \node[nota,align=left,anchor=west] at (-6.6,0.75) {$\circ$ phase centre of the pair Tx--Rx$_i$\\ (mid-point): one every\\ $d=v/\PRF=\SI{3.84}{m}$};
+  \begin{scope}[shift={(0,-2.9)}]
+    \draw[->,inkb] (-6.6,0) -- (5.0,0) node[right,nota,align=left]{phase centres,\\ pulse after pulse};
+    \foreach \p in {0,1,2}{
+      \foreach \i/\c in {0/ch0,1/ch1,2/ch2,3/ch3}{
+        \pgfmathsetmacro{\xx}{-5.8+3.8*\p+0.95*\i}
+        \fill[\c] (\xx,0) circle (3pt);
+      }
+      \draw[cota] ({-5.8+3.8*\p},0.45) -- node[above,nota]{$D=v/\PRFop=\Nrx d$} ({-5.8+3.8*(\p+1)},0.45);
+    }
+  \end{scope}
+\end{tikzpicture}
