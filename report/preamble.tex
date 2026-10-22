@@ -21,8 +21,16 @@
 \usepackage{pgfplotstable}
 \pgfplotsset{compat=1.18}
 \usepgfplotslibrary{groupplots}
-\usepackage[hidelinks]{hyperref}
-\usepackage[capitalise,noabbrev]{cleveref}
+\usepackage[colorlinks=true,linkcolor=dlrblue,citecolor=caqua!70!black,urlcolor=cviolet,
+            bookmarksnumbered=true,bookmarksopen=true,bookmarksopenlevel=1,pdfstartview=FitH,
+            backref=page]{hyperref}
+\hypersetup{pdftitle={Topography-Dependent Azimuth Reconstruction in Multistatic SAR Systems},
+            pdfauthor={Lucas Ayub Rodrigues Tuler},
+            pdfsubject={Project report, DLR-DAAD Research Fellowship No. 734, DLR-HR},
+            pdfkeywords={SAR, HRWS, multistatic, azimuth reconstruction, topography, SATA, joint reconstruction}}
+\renewcommand*{\backref}[1]{}
+\renewcommand*{\backrefalt}[4]{\ifcase #1 \or {\footnotesize (cited on page~#2)}\else {\footnotesize (cited on pages~#2)}\fi}
+\usepackage[capitalise,noabbrev,nameinlink]{cleveref}
 
 % ---------------------------------------------------------------- colours
 \definecolor{dlrblue}{RGB}{0,101,189}
