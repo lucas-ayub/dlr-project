@@ -8,6 +8,8 @@ channels. The reconstruction filters assume a reference geometry (flat earth); w
 channels have cross-track baselines, every scatterer carries a channel-dependent phase residual
 (&Delta;C<sub>0</sub>) and the folded parts of the spectrum no longer cancel, leaving azimuth ambiguities.
 
+📄 **Project report:** [`report/report.pdf`](report/report.pdf) (draft; LaTeX sources in [`report/`](report/))
+
 **Questions addressed**
 
 1. How large are the ambiguities caused by unaccounted topography, as a function of terrain, baselines and number of channels?
@@ -48,7 +50,8 @@ dlr-project/
 │   ├── validation/             validation against the analytic model
 │   └── sata/                   reference SATA code (IDL) and its Python port
 │
-├── results/                    scripts that assemble the report PDFs
+├── report/                     project report (LaTeX + TikZ, compiled PDF)
+├── results/                    scripts that assemble the result PDFs
 ├── pyproject.toml
 └── requirements.txt
 ```

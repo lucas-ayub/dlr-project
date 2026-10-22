@@ -1,0 +1,147 @@
+\chapter{Acquisition geometry and signal model}\label{ch:model}
+
+\section{Formation and parameters}
+
+One platform transmits and receives (channel~0); the other $\Nrx-1$ receivers fly behind it. Receiver $i$ is displaced by
+$\bat_{,i}$ along track and by $\bxt_{,i}$ across track (horizontally, towards the scene) relative to the transmitter
+(\cref{fig:geometry}). The along-track baselines satisfy the displaced phase centre (DPCA) condition, so that the
+effective phase centres of the $\Nrx$ channels are uniformly spaced and the multichannel sampling is uniform at the full
+PRF; the study is about the cross-track baselines, which are drawn at random in $[0,\bxt^{\max}]$ (with the largest equal
+to $\bxt^{\max}$) or taken from fixed sets. Channel~0 is always the transmitter ($\bat=\bxt=0$). The parameters are listed
+in \cref{tab:params}.
+
+\begin{table}[ht]
+\centering
+\caption{Parameters of the simulated system (\code{sata1d/config.py}).}\label{tab:params}
+\begin{tabular}{@{}l l@{}}
+\toprule
+Wavelength $\lambda$ & \SI{0.25}{m} \\
+Platform altitude $H$ & \SI{720}{km} \\
+Slant range of the reference point $r_0$ & \SI{766.2}{km} \\
+Look angle $\theta$ & \SI{20}{\degree} \\
+Platform velocity / effective velocity & \SI{7688.5}{m/s} / \SI{7408.5}{m/s} \\
+Antenna length & \SI{12}{m} \\
+Processed Doppler bandwidth $\Ba$ & \SI{1235}{Hz} \\
+Full PRF & \SI{2000}{Hz} \\
+Channel PRF $\PRFop=\PRF/\Nrx$ & \SI{1000}{Hz} to \SI{250}{Hz} ($\Nrx=2$ to $8$) \\
+DPCA along-track spacing $2v/\PRF$ & \SI{7.69}{m} \\
+Cross-track baselines $\bxt^{\max}$ & \SIlist{100;300;500}{m}, and fixed sets \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[ht]
+\centering
+\begin{subfigure}[b]{0.52\linewidth}
+\centering
+\begin{tikzpicture}[scale=0.95,>=Latex]
+  % ground and terrain
+  \fill[terrainfill] (-0.5,0) -- (3.0,0) -- plot[smooth] coordinates {(3.0,0) (3.6,0.5) (4.2,1.25) (4.8,0.7) (5.6,0.15) (6.4,0)} -- (6.4,-0.35) -- (-0.5,-0.35) -- cycle;
+  \draw[terrain,thick] (-0.5,0) -- (3.0,0) plot[smooth] coordinates {(3.0,0) (3.6,0.5) (4.2,1.25) (4.8,0.7) (5.6,0.15) (6.4,0)};
+  \draw[dashed,gray] (3.0,0) -- (6.4,0) node[right,font=\scriptsize]{$h_0=0$};
+  % platforms
+  \coordinate (T) at (0,5.2);
+  \coordinate (R) at (1.1,5.2);
+  \fill[dlrblue] (T) circle (0.11) node[above left,font=\small]{Tx, Rx$_0$};
+  \fill[cwhole] (R) circle (0.11) node[above right,font=\small]{Rx$_i$};
+  \draw[<->] ($(T)+(0,0.45)$) -- node[above,font=\small]{$\bxt_{,i}$} ($(R)+(0,0.45)$);
+  \draw[gray] (0,5.2) -- (0,-0.35);
+  \draw[<->,gray] (-0.3,0) -- node[left,font=\small]{$H$} (-0.3,5.2);
+  % reference point and target
+  \coordinate (P) at (4.5,0);
+  \coordinate (Q) at (4.2,1.25);
+  \fill (P) circle (0.07);
+  \node[below,font=\small] at (P) {reference point};
+  \fill[cnone] (Q) circle (0.08);
+  \node[above right,font=\small,cnone] at (Q) {scatterer at $h$};
+  \draw[dlrblue,thick] (T) -- node[pos=0.45,above,sloped,font=\small]{$r_0$} (P);
+  \draw[cwhole] (R) -- (Q);
+  \draw[dlrblue!60] (T) -- (Q);
+  % look angle
+  \draw[gray] (0,4.2) arc (-90:-49:1.0);
+  \node[font=\small] at (0.35,3.75) {$\theta$};
+  \draw[<->,cnone] (5.15,0) -- node[right,font=\small]{$h$} (5.15,1.25);
+\end{tikzpicture}
+\caption{Plane perpendicular to the flight direction.}
+\end{subfigure}\hfill
+\begin{subfigure}[b]{0.44\linewidth}
+\centering
+\begin{tikzpicture}[scale=0.95,>=Latex]
+  \draw[->,gray] (-0.3,0) -- (5.4,0) node[above left,font=\small]{along track};
+  \draw[->,gray] (4.0,-0.3) -- (4.0,3.2) node[above,font=\small]{across track (towards the scene)};
+  \draw[-{Latex},thick] (0.2,3.6) -- (2.2,3.6) node[midway,above,font=\small]{flight direction};
+  \fill[dlrblue] (4.0,0) circle (0.11) node[below right,font=\small]{Tx, Rx$_0$};
+  \fill[cwhole] (3.0,2.4) circle (0.11) node[left,font=\small]{Rx$_1$};
+  \fill[cref] (2.0,0.6) circle (0.11) node[above,font=\small]{Rx$_2$};
+  \fill[cjoint] (1.0,0.25) circle (0.11) node[above,font=\small]{Rx$_3$};
+  \draw[decorate,decoration={brace,amplitude=4pt,mirror}] (1.0,-0.4) -- node[below=4pt,font=\small]{$\bat_{,3}$} (4.0,-0.4);
+  \draw[<->,cwhole] (3.25,0) -- node[right,font=\small]{$\bxt_{,1}$} (3.25,2.4);
+  \draw[gray,dotted] (3.0,2.4) -- (3.25,2.4);
+\end{tikzpicture}
+\caption{Top view of a four-channel formation (not to scale).}
+\end{subfigure}
+\caption[Acquisition geometry]{Acquisition geometry. The along-track baselines $\bat$ give the multichannel sampling;
+the cross-track baselines $\bxt$ make the bistatic path of a scatterer depend on its height $h$.}
+\label{fig:geometry}
+\end{figure}
+
+\section{Signal model}
+
+The simulator works with point targets. In the 1-D study the targets lie on a terrain profile $h(x)$ along azimuth;
+each target is placed on the iso-range surface of the reference point (same monostatic slant range $r_0$), so that
+only its height changes the bistatic geometry. The reference point is at $x=0$, $h=0$. In the 2-D study (\cref{ch:joint2d}) the terrain
+is a surface $h(x,y)$ and the data are range compressed. For channel $i$ the two-way path of a scatterer,
+$R_{\mathrm{T}}(t)+R_{\mathrm{R},i}(t)$, is fitted by a polynomial around the time of closest approach,
+\begin{equation}
+  R_i(t) \approx C_{0,i} + C_{1,i}\,(t-\Delta t_i) + C_{2,i}\,(t-\Delta t_i)^2 ,
+  \label{eq:rangehistory}
+\end{equation}
+and the azimuth signal of the channel is
+\begin{equation}
+  s_i(t) = \sum_{p} a_p\, w(t-t_p)\, \exp\!\left(-\jj\frac{2\pi}{\lambda} R_{i,p}(t)\right),
+\end{equation}
+with $a_p$ the complex amplitude of scatterer $p$ and $w$ the antenna pattern. The reconstruction filters
+(\cref{ch:recon}) are built from the coefficients $C_{0,i},C_{1,i},C_{2,i},\Delta t_i$ of the \emph{reference point}.
+
+\section{The topographic residual \texorpdfstring{$\dC$}{Delta C0}}
+
+For a scatterer at height $h$ the coefficient $C_0$ of channel $i$ differs from the one of the reference point. The
+difference is the \emph{topographic residual}
+\begin{equation}
+  \Delta C_{0,i}(h) = C_{0,i}(\text{scatterer}) - C_{0,i}(\text{reference point}) \approx -\frac{\bxt_{,i}\, h}{r_0 \tan\theta},
+  \qquad
+  \varphi_i(h) = \frac{2\pi}{\lambda}\Delta C_{0,i}(h),
+  \label{eq:dc0}
+\end{equation}
+i.e.\ the interferometric phase of the cross-track baseline; it vanishes for the transmitter channel ($\bxt=0$),
+since the targets are on the iso-range surface. The simulator computes $\Delta C_{0,i}$ exactly from the range
+histories (\code{residual\_C0}); the approximation \eqref{eq:dc0} agrees within a fraction of a millimetre for the cases of
+this report. For a scatterer at \SI{500}{m} and $\bxt=[63.7, 27.0, 4.1, 1.7]$\,\si{m} the residuals are
+$[-113.9,-48.2,-7.3,-3.0]$\,\si{mm}, i.e.\ up to half a wavelength. The other coefficients change much less with height:
+the topography acts as a channel-dependent \emph{constant} phase over the aperture of each scatterer, a fact used by the
+joint reconstruction (\cref{ch:joint}).
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.55\linewidth, height=5.6cm,
+  xlabel={height above the reference $h$ [m]}, ylabel={$|\varphi_i|$ [deg]},
+  xmin=0, xmax=1000, ymin=0, ymax=900, grid=major, grid style={gray!25},
+  legend pos=outer north east, legend style={font=\small,draw=none},
+  domain=0:1000, samples=2]
+  \addplot[cnone,thick] {360*500*x/(0.25*766200*tan(20))};
+  \addplot[cwhole,thick] {360*300*x/(0.25*766200*tan(20))};
+  \addplot[cocc,thick] {360*100*x/(0.25*766200*tan(20))};
+  \addplot[gray,dashed] {360};
+  \legend{$\bxt=\SI{500}{m}$, $\bxt=\SI{300}{m}$, $\bxt=\SI{100}{m}$, one cycle}
+\end{axis}
+\end{tikzpicture}
+\caption[Phase of the topographic residual]{Phase of the topographic residual \eqref{eq:dc0} against height. With
+$\bxt=\SI{300}{m}$ the sensitivity is \SI{1.55}{\degree} per metre of height: a \SI{230}{m} hill already produces a full
+cycle.}
+\label{fig:dc0}
+\end{figure}
+
+The sensitivity is $\partial\varphi_i/\partial h = 2\pi\bxt_{,i}/(\lambda r_0\tan\theta)\approx\num{9.0e-5}\,\bxt_{,i}$
+rad/m, which also sets the tolerance to DEM errors (\cref{sec:limits}).

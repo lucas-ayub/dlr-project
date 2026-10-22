@@ -1,0 +1,60 @@
+\chapter{Extension to two dimensions}\label{ch:joint2d}
+
+The 1-D study keeps every target at the slant range of the reference point. In a real scene the terrain varies in range as
+well, the residual $\Delta C_{0,i}$ depends on both coordinates, the echoes migrate in range and the range envelope of each channel is
+shifted by half its path difference. The \code{sata2d} package simulates 3-D scenes with along- and cross-track baselines and
+range-compressed data, and \code{sata2d/joint2d.py} extends the joint reconstruction to it.
+
+\section{Model}
+
+The unknown is the focused image $g[n,m]$ on azimuth positions $x_n$ (full PRF) and slant ranges of closest approach $r_m$.
+The range-compressed data of channel $i$ are modelled as
+\begin{equation}
+  \bm s_i = \mathcal D\Bigl\{ K_i \cdot \mathcal F_r\bigl[\, Q_i \cdot \mathcal F_a( S_i\, g )\bigr] \Bigr\}
+  \;+\; \text{(envelope term)},
+\end{equation}
+with
+\begin{itemize}
+  \item $S_i$, the terrain screen at every pixel, $\exp\bigl(-\jj 2\pi\Delta C_{0,i}(x,r)/\lambda\bigr)$, computed from the DEM in radar
+        geometry (the ground range of each pixel is found by a fixed-point iteration, which converges for range slopes below
+        $\tan\theta$, i.e.\ without layover);
+  \item $Q_i(f;r)$, what changes with the range of closest approach in the range-Doppler domain: the azimuth chirp relative
+        to the reference range and the differences of the coefficients $C_0,C_1,C_2,\Delta t$ of the channel;
+  \item $K_i(f,f_r)$, the 2-D kernel: the 2-D FFT of the simulated echo of the reference point in channel $i$ at the full PRF
+        (chirp, range migration, window of the pair, co-registration by $C_{0,i}/2$);
+  \item the envelope term, the first-order shift of the range envelope by $\frac12[\Delta C_{0,i} + C_{0,i}(r)-C_{0,i}(r_\mathrm{ref})]$,
+        valid while this shift is small compared with the range resolution.
+\end{itemize}
+The image is kept on a range grid twice as fine as the data, because a phase that varies with range shifts the range spectrum.
+The adjoint passes the adjoint test to $2.6\times10^{-7}$; the solver is the same CGLS as in 1-D ($\mu=0.03\,\sigma_{\max}$,
+two passes of up to 60 iterations).
+
+\section{The common range band}
+
+A cross-track baseline shifts the range spectrum seen by the channel, the spectral shift known from interferometry:
+\begin{equation}
+  \nu_i = \frac{c\,\bxt_{,i}\cos\theta}{2\lambda\, r\tan(\theta-\alpha)},
+\end{equation}
+with $\alpha$ the range slope of the terrain; on flat terrain this is \SI{0.202}{MHz} per \SI{100}{m} of baseline. Range
+frequencies that only some channels observe are not determined by the data (fewer equations than folded parcels), and the
+joint reconstruction leaves the full ambiguity there. In a control case (one target, flat terrain, $\bxt=[0,300,119.8,100.5]$\,\si{m},
+exact model) the full band reaches \SI{-40.5}{dB}, whereas the band common to all four channels reaches \SI{-66.1}{dB}, equal to
+the reference in the same band. The output is therefore limited, pixel by pixel, to the range frequencies that every channel
+observes there, and the reference and the uncorrected reconstruction are compared in the same band. The price is range
+resolution, a fraction $\bxt/\bxt^{\mathrm{crit}}$ of the band; with the \SI{5}{MHz} bandwidth of the sweeps the median pixel
+keeps \SI{93}{\percent} of the band and the worst pixel \SI{45}{\percent}. A wider system bandwidth (e.g.\ \SI{50}{MHz})
+would reduce this loss about tenfold.
+
+\Cref{fig:example2d} shows a 3-D case: 49 targets on an isolated \SI{1000}{m} mountain with four channels and
+$\bxt^{\max}=\SI{300}{m}$.
+
+\begin{figure}[p]
+\centering
+\includegraphics[width=\linewidth]{figures/sweep2d_mountain49_N4b300.png}
+\caption[Example of the 2-D sweep]{A page of the 2-D sweep: 49 targets on an isolated \SI{1000}{m} mountain (Gaussian,
+$\sigma=\SI{1.5}{km}$ in azimuth and \SI{4}{km} in ground range), $\Nrx=4$, $\bxt=[0,300,119.8,100.5]$\,\si{m}. Top left:
+reference and joint reconstruction; bottom left: reference and no correction; right: the scene and the $\dC$ of the channel
+with the largest baseline, which is all the joint reconstruction reads. This is one of the harder cases (the joint
+reconstruction leaves \SI{-25.1}{dB}, an improvement of \SI{14.6}{dB}).}
+\label{fig:example2d}
+\end{figure}

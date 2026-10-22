@@ -1,0 +1,42 @@
+\chapter{Software}\label{app:software}
+
+The code is in the repository \code{github.com/lucas-ayub/dlr-project}. \Cref{tab:software} maps the methods of this
+report to it. Generated outputs (figures, numbers) are not versioned; the numbers of \cref{ch:results} are extracted from the
+sweep outputs by \code{report/scripts/make\_data.py}.
+
+\begin{table}[ht]
+\centering
+\caption{Methods and the code that implements them.}\label{tab:software}
+\begin{tabularx}{\linewidth}{@{}l >{\raggedright\arraybackslash}X@{}}
+\toprule
+Method / task & Code \\
+\midrule
+System, scene, formation & \code{sata1d\_code/sata1d/config.py}, \code{geometry.py} \\
+Signal simulation & \code{sata1d/signal\_model.py} (\code{generate\_reference}, \code{generate\_channels}) \\
+Standard reconstruction & \code{sata1d/reconstruction.py} (\code{GetCoeffNu}, \code{GetInversionFilters}, \code{reconstruct}) \\
+SATA whole band / per sub-band & \code{sata1d/sata.py} (\code{sata\_channels}), \code{sata1d/subband.py} (\code{reconstruct\_subband}) \\
+Joint in the sub-apertures & \code{sata1d/joint.py} (\code{reconstruct\_joint}) \\
+Joint over the whole line & \code{sata1d/joint\_line.py} (\code{line\_maps}, \code{reconstruct\_joint\_line}) \\
+Minimal standalone joint & \code{sata1d\_code/joint\_standalone/} (package \code{joint1d}) \\
+Verification and audit & \code{sata1d\_code/verify\_sata1d.py}, \code{joint\_cases/audit\_checks.py}, \code{joint\_cases/audit\_dem.py} \\
+1-D sweep & \code{joint\_cases/sweep\_joint\_all.py} \\
+2-D model and joint & \code{sar\_reconstruction/sata2d/} (\code{geometry.py}, \code{reconstruction.py}, \code{joint2d.py}) \\
+2-D sweep & \code{sata2d/run\_sweep\_joint2d\_all.py} \\
+Reference SATA code & \code{runs/sata/sata\_idl.txt}, \code{runs/sata/reference\_code\_SATA1D.py} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+A minimal use of the final method:
+\begin{verbatim}
+import numpy as np
+import sata1d as S
+
+terrain  = lambda x: 1000.0 * np.exp(-x**2 / (2 * 1500.0**2))   # DEM h(x) [m]
+points   = [(x, terrain(x)) for x in (-2000.0, 0.0, 2000.0)]     # targets (x, h) [m]
+cfg      = S.make_config(points, bxt_max=100.0, tx_rx_channel0=True)
+tracks   = S.build_platform_tracks(cfg)
+channels = S.generate_channels(cfg, tracks)                      # simulated channel data
+dC0      = S.line_maps(cfg, tracks, terrain)                     # from the DEM only
+image    = S.reconstruct_joint_line(cfg, tracks, channels, dC0)  # line at the full PRF
+\end{verbatim}

@@ -1,0 +1,61 @@
+\chapter{Introduction}\label{ch:intro}
+
+\section{Context}
+
+A conventional SAR cannot improve its azimuth resolution and its swath width at the same time: a fine azimuth resolution
+needs a short antenna and therefore a wide Doppler bandwidth, which must be sampled with a high PRF, while a wide swath
+needs a long interval between pulses. Multichannel systems break this trade-off by receiving each pulse with several
+apertures displaced along track \cite{Krieger2004,Gebert2009}. Each channel is sampled at a PRF below the Doppler bandwidth
+and is therefore aliased, but the set of channels samples the azimuth signal at the full rate, and the unambiguous
+spectrum is recovered by an \emph{azimuth reconstruction}: a bank of filters that combines the channels so that the
+aliased parts cancel.
+
+Multistatic formations distribute the receivers over several platforms. They lift the limit set by the length of a
+single antenna and offer flexibility, but the baselines between platforms are no longer small \cite{Sakar2020tgrs,Sakar2022thesis}.
+In particular, a \emph{cross-track} baseline makes the bistatic range history of a scatterer depend on its height. The
+reconstruction filters are derived for a reference geometry (here: the reference point of the scene at height
+$h_0=0$); a scatterer at another height carries a residual phase that is different in each channel. The filters then
+no longer match the data, the aliased parts no longer cancel and azimuth ambiguities appear in the image.
+
+The same kind of height-dependent mismatch is known from airborne motion compensation, where the compensation is
+computed for a reference height and leaves residual errors for the rest of the topography. Prats et al.\ proposed the
+sub-aperture topography- and aperture-dependent (SATA) algorithm to correct it with an external DEM
+\cite{Prats2005topo,Prats2005thesis}: the azimuth signal is split into short sub-apertures, each Doppler frequency of a
+sub-aperture is associated with a ground position, and the phase residual of that position, read from the DEM, is removed.
+
+\section{Objective}
+
+The fellowship topic is to investigate whether SATA can correct the azimuth ambiguities caused by topography and
+cross-track baselines in multistatic SAR systems. During the work the question was made precise as:
+\begin{enumerate}
+  \item How large are the ambiguities caused by unaccounted topography, as a function of the terrain, the baselines and
+        the number of channels?
+  \item How much of them can be removed using \emph{only the system parameters and a DEM}, with no knowledge of where
+        the scatterers are?
+\end{enumerate}
+The second condition is strict on purpose. Several intermediate methods tested during the project reached the
+reference level only because their correction maps were built from the positions of the simulated targets; such
+methods are not applicable to real data and are not counted as solutions here (\cref{sec:sata-maps}).
+
+\section{Contributions}
+
+\begin{itemize}
+  \item A numerical simulator of the multistatic acquisition and of the multichannel reconstruction in one dimension
+        (azimuth) and in two dimensions (azimuth and range, 3-D scenes), with along- and cross-track baselines and arbitrary
+        terrain (\cref{ch:model,ch:recon}).
+  \item An analysis of SATA applied to each aliased channel before the reconstruction, showing when it is exact and
+        predicting the residual it leaves on general terrain (\cref{ch:sata}).
+  \item A joint reconstruction that places the DEM phase inside the inversion, first per sub-aperture and finally over
+        the whole line, solved by regularised least squares with conjugate gradients (\cref{ch:joint}), and its 2-D
+        extension (\cref{ch:joint2d}).
+  \item Systematic sweeps over terrains, numbers of channels and baselines, and an audit of every method with a DEM only
+        (\cref{ch:results}).
+\end{itemize}
+
+\section{Outline}
+
+\Cref{ch:model} introduces the acquisition geometry and the topographic residual $\dC$. \Cref{ch:recon} reviews the
+multichannel reconstruction and explains how topography produces ambiguities. \Cref{ch:sata} describes SATA and its
+limit for aliased channels. \Cref{ch:joint} presents the joint reconstruction and \cref{ch:joint2d} its 2-D version.
+\Cref{ch:results} collects the results and \cref{ch:conclusions} concludes. \Cref{app:software} maps the methods to
+the code in the repository.

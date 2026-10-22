@@ -1,0 +1,69 @@
+% ---------------------------------------------------------------- packages
+% Computer Modern (OT1): compiles on a minimal TeX installation
+\usepackage[utf8]{inputenc}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.5cm,headheight=14pt]{geometry}
+\usepackage{amsmath,amssymb,bm}
+\usepackage{siunitx}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,decorations.pathreplacing,decorations.pathmorphing,patterns,fit,backgrounds,shapes.geometric,3d}
+\usepackage{pgfplots}
+\usepackage{pgfplotstable}
+\pgfplotsset{compat=1.18}
+\usepgfplotslibrary{groupplots}
+\usepackage[hidelinks]{hyperref}
+\usepackage[capitalise,noabbrev]{cleveref}
+
+% ---------------------------------------------------------------- colours
+\definecolor{dlrblue}{RGB}{0,101,189}
+\definecolor{cref}{RGB}{44,160,44}      % reference
+\definecolor{cnone}{RGB}{214,39,40}     % no SATA
+\definecolor{cwhole}{RGB}{255,127,14}   % SATA whole band
+\definecolor{csub}{RGB}{140,86,75}      % SATA per sub-band
+\definecolor{cocc}{RGB}{31,119,180}     % joint sub-apertures
+\definecolor{cjoint}{RGB}{148,103,189}  % joint whole line
+\definecolor{terrain}{RGB}{120,90,60}
+\definecolor{terrainfill}{RGB}{235,228,214}
+
+% ---------------------------------------------------------------- layout
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.6em}
+\captionsetup{font=small,labelfont=bf,width=0.95\linewidth}
+\setlist{itemsep=0.2em,topsep=0.3em}
+\titleformat{\chapter}[hang]{\Huge\bfseries\color{dlrblue}}{\thechapter}{0.6em}{}
+\titlespacing*{\chapter}{0pt}{-10pt}{18pt}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\nouppercase{\leftmark}}
+\fancyhead[R]{}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ---------------------------------------------------------------- notation
+\sisetup{per-mode=symbol,group-minimum-digits=4}
+\newcommand{\dC}{{\Delta C_0}}
+\newcommand{\Nrx}{{N_{\mathrm{rx}}}}
+\newcommand{\PRF}{\mathrm{PRF}}
+\newcommand{\PRFop}{\mathrm{PRF}_{\mathrm{op}}}
+\newcommand{\bxt}{{b_{\mathrm{xt}}}}
+\newcommand{\bat}{{b_{\mathrm{at}}}}
+\newcommand{\Ba}{B_{\mathrm{a}}}
+\newcommand{\ve}{v}
+\newcommand{\e}{\mathrm{e}}
+\newcommand{\jj}{\mathrm{j}}
+\newcommand{\T}{^{\mathsf{T}}}
+\newcommand{\Hm}{^{\mathsf{H}}}
+\newcommand{\code}[1]{\texttt{\small #1}}
+
+% a visible note for items that still need the author's input
+\newcommand{\todo}[1]{\par\noindent\colorbox{orange!15}{\parbox{\dimexpr\linewidth-2\fboxsep}{\small\textbf{To do:} #1}}\par}

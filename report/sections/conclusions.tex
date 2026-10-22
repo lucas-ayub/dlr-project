@@ -1,0 +1,36 @@
+\chapter{Conclusions and outlook}\label{ch:conclusions}
+
+\section{Conclusions}
+
+\begin{itemize}
+  \item Cross-track baselines turn topography into a channel-dependent phase, $\varphi_i\approx 2\pi\bxt_{,i}h/(\lambda r_0\tan\theta)$,
+        that the standard multichannel reconstruction cannot absorb. Without correction the median highest ambiguity of the sweeps is
+        \SI{\SweepOneMedNone}{dB} in 1-D and \SI{\SweepTwoMedNone}{dB} in 2-D, against a reference near \SI{-48}{dB}.
+  \item SATA computes the right phase from the DEM, but applied to each aliased channel before the reconstruction it can give
+        only one phase to the parcels of positions $X\approx\SI{6.2}{km}$ apart that share a Doppler bin. It is exact only
+        when the terrain has the same height at all those positions; elsewhere it leaves a structural residual that is predicted
+        from the geometry within about \SI{1}{dB}, and with a DEM only it improves the median by \SI{5.5}{dB} at best.
+  \item Placing the DEM phase inside the inversion solves this. The joint reconstruction over the whole line models every
+        channel from the focused line and the DEM and inverts it by regularised least squares. Using only the system parameters
+        and the DEM it reaches a median of \SI{\SweepOneMedJoint}{dB} in 1-D (\SweepOneWithinTen\,\% of the runs within
+        \SI{10}{dB} of the reference, about \SI{90}{\percent} for four or more channels) and \SI{\SweepTwoMedJoint}{dB} in 2-D,
+        where with three or more channels it is within \SI{1}{dB} of the reference in the median.
+  \item The remaining failures are formations whose baselines do not separate the folded parcels (two channels, equally
+        spaced baselines). The regularisation leaves the ambiguity there instead of amplifying noise.
+  \item The accuracy is limited by the DEM: the phase error grows as $\bxt\,\delta h$, so long baselines need accurate DEMs.
+\end{itemize}
+
+\section{Outlook}
+
+\begin{itemize}
+  \item Validation with realistic antenna patterns, orbits and baselines that vary along the orbit, and eventually with real
+        multistatic data.
+  \item 2-D: distributed scenes, layover and shadow, finer range resolution (envelope interpolation) and wide swaths
+        (range-dependent kernels in blocks).
+  \item Joint estimation of a DEM correction, using the unexplained part of the channels as the cost.
+  \item Use of the conditioning analysis (\cref{sec:mismatch}) as a design rule for the cross-track baselines of a formation.
+  \item Computational cost: block-wise or GPU implementation of the model and its adjoint for full scenes.
+\end{itemize}
+
+\todo{Add acknowledgements (DLR-HR, DAAD, supervision) and any results or discussions from the last weeks of the
+fellowship.}

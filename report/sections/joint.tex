@@ -1,0 +1,112 @@
+\chapter{Joint topography correction and reconstruction}\label{ch:joint}
+
+The analysis of \cref{sec:sata-limit} shows that the correct phase (the $\dC$ read from the DEM) is already known; what
+fails is applying it per channel before the parcels are separated. The joint reconstruction moves the DEM phase inside the
+inversion.
+
+\section{Joint reconstruction in the sub-apertures}
+
+With the same sub-apertures as SATA, for every sub-aperture and every bin $\phi$ of the $\Nrx$ channel spectra the model
+\eqref{eq:fold} is written with the phase of each parcel at its own ground position:
+\begin{equation}
+  S_i(\phi) = \sum_q H_i(f_q)\,\exp\!\Bigl(-\jj\frac{2\pi}{\lambda}\Delta C_{0,i}(x_q)\Bigr)\,U_q,
+  \qquad x_q = x_c + \frac{\lambda r_0}{2v} f_q ,
+\end{equation}
+and solved for the parcels $U_q$, which are then placed at their true Doppler, transformed back and overlap-added at the
+full PRF (\code{reconstruct\_joint}). With $\dC=0$ this is the standard reconstruction ($\sim10^{-7}$); with one target it
+equals the oracle. Its limit is the resolution of the sub-aperture: the DEM is read once per bin of a \SI{40}{ms} block, i.e.\
+the terrain phase is taken as constant over about $\pm\SI{600}{m}$ of ground. A slope $s$ with a cross-track baseline is
+equivalent to shifting the phase centre of the channel by $\bxt s/(2\tan\theta)$; when that shift is not small compared with
+the block, the per-bin model breaks. With $\Delta\varphi=\frac{2\pi}{\lambda}\,\frac{\bxt^{\max}\,s\,\delta x}{r_0\tan\theta}$
+the phase change inside one SATA cell, the method stays within about \SI{10}{dB} of the reference for
+$\Delta\varphi\lesssim\SI{0.5}{rad}$ and fails by 10 to \SI{35}{dB} above \SI{1}{rad}.
+
+\section{Joint reconstruction over the whole line}
+
+The final version removes the sub-apertures. The topographic residual of a scatterer is a constant phase over its whole
+aperture (\cref{ch:model}); in the \emph{focused} full-rate line $g(x)$ it is therefore a pointwise multiplication. The
+channels are modelled as
+\begin{equation}
+  \bm s_i = \mathcal D\Bigl\{ k_i * \bigl[\, g(x)\, \e^{-\jj\varphi_i(x)} \bigr] \Bigr\},
+  \qquad \varphi_i(x)=\frac{2\pi}{\lambda}\Delta C_{0,i}\bigl(h(x)\bigr),
+  \label{eq:jointmodel}
+\end{equation}
+where $\varphi_i(x)$ comes from the DEM only (\code{line\_maps}), $k_i$ is the response of channel $i$ to the reference
+point (the azimuth chirp filtered by the reference-point filter $H_i$ of the standard reconstruction) and $\mathcal D$ is
+the decimation to $\PRFop$. Writing \eqref{eq:jointmodel} as $\bm s=\mathbf A\bm g$, the line is estimated by Tikhonov-regularised
+least squares,
+\begin{equation}
+  \hat{\bm g} = \arg\min_{\bm g}\ \sum_{i}\bigl\|\bm s_i-\mathbf A_i\bm g\bigr\|^2 + \mu^2\|\bm g\|^2 ,
+\end{equation}
+solved with conjugate gradients for least squares (CGLS) \cite{Hestenes1952,Trefethen1997}. Every iteration costs one
+application of $\mathbf A$ and of its adjoint $\mathbf A\Hm$ (two FFTs per channel each). The regularisation is
+$\mu=0.03\,\sigma_{\max}$, with $\sigma_{\max}$ estimated by a few power iterations, and the problem is solved in two passes
+(iterated Tikhonov: the second pass solves for what the first one left), which turns the filter factor
+$\sigma^2/(\sigma^2+\mu^2)$ into $1-(1-\sigma^2/(\sigma^2+\mu^2))^2$. Each pass runs up to 60 iterations. The output is
+re-chirped with the reference response, $U=k*\hat g$, so that it has the same form as the standard reconstruction.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[>=Latex, node distance=0.45cm and 0.45cm,
+  box/.style={draw,rounded corners=2pt,fill=white,align=center,font=\small,minimum height=0.95cm,text width=2.05cm},
+  dem/.style={draw,rounded corners=2pt,fill=terrainfill,align=center,font=\small,minimum height=0.85cm,text width=2.05cm}]
+  % (a) SATA + standard reconstruction
+  \node[font=\small\bfseries,anchor=west] at (-1.2,1.3) {(a) SATA on each channel, then the standard reconstruction};
+  \node[box] (a1) at (0,0) {channels\\ $s_i$ at $\PRFop$};
+  \node[box,right=of a1,fill=cwhole!15] (a2) {SATA$_i$\\ one phase per bin};
+  \node[box,right=of a2] (a3) {standard\\ reconstruction $\mathbf H^{-1}$};
+  \node[box,right=of a3] (a4) {full-rate\\ line};
+  \node[dem,below=0.5cm of a2] (a5) {DEM $\to\Delta C_{0,i}$};
+  \draw[->] (a1) -- (a2); \draw[->] (a2) -- (a3); \draw[->] (a3) -- (a4); \draw[->] (a5) -- (a2);
+  \node[font=\scriptsize,align=center,cnone,below=0.15cm of a4] {exact only if\\ $h(x)=h(x\pm X)$};
+  % (b) joint
+  \begin{scope}[yshift=-4.4cm]
+  \node[font=\small\bfseries,anchor=west] at (-1.2,1.3) {(b) Joint reconstruction over the whole line (final version)};
+  \node[box,fill=cjoint!15] (g) at (0,0) {estimate\\ $\hat g(x)$};
+  \node[box,right=of g] (scr) {screen\\ $\hat g\,\e^{-\jj\varphi_i(x)}$};
+  \node[box,right=of scr] (conv) {$k_i*$\\ then decimate};
+  \node[box,right=of conv] (cmp) {residual\\ $\bm s_i-\mathbf A_i\hat{\bm g}$};
+  \node[dem,below=0.5cm of scr] (dem) {DEM $\to\varphi_i(x)$};
+  \node[box,below=0.5cm of cmp] (meas) {measured\\ channels $s_i$};
+  \node[box,below=1.75cm of conv,text width=4.5cm] (cg) {CGLS update with $\mathbf A\Hm$\\ ($\mu=0.03\,\sigma_{\max}$, 2 passes)};
+  \draw[->] (g) -- (scr); \draw[->] (scr) -- (conv); \draw[->] (conv) -- (cmp);
+  \draw[->] (dem) -- (scr); \draw[->] (meas) -- (cmp);
+  \draw[->] (cmp.east) -- ++(0.3,0) |- (cg.east);
+  \draw[->] (cg.west) -| (g.south);
+  \end{scope}
+\end{tikzpicture}
+\caption[SATA + reconstruction versus the joint reconstruction]{Where the DEM phase enters. (a) SATA gives each channel
+bin a single phase before the parcels are separated. (b) The joint reconstruction puts the phase of every ground position
+in the model of the channels and inverts model and topography together.}
+\label{fig:pipelines}
+\end{figure}
+
+\section{Properties}
+
+\begin{itemize}
+  \item \textbf{Consistency.} With a zero DEM the method reproduces the standard reconstruction within \SI{0.1}{\percent} rms.
+  \item \textbf{Information used.} Only the channels, the system geometry and the DEM. The positions of the targets are never
+        used (\cref{sec:sata-maps}).
+  \item \textbf{Self-test of the DEM.} The part of the channels that the model does not explain is \SIrange{-41}{-39}{dB} with
+        the right DEM and \SIrange{-20}{-7}{dB} with a wrong one (mirrored or shifted by \SI{1}{km}), which makes it a natural
+        alarm for DEM errors.
+  \item \textbf{Cost.} About \SI{3.3}{s} per line with four channels in the 1-D simulator (median over 680 runs), against
+        \SI{0.15}{s} for SATA whole band.
+  \item \textbf{Ill-conditioned configurations.} Where the baselines do not separate the parcels (two channels, equally
+        spaced baselines, certain heights with long baselines) the information is not in the data; the regularisation then
+        leaves the ambiguity instead of amplifying noise.
+\end{itemize}
+
+\Cref{fig:example1d} shows the example used throughout the development: five targets on a \SI{1000}{m} Gaussian mountain
+with $\bxt=[0,134.9,20.5,8.3]$\,\si{m}. The highest ambiguity goes from \SI{-8.7}{dB} without correction to \SI{-43.5}{dB}
+with the joint reconstruction; the reference is \SI{-48.7}{dB}, and \SI{-43.9}{dB} once it is limited to the processed band
+$\Ba$, as every reconstruction is.
+
+\begin{figure}[p]
+\centering
+\includegraphics[width=\linewidth]{figures/joint_example_1d.png}
+\caption[Example: five targets on a mountain]{Five targets on a \SI{1000}{m} Gaussian mountain, four channels. Top left:
+azimuth impulse responses of the reference, of the standard reconstruction (no SATA) and of the joint reconstruction over the
+whole line. Right: the scene and the formation. The joint reconstruction reads only the DEM.}
+\label{fig:example1d}
+\end{figure}

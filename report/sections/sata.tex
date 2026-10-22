@@ -1,0 +1,109 @@
+\chapter{SATA before the reconstruction}\label{ch:sata}
+
+\section{The SATA algorithm}
+
+SATA was developed for airborne motion compensation \cite{Prats2005topo,Prats2005thesis}. Its idea is that a short piece
+of the azimuth signal is a low-resolution image of the ground: inside a sub-aperture, each Doppler frequency belongs to one
+ground position through the ruler \eqref{eq:ruler}. The topography-dependent phase can therefore be removed frequency by
+frequency, with the value of the DEM at the position that frequency points to. The steps, for one channel, are
+(\cref{fig:sata}):
+\begin{enumerate}
+  \item cut the azimuth line into sub-apertures with triangular windows and \SI{50}{\percent} overlap;
+  \item Fourier transform each sub-aperture (with zero padding);
+  \item for every bin $f$, compute the ground position $x(f)$ with the ruler and multiply the bin by
+        $\exp\bigl(+\jj\,2\pi\Delta C_{0,i}(x(f))/\lambda\bigr)$, with $\Delta C_{0,i}$ read from the DEM;
+  \item inverse transform and overlap-add.
+\end{enumerate}
+The length of the sub-aperture balances two errors: it must be short enough that the frequency-to-position mapping is sharp,
+and long enough that the frequency resolution resolves the ground. The optimum gives a ground resolution
+$\delta x=\sqrt{\lambda r_0/2}=\SI{309.5}{m}$; at $\PRFop=\SI{500}{Hz}$ this is a block of 20 samples (\SI{40}{ms}),
+a hop of 10 samples and a zero-padded FFT of 128 points.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[>=Latex, node distance=0.55cm and 0.5cm,
+  box/.style={draw,rounded corners=2pt,fill=white,align=center,font=\small,minimum height=1.0cm,text width=2.2cm},
+  dem/.style={draw,rounded corners=2pt,fill=terrainfill,align=center,font=\small,minimum height=0.9cm,text width=2.4cm}]
+  \node[box] (in) {channel $i$\\ at $\PRFop$};
+  \node[box,right=of in] (win) {sub-apertures\\ (triangular, \SI{50}{\%})};
+  \node[box,right=of win] (fft) {FFT of each\\ sub-aperture};
+  \node[box,right=of fft,fill=cwhole!15] (mul) {bin $f$ $\times$\\ $\e^{+\jj 2\pi\Delta C_{0,i}(x(f))/\lambda}$};
+  \node[box,right=of mul] (ola) {IFFT and\\ overlap-add};
+  \node[dem,below=0.8cm of mul] (dem) {DEM $h(x)$\\ $\to\Delta C_{0,i}(x)$};
+  \node[dem,below=0.8cm of fft,fill=gray!10] (ruler) {ruler\\ $f\mapsto x(f)$};
+  \draw[->] (in) -- (win); \draw[->] (win) -- (fft); \draw[->] (fft) -- (mul); \draw[->] (mul) -- (ola);
+  \draw[->] (dem) -- (mul); \draw[->] (ruler) -- (dem);
+  % sketch of windows above
+  \begin{scope}[shift={($(win.north)+(-1.0,0.25)$)},scale=0.5]
+    \foreach \k in {0,1,2,3} \draw[cwhole] (\k*0.9,0) -- (\k*0.9+0.9,0.9) -- (\k*0.9+1.8,0);
+  \end{scope}
+\end{tikzpicture}
+\caption[The SATA kernel]{The SATA kernel applied to one channel. The only external information is the DEM; the ruler
+associates each sub-aperture bin with a ground position.}
+\label{fig:sata}
+\end{figure}
+
+\section{SATA on each channel, then the standard reconstruction}
+
+The natural way to use SATA in a multichannel system is to correct every channel with its own $\Delta C_{0,i}$ and then run the
+standard reconstruction. Two variants were implemented:
+\begin{description}
+  \item[Whole band] each bin of the channel is labelled with the position of its base-band parcel; the corrected channels
+        go through the standard reconstruction.
+  \item[Per sub-band] for every output sub-band $k$, each bin is labelled with the position of the parcel of sub-band $k$
+        (absolute Doppler), and sub-band $k$ of the output is reconstructed only from the channels corrected for $k$.
+\end{description}
+Both variants are the identity with a zero map ($<10^{-15}$), rotate the line by the right phase with a constant map, and
+the kernel agrees with the reference routine \code{sata\_for\_topography} within \SI{0.44}{\percent} rms.
+
+\subsection{Why it is exact only on special terrain}\label{sec:sata-limit}
+
+The channel is aliased: one bin holds the parcels $q$ of the positions $x_q=x_b+\rho f_q$, $X$ apart
+(\cref{fig:folding}). SATA multiplies the whole bin by a \emph{single} phase, the one of the labelled position $x_r$. After
+the correction, parcel $q$ keeps the error
+\begin{equation}
+  \varepsilon_{iq} = \varphi_i(x_q)-\varphi_i(x_r)
+  = -\frac{2\pi\,\bxt_{,i}\,\bigl[h(x_q)-h(x_r)\bigr]}{\lambda\, r_0\tan\theta},
+\end{equation}
+and the standard reconstruction returns $\hat{\bm u}=\mathbf L\bm u$ with $\mathbf L=\mathbf H^{-1}\mathrm{diag}(\e^{-\jj\varepsilon})\mathbf H$:
+the same leakage structure as \eqref{eq:cm}, now driven by the \emph{height differences between folded positions}. Hence:
+\begin{itemize}
+  \item $\mathbf L=\mathbf I$, whatever the baselines, only if $h(x)=h(x\pm X)=h(x\pm2X)=\dots$: flat terrain, or a terrain
+        periodic with period $X$;
+  \item for two channels, a $\SI{-30}{dB}$ ambiguity tolerates only about \SI{7}{m} of height difference between folded
+        positions with $\bxt=\SI{100}{m}$, and \SI{1.4}{m} with \SI{500}{m};
+  \item in the whole-band variant only the fraction of the target spectrum that falls in the labelled parcel receives the
+        phase of its own position (about \SIlist{78;52;39;26;20}{\percent} for $\Nrx=2,3,4,6,8$); in the per-sub-band
+        variant the output parcel is right but all the others leak into it.
+\end{itemize}
+Correcting each parcel needs the parcels separated, and separating them needs the phases corrected: the two steps cannot be
+done one after the other. This is what the joint reconstruction of \cref{ch:joint} does in a single system.
+
+\subsection{Verification}
+
+The analysis was checked in three ways (83 automatic checks in \code{joint\_cases/audit\_checks.py}, all passing):
+\begin{itemize}
+  \item \textbf{Positive control.} On the terrain $h=100-100\cos(2\pi x/X)$, whose period is exactly $X$, whole band,
+        per sub-band, joint and oracle coincide (\SIlist{-62.7;-44.2;-34.0}{dB} for 1, 5 and 25 targets).
+  \item \textbf{Negative control.} The same terrain with period $1.5X$ or $2X$: whole band \SIrange{-32}{-27}{dB}, per
+        sub-band \SIrange{-26}{-23}{dB}, while the joint reconstruction stays at the oracle.
+  \item \textbf{Prediction.} The level left by SATA, computed only from the fold addresses and the DEM, matches the
+        simulation within \SI{1.3}{dB} rms (whole band) and \SI{0.7}{dB} rms (per sub-band) over 680 runs. The residual is
+        structural, not an implementation error.
+\end{itemize}
+SATA can even make things worse: a single target at $h=0$ on a terrain of period \SI{50}{km} ($\bxt\le\SI{100}{m}$)
+reaches \SI{-63.7}{dB} without correction, but \SI{-36.3}{dB} after SATA whole band and \SI{-27.8}{dB} per sub-band,
+because the neighbouring terrain folded onto the same bins is not at $h=0$.
+
+A complementary run removes the aliasing (each channel at $\PRFop=\SI{2000}{Hz}>\Ba$): there SATA alone brings smooth
+terrains close to the reference (peak of the worst target within \SIrange{0.3}{1.4}{dB}) and is limited only on steep
+terrain by its \SI{310}{m} cell. The limit discussed above is therefore a consequence of the aliasing, not of SATA itself.
+
+\subsection{Correction maps that use the target positions}\label{sec:sata-maps}
+
+During the project, maps were also built from the simulated targets: the $\dC$ of each target written at its cell and
+copied at the folded positions $\pm X$ (\emph{block map with copies}), or the value of the nearest target. With such maps
+SATA per channel reaches the oracle for isolated targets, because the map then encodes exactly which parcel is occupied.
+A real scene provides no such information. These maps are kept in the code for reference but are \emph{not} part of any
+method evaluated in \cref{ch:results}; every method there receives only the system parameters and the DEM, and removing the
+target list from the configuration given to the methods does not change a single bit of their output.

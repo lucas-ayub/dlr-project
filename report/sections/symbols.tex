@@ -1,0 +1,34 @@
+\chapter*{Symbols and acronyms}
+\addcontentsline{toc}{chapter}{Symbols and acronyms}
+
+\begin{tabularx}{\linewidth}{@{}l X@{}}
+\toprule
+Symbol & Meaning \\
+\midrule
+$\lambda$ & wavelength (\SI{0.25}{m}) \\
+$v$ & platform velocity \\
+$r_0$ & slant range of closest approach of the reference point \\
+$\theta$ & look angle ($\approx\SI{20}{\degree}$) \\
+$\Nrx$ & number of receive channels (one transmitter, $\Nrx$ receivers) \\
+$\bat_{,i}$, $\bxt_{,i}$ & along-track and cross-track baseline of receiver $i$ relative to the transmitter \\
+$\PRF$ & full (reconstructed) pulse repetition frequency, \SI{2000}{Hz} \\
+$\PRFop$ & PRF of each channel, $\PRF/\Nrx$ \\
+$\Ba$ & processed azimuth (Doppler) bandwidth, \SI{1235}{Hz} \\
+$C_0, C_1, C_2, \Delta t$ & coefficients of the polynomial fit of the bistatic range history of a channel \\
+$\Delta C_{0,i}(x)$ & topographic residual of channel $i$: $C_0$ of a scatterer at height $h(x)$ minus $C_0$ of the reference point \\
+$X$ & ground distance between parcels folded onto the same Doppler bin, $X\approx r_0\lambda\PRFop/(2v)$ \\
+$\delta x$ & resolution of one SATA sub-aperture, $\sqrt{\lambda r_0/2}$ \\
+$H_i(f)$ & transfer function of channel $i$ relative to the monostatic reference \\
+$g(x)$ & focused full-rate azimuth line (unknown of the joint reconstruction) \\
+$\mu$ & Tikhonov regularisation parameter \\
+\midrule
+Acronym & \\
+\midrule
+CGLS & conjugate gradients for least squares \\
+DEM & digital elevation model \\
+DPCA & displaced phase centre antenna (uniform effective sampling) \\
+HRWS & high-resolution wide-swath \\
+IRF & impulse response function \\
+SATA & sub-aperture topography- and aperture-dependent algorithm \\
+\bottomrule
+\end{tabularx}

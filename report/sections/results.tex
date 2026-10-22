@@ -1,0 +1,197 @@
+\chapter{Results}\label{ch:results}
+
+All numbers in this chapter are the highest ambiguity of \cref{sec:metric}, in dB relative to the peak of the reference.
+Every method receives only the system parameters and the DEM. The scenes cover along-track ramps (\SIrange{3}{20}{\degree}),
+sines and cosines of several periods, and realistic terrains (hills, mountains, escarpments, plateaus, fractal alpine relief,
+glacial valleys, ridges, canyons, volcanoes), each with one, a few and many point targets (up to 49). The baselines are
+$\Nrx=2,3,4,6,8$ with $\bxt^{\max}=\SIlist{100;300;500}{m}$ (random, the largest exactly $\bxt^{\max}$), plus five fixed
+four-channel sets: \code{u100} and \code{u500} (random), \code{s10} and \code{s50} (equally spaced, $[0,10,20,30]$ and
+$[0,50,100,150]$\,\si{m}) and \code{pm50}. Channel~0 is always the transmitter.
+
+\section{All methods with a DEM only}\label{sec:audit}
+
+\Cref{tab:audit,fig:audit} compare the methods on \AuditRuns{} runs (\AuditScenes{} scenes $\times$ 20 baseline sets;
+median reference \SI{\AuditMedRef}{dB}).
+
+\begin{table}[ht]
+\centering
+\caption[Comparison of all methods]{All methods with the DEM only (\AuditRuns{} runs, \code{joint\_cases/audit\_dem.py}).}
+\label{tab:audit}
+\begin{tabular}{@{}l >{\centering\arraybackslash}p{3.0cm} >{\centering\arraybackslash}p{3.2cm}@{}}
+\toprule
+Method & Median highest ambiguity [dB] & Runs within \SI{10}{dB} of the reference [\%] \\
+\midrule
+No correction (standard reconstruction) & $-8.7$ & 3.5 \\
+SATA whole band, then reconstruction & $-15.4$ & 2.5 \\
+SATA per sub-band & $-10.8$ & 1.2 \\
+Joint reconstruction in the sub-apertures & $-30.9$ & 36.3 \\
+\textbf{Joint reconstruction over the whole line} & $\mathbf{-41.4}$ & \textbf{81.9} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.75\linewidth, height=6cm, ybar, bar width=16pt,
+  ymin=-50, ymax=0, ylabel={median highest ambiguity [dB]},
+  xtick={0,1,2,3,4},
+  xticklabels={{no\\correction},{SATA\\whole band},{SATA per\\sub-band},{joint\\sub-apertures},{joint\\whole line}},
+  xticklabel style={align=center,font=\small},
+  nodes near coords, nodes near coords style={font=\scriptsize,anchor=north,yshift=-2pt,/pgf/number format/fixed,/pgf/number format/precision=1},
+  ymajorgrids, grid style={gray!25}, enlarge x limits=0.15]
+  \addplot[fill=cjoint!60,draw=cjoint] table[x=idx,y=median] {data/audit_methods.dat};
+  \draw[cref,thick,dashed] (axis cs:-0.5,\AuditMedRef) -- (axis cs:4.5,\AuditMedRef) node[pos=0.02,above,anchor=south west,font=\scriptsize]{reference (median)};
+\end{axis}
+\end{tikzpicture}
+\caption[Median highest ambiguity of every method]{Median highest ambiguity of every method over the \AuditRuns{} runs of
+the audit. SATA per channel stays close to the uncorrected reconstruction; the joint reconstruction over the whole line
+gets within a few dB of the reference.}
+\label{fig:audit}
+\end{figure}
+
+Head to head, the joint reconstruction over the whole line is better than SATA whole band in all \AuditRuns{} runs
+(median improvement \SI{\AuditLineBetterWhole}{dB}) and better than SATA per sub-band in all of them (median
+\SI{\AuditLineBetterSub}{dB}). SATA per channel improves on the uncorrected reconstruction by a median of only \SI{5.5}{dB}
+(whole band) and \SI{0.2}{dB} (per sub-band), consistently with \cref{sec:sata-limit}.
+
+A distributed scene (about \num{11900} scatterers, oracle \SI{-34.2}{dB}, measured as error-to-signal ratio) confirms the
+ranking: with $\bxt\sim U(0,100)$\,\si{m} SATA per channel gives \SIrange{-22.5}{-8.7}{dB} and the whole-line joint
+\SIrange{-34.1}{-33.2}{dB}; with $U(0,500)$\,\si{m}, \SIrange{-13}{-6}{dB} and \SIrange{-33.6}{-31.4}{dB}.
+
+\section{Sweep of the final joint reconstruction in 1-D}\label{sec:sweep1d}
+
+The complete 1-D sweep (\code{joint\_cases/sweep\_joint\_all.py}) runs the reference, the uncorrected reconstruction and
+the joint reconstruction over the whole line on \SweepOneScenes{} scenes $\times$ 20 baseline sets = \SweepOneRuns{} runs.
+The medians are \SI{\SweepOneMedRef}{dB} (reference), \SI{\SweepOneMedNone}{dB} (no correction) and
+\SI{\SweepOneMedJoint}{dB} (joint); \SweepOneWithinTen\,\% of the runs are within \SI{10}{dB} of the reference.
+\Cref{fig:nrx1d} splits the result by the number of channels and \cref{fig:scatter} shows every run.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[group style={group size=2 by 1, horizontal sep=1.8cm},
+  width=0.47\linewidth, height=5.6cm, xtick={2,3,4,6,8}, xlabel={$\Nrx$},
+  ymajorgrids, grid style={gray!25}, legend style={font=\scriptsize,draw=none,fill=white,fill opacity=0.85,text opacity=1}]
+\nextgroupplot[ylabel={median highest ambiguity [dB]}, ymin=-60, ymax=0, legend style={at={(0.97,0.62)},anchor=east}]
+  \addplot[cref,thick,mark=*] table[x=nrx,y=medref] {data/sweepone_nrx.dat};
+  \addplot[cnone,thick,mark=square*,dashed] table[x=nrx,y=mednone] {data/sweepone_nrx.dat};
+  \addplot[cjoint,thick,mark=triangle*] table[x=nrx,y=medjoint] {data/sweepone_nrx.dat};
+  \legend{reference, no correction, joint}
+\nextgroupplot[ylabel={runs within the margin [\%]}, ymin=0, ymax=100, legend pos=south east]
+  \addplot[cjoint,thick,mark=triangle*] table[x=nrx,y=within10] {data/sweepone_nrx.dat};
+  \addplot[cjoint!50,thick,mark=o] table[x=nrx,y=within3] {data/sweepone_nrx.dat};
+  \legend{within \SI{10}{dB}, within \SI{3}{dB}}
+\end{groupplot}
+\end{tikzpicture}
+\caption[1-D sweep by number of channels]{1-D sweep by number of channels. Left: medians of the highest ambiguity. Right:
+fraction of runs in which the joint reconstruction is within \SI{10}{dB} and \SI{3}{dB} of the reference. The reference
+level rises with $\Nrx$ because $\PRFop$ falls and more ambiguity orders fall inside the band.}
+\label{fig:nrx1d}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[group style={group size=2 by 1, horizontal sep=1.6cm},
+  width=0.48\linewidth, height=0.48\linewidth, xmin=-75, xmax=15, ymin=-75, ymax=15,
+  xlabel={no correction [dB]}, grid=major, grid style={gray!20},
+  scatter/classes={2={mark=*,cnone,mark size=0.9pt}, 3={mark=*,cwhole,mark size=0.9pt}, 4={mark=*,cjoint,mark size=0.9pt},
+                   6={mark=*,cocc,mark size=0.9pt}, 8={mark=*,cref,mark size=0.9pt}},
+  legend style={font=\scriptsize,draw=none,fill=white,fill opacity=0.85,text opacity=1}, legend pos=north west]
+\nextgroupplot[ylabel={joint reconstruction [dB]}, title={\small 1-D (\SweepOneRuns{} runs)}]
+  \addplot[scatter,only marks,scatter src=explicit symbolic,opacity=0.6] table[x=none,y=joint,meta=nrx] {data/sweepone_scatter.dat};
+  \addplot[gray,dashed,domain=-75:15] {x};
+  \legend{$\Nrx=2$,3,4,6,8}
+\nextgroupplot[title={\small 2-D (\SweepTwoRuns{} runs)}]
+  \addplot[scatter,only marks,scatter src=explicit symbolic,opacity=0.6] table[x=none,y=joint,meta=nrx] {data/sweeptwo_scatter.dat};
+  \addplot[gray,dashed,domain=-75:15] {x};
+\end{groupplot}
+\end{tikzpicture}
+\caption[Every run of the sweeps]{Every run of the 1-D and 2-D sweeps: highest ambiguity of the joint reconstruction
+against the uncorrected reconstruction, coloured by the number of channels. Points below the diagonal are improvements.}
+\label{fig:scatter}
+\end{figure}
+
+The \SweepOneUnresolved{} runs that are not resolved (above \SI{-30}{dB} and more than \SI{10}{dB} from the reference)
+are almost all configurations whose baselines cannot separate the parcels: 53 have two channels and 25 the equally spaced set
+\code{s50}; only 5 have four random baselines (3 with $\bxt^{\max}=\SI{300}{m}$, 2 with \SI{500}{m}). \Cref{fig:alpine} shows a
+typical resolved case on a fractal alpine relief.
+
+\begin{figure}[p]
+\centering
+\includegraphics[width=\linewidth]{figures/sweep1d_alpine7_N4b300.png}
+\caption[Example of the 1-D sweep]{A page of the 1-D sweep: seven targets on a fractal alpine relief (\SIrange{0}{2000}{m},
+slopes up to \SI{54}{\degree}), $\Nrx=4$, $\bxt=[0,300,119.8,100.5]$\,\si{m}. The joint reconstruction (top left) reaches the
+reference level (\SI{-37.6}{dB} against \SI{-38.2}{dB}); without correction the highest ambiguity is \SI{-5.1}{dB}. Bottom right:
+the $\dC$ of every channel along the whole line, read from the DEM.}
+\label{fig:alpine}
+\end{figure}
+
+\section{Sweep of the joint reconstruction in 2-D}\label{sec:sweep2d}
+
+The 2-D sweep (\code{sata2d/run\_sweep\_joint2d\_all.py}) uses \SweepTwoScenes{} 3-D scenes (ramps along azimuth, range
+and oblique; sines and cosines; realistic and fractal terrains without layover; one target on a flank, five on a diagonal or a
+$7\times7$ grid) with the same 20 baseline sets, \SweepTwoRuns{} runs in total. The medians are \SI{\SweepTwoMedRef}{dB}
+(reference), \SI{\SweepTwoMedNone}{dB} (no correction) and \SI{\SweepTwoMedJoint}{dB} (joint), all in the common range band.
+The joint reconstruction is never worse than the uncorrected one.
+
+\begin{table}[ht]
+\centering
+\caption[2-D sweep by number of channels]{2-D sweep by number of channels: median gap between the joint reconstruction and
+the reference, and fraction of runs within \SI{3}{dB} of the reference.}
+\label{tab:nrx2d}
+\pgfplotstabletypeset[
+  columns={nrx,n,medref,mednone,medjoint,medgap,within3},
+  columns/nrx/.style={column name={$\Nrx$}},
+  columns/n/.style={column name={runs}},
+  columns/medref/.style={column name={reference [dB]},fixed,precision=1},
+  columns/mednone/.style={column name={no corr. [dB]},fixed,precision=1},
+  columns/medjoint/.style={column name={joint [dB]},fixed,precision=1},
+  columns/medgap/.style={column name={joint $-$ ref. [dB]},fixed,precision=1},
+  columns/within3/.style={column name={within \SI{3}{dB} [\%]},fixed,precision=0},
+  every head row/.style={before row=\toprule,after row=\midrule},
+  every last row/.style={after row=\bottomrule}
+]{data/sweeptwo_nrx.dat}
+\end{table}
+
+With three or more channels the joint reconstruction is within a fraction of a dB of the reference in the median
+(\cref{tab:nrx2d}). Of the \SweepTwoUnresolved{} unresolved runs, 10 have two channels and 9 the equally spaced set
+\code{s50}; the others are $7\times7$ grids on a mountain, a valley or a volcano with long baselines.
+
+\section{Limits}\label{sec:limits}
+
+\paragraph{DEM errors.} The phase error is $\approx\num{9.0e-5}\,\bxt\,\delta h$ rad, so the tolerance falls with the
+baseline (\cref{fig:demerror}). With an rms height error of \SI{5}{m}, the joint reconstruction stays at \SI{-36}{dB} for
+$\bxt=\SI{135}{m}$ but rises to \SI{-20}{dB} for \SI{300}{m}.
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=0.55\linewidth, height=5.2cm, xlabel={rms DEM error [m]}, ylabel={highest ambiguity [dB]},
+  xmin=0, xmax=11, ymin=-50, ymax=-5, xtick={0,2,5,10}, grid=major, grid style={gray!25},
+  legend pos=south east, legend style={font=\small,draw=none}]
+  \addplot[cocc,thick,mark=*] coordinates {(0,-43.5) (2,-43.6) (5,-36.1) (10,-29.9)};
+  \addplot[cnone,thick,mark=square*] coordinates {(2,-28.9) (5,-19.6) (10,-12.0)};
+  \legend{$\bxt^{\max}=\SI{135}{m}$, $\bxt^{\max}=\SI{300}{m}$}
+\end{axis}
+\end{tikzpicture}
+\caption[Sensitivity to DEM errors]{Joint reconstruction over the whole line with a random DEM error (five targets on the
+mountain of \cref{fig:example1d}).}
+\label{fig:demerror}
+\end{figure}
+
+\todo{Confirm the scene and the error model behind \cref{fig:demerror} (taken from the audit notes) and add the
+error-free point for $\bxt^{\max}=\SI{300}{m}$.}
+
+\paragraph{Noise.} Relative to the standard reconstruction, the joint reconstruction raises the output noise by
+\SIrange{0.3}{4}{dB} in normal configurations, by \SI{12}{dB} with equally spaced baselines and by \SI{8}{dB} with two channels
+and \SI{300}{m}. The regularisation keeps these numbers bounded where the problem is ill conditioned.
+
+\paragraph{Configurations without redundancy.} With two channels, or with baselines whose phases coincide at some heights,
+the data do not contain the information to separate the parcels. This is a property of the formation and should be
+considered in its design.
+
+\paragraph{Not yet tested.} Real antenna patterns (the model uses the simulated reference chirp), real orbits and
+baselines varying along the orbit, layover, distributed scenes in 2-D, noise combined with DEM errors, and real data.

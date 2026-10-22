@@ -1,0 +1,6 @@
+idx median within10 label
+0 -8.68 3.5 {No SATA}
+1 -15.40 2.5 {SATA whole band}
+2 -10.83 1.2 {SATA per sub-band}
+3 -30.94 36.3 {Joint (sub-apertures)}
+4 -41.43 81.9 {Joint (whole line)}

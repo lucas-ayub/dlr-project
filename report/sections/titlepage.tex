@@ -1,0 +1,42 @@
+\begin{titlepage}
+\centering
+\vspace*{0.2cm}
+{\large DLR-DAAD Research Fellowship No.~734\par}
+\vspace{0.3cm}
+{\large Microwaves and Radar Institute (DLR-HR), Oberpfaffenhofen\par}
+\vspace{1.4cm}
+{\color{dlrblue}\rule{\linewidth}{1.2pt}\par}
+\vspace{0.6cm}
+{\Huge\bfseries Topography-Dependent Azimuth Reconstruction in Multistatic SAR Systems\par}
+\vspace{0.5cm}
+{\color{dlrblue}\rule{\linewidth}{1.2pt}\par}
+\vspace{0.8cm}
+{\Large Project report\par}
+\vspace{0.8cm}
+
+% Title-page sketch: the multistatic formation over a terrain with topography
+\begin{tikzpicture}[scale=1.0]
+  % terrain
+  \fill[terrainfill] (-5,0) -- plot[smooth,domain=-5:5,samples=60] (\x,{0.9*exp(-((\x-1.2)^2)/1.2)+0.35*exp(-((\x+2.4)^2)/0.5)}) -- (5,-0.4) -- (-5,-0.4) -- cycle;
+  \draw[terrain,thick] plot[smooth,domain=-5:5,samples=60] (\x,{0.9*exp(-((\x-1.2)^2)/1.2)+0.35*exp(-((\x+2.4)^2)/0.5)});
+  \draw[dashed,gray] (-5,0) -- (5,0) node[right,font=\scriptsize]{$h_0=0$};
+  % satellites
+  \foreach \x/\c/\l in {1.4/dlrblue/Tx+Rx$_0$,0.4/cwhole/Rx$_1$,-0.6/cref/Rx$_2$,-1.6/cjoint/Rx$_3$} {
+    \fill[\c] (\x,4.2) circle (0.13);
+    \node[font=\scriptsize,above] at (\x,4.3) {\l};
+  }
+  \draw[-{Latex},gray] (2.4,4.2) -- (3.6,4.2) node[midway,above,font=\scriptsize]{flight};
+  % beams
+  \foreach \x in {-1.6,-0.6,0.4,1.4} \draw[gray!60] (\x,4.1) -- (1.2,0.9);
+  \fill[black] (1.2,0.9) circle (0.06);
+\end{tikzpicture}
+
+\vfill
+{\Large Lucas Ayub Rodrigues Tuler\par}
+\vspace{0.2cm}
+{\normalsize Instituto Tecnol\'ogico de Aeron\'autica (ITA), Brazil\par}
+\vspace{0.6cm}
+{\normalsize Supervision: Nida Sakar (DLR-HR)\par}
+\vspace{0.6cm}
+{\normalsize Draft --- October 2026\par}
+\end{titlepage}

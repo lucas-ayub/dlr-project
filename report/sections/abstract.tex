@@ -1,0 +1,26 @@
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+
+Multichannel and multistatic synthetic aperture radar (SAR) systems for high-resolution wide-swath (HRWS) imaging sample
+the azimuth signal of each receiver at a pulse repetition frequency (PRF) below the Doppler bandwidth and recover the
+unambiguous spectrum by combining the channels in an azimuth reconstruction. The reconstruction filters are derived for
+a reference geometry. When the receivers are separated by cross-track baselines, a scatterer at a height different from
+the reference height carries a channel-dependent phase residual, the reconstruction no longer cancels the aliased parts
+of the spectrum, and azimuth ambiguities appear.
+
+This report studies that topography-dependent mismatch with a numerical simulator of a spaceborne formation
+($\lambda=\SI{0.25}{m}$, $r_0=\SI{766}{km}$, $\Nrx=2$ to $8$ receivers, cross-track baselines up to \SI{500}{m}) and
+compares correction strategies that use \emph{only the system parameters and a digital elevation model (DEM)}, never the
+positions of the targets. The sub-aperture topography- and aperture-dependent (SATA) algorithm, applied to each channel
+before the reconstruction, is shown to be exact only when the terrain has the same height at every ground position
+folded onto the same Doppler bin, i.e.\ at positions $X\approx\SI{6.2}{km}$ apart; on general terrain it leaves a
+structural residual that is predicted from the geometry within about \SI{1}{dB}. A \emph{joint} reconstruction that
+places the DEM phase of every folded parcel inside the inversion removes this limitation. Its final version models the
+channels from the focused line and the DEM and solves a regularised least-squares problem with conjugate gradients.
+
+Over \SweepOneRuns{} one-dimensional runs (\SweepOneScenes{} scenes, $\Nrx=2$--$8$) the median highest ambiguity drops
+from \SI{\SweepOneMedNone}{dB} without correction to \SI{\SweepOneMedJoint}{dB} with the joint reconstruction
+(reference \SI{\SweepOneMedRef}{dB}). The two-dimensional extension, which applies the DEM at every pixel of a 3-D scene,
+reaches a median of \SI{\SweepTwoMedJoint}{dB} over \SweepTwoRuns{} runs (no correction \SI{\SweepTwoMedNone}{dB},
+reference \SI{\SweepTwoMedRef}{dB}). The remaining failures are configurations whose baselines do not separate the folded
+parcels (two channels, equally spaced baselines) and are a property of the data rather than of the algorithm.

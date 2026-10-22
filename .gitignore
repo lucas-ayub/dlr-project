@@ -52,3 +52,8 @@ plots/
 log*.txt
 _to_delete/
 _backup/
+
+# The project report is versioned: LaTeX sources, its figures and the compiled PDF
+!report/**/*.tex
+!report/report.pdf
+!report/figures/*.png
