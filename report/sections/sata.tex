@@ -54,7 +54,7 @@ standard reconstruction. Two variants were implemented:
         (absolute Doppler), and sub-band $k$ of the output is reconstructed only from the channels corrected for $k$.
 \end{description}
 Both variants are the identity with a zero map ($<10^{-15}$), rotate the line by the right phase with a constant map, and
-the kernel agrees with the reference routine \code{sata\_for\_topography} within \SI{0.44}{\percent} rms.
+the kernel agrees with the original SATA implementation within \SI{0.44}{\percent} rms.
 
 \subsection{Why it is exact only on special terrain}\label{sec:sata-limit}
 
@@ -90,7 +90,7 @@ done one after the other. This is what the joint reconstruction of \cref{ch:join
 
 \subsection{Verification}
 
-The analysis was checked in three ways (83 automatic checks in \code{joint\_cases/audit\_checks.py}, all passing):
+The analysis was checked in three ways (83 automatic checks, all passing):
 \begin{itemize}
   \item \textbf{Positive control.} On flat terrain at \SI{500}{m}, and on the terrain $h=100-100\cos(2\pi x/X)$, whose period is
         exactly $X$, SATA whole band, SATA per sub-band and the joint reconstruction coincide (\cref{fig:satacontrols}, left).

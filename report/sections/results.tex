@@ -5,8 +5,8 @@ Every method receives only the system parameters and the DEM. The scenes cover a
 sines and cosines of several periods, and realistic terrains (hills, mountains, escarpments, plateaus, fractal alpine relief,
 glacial valleys, ridges, canyons, volcanoes), each with one, a few and many point targets (up to 49). The baselines are
 $\Nrx=2,3,4,6,8$ with $\bxt^{\max}=\SIlist{100;300;500}{m}$ (random, the largest exactly $\bxt^{\max}$), plus five fixed
-four-channel sets: \code{u100} and \code{u500} (random), \code{s10} and \code{s50} (equally spaced, $[0,10,20,30]$ and
-$[0,50,100,150]$\,\si{m}) and \code{pm50}. Channel~0 is always the transmitter.
+four-channel sets: two random ones (up to \SI{100}{m} and up to \SI{500}{m}), two equally spaced ones ($[0,10,20,30]$ and
+$[0,50,100,150]$\,\si{m}) and one with baselines on both sides of the transmitter ($[0,-50,50,100]$\,\si{m}). Channel~0 is always the transmitter.
 
 \section{All methods with a DEM only}\label{sec:audit}
 
@@ -15,7 +15,7 @@ median reference \SI{\AuditMedRef}{dB}).
 
 \begin{table}[htbp]
 \centering
-\caption[Comparison of all methods]{All methods with the DEM only (\AuditRuns{} runs, \code{joint\_cases/audit\_dem.py}).}
+\caption[Comparison of all methods]{All methods with the DEM only (\AuditRuns{} runs).}
 \label{tab:audit}
 \begin{tabular}{@{}l >{\centering\arraybackslash}p{3.0cm} >{\centering\arraybackslash}p{3.2cm}@{}}
 \toprule
@@ -131,7 +131,7 @@ The reasons, collected from the previous chapters:
 
 \section{Sweep of the final joint reconstruction in 1-D}\label{sec:sweep1d}
 
-The complete 1-D sweep (\code{joint\_cases/sweep\_joint\_all.py}) runs the reference, the uncorrected reconstruction and
+The complete 1-D sweep runs the reference, the uncorrected reconstruction and
 the joint reconstruction over the whole line on \SweepOneScenes{} scenes $\times$ 20 baseline sets = \SweepOneRuns{} runs.
 The medians are \SI{\SweepOneMedRef}{dB} (reference), \SI{\SweepOneMedNone}{dB} (no correction) and
 \SI{\SweepOneMedJoint}{dB} (joint); \SweepOneWithinTen\,\% of the runs are within \SI{10}{dB} of the reference.
@@ -184,8 +184,8 @@ against the uncorrected reconstruction, coloured by the number of channels. Poin
 \end{figure}
 
 The \SweepOneUnresolved{} runs that are not resolved (above \SI{-30}{dB} and more than \SI{10}{dB} from the reference)
-are almost all configurations whose baselines cannot separate the parcels: 53 have two channels and 25 the equally spaced set
-\code{s50}; only 5 have four random baselines (3 with $\bxt^{\max}=\SI{300}{m}$, 2 with \SI{500}{m}). \Cref{fig:alpine} shows a
+are almost all configurations whose baselines cannot separate the parcels: 53 have two channels and 25 the equally spaced baselines
+$[0,50,100,150]$\,\si{m}; only 5 have four random baselines (3 with $\bxt^{\max}=\SI{300}{m}$, 2 with \SI{500}{m}). \Cref{fig:alpine} shows a
 typical resolved case on a fractal alpine relief. \Cref{fig:jointnrx} shows the role of the number of channels on one scene with
 49 targets on random mountains and $\bxt^{\max}=\SI{300}{m}$: with three or more channels the joint reconstruction is within
 \SIrange{1}{4}{dB} of the reference; with two channels there is no redundancy and it stops at \SI{-22.3}{dB} (reference
@@ -213,7 +213,7 @@ the $\dC$ of every channel along the whole line, read from the DEM.}
 
 \section{Sweep of the joint reconstruction in 2-D}\label{sec:sweep2d}
 
-The 2-D sweep (\code{sata2d/run\_sweep\_joint2d\_all.py}) uses \SweepTwoScenes{} 3-D scenes (ramps along azimuth, range
+The 2-D sweep uses \SweepTwoScenes{} 3-D scenes (ramps along azimuth, range
 and oblique; sines and cosines; realistic and fractal terrains without layover; one target on a flank, five on a diagonal or a
 $7\times7$ grid) with the same 20 baseline sets, \SweepTwoRuns{} runs in total. The medians are \SI{\SweepTwoMedRef}{dB}
 (reference), \SI{\SweepTwoMedNone}{dB} (no correction) and \SI{\SweepTwoMedJoint}{dB} (joint), all in the common range band.
@@ -239,8 +239,8 @@ the reference, and fraction of runs within \SI{3}{dB} of the reference.}
 \end{table}
 
 With three or more channels the joint reconstruction is within a fraction of a dB of the reference in the median
-(\cref{tab:nrx2d}). Of the \SweepTwoUnresolved{} unresolved runs, 10 have two channels and 9 the equally spaced set
-\code{s50}; the others are $7\times7$ grids on a mountain, a valley or a volcano with long baselines.
+(\cref{tab:nrx2d}). Of the \SweepTwoUnresolved{} unresolved runs, 10 have two channels and 9 the equally spaced baselines
+$[0,50,100,150]$\,\si{m}; the others are $7\times7$ grids on a mountain, a valley or a volcano with long baselines.
 
 \section{Limits}\label{sec:limits}
 

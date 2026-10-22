@@ -12,7 +12,7 @@ in \cref{tab:params}.
 
 \begin{table}[htbp]
 \centering
-\caption{Parameters of the simulated system (\code{sata1d/config.py}).}\label{tab:params}
+\caption{Parameters of the simulated system.}\label{tab:params}
 \begin{tabular}{@{}l l@{}}
 \toprule
 Wavelength $\lambda$ & \SI{0.25}{m} \\
@@ -62,31 +62,76 @@ is a surface $h(x,y)$ and the data are range compressed. The azimuth signal of c
 with $a_p$ the complex amplitude of scatterer $p$, $w$ the antenna pattern and $r_{\mathrm T}+r_{\mathrm R,i}$ the bistatic
 path (\cref{fig:geometry}).
 
-\section{The coefficients \texorpdfstring{$C_0$, $C_1$, $C_2$ and $\Delta t$}{C0, C1, C2 and Delta t}}\label{sec:coeffs}
+\section{Channel transfer functions and the coefficients \texorpdfstring{$C_0$, $C_1$, $C_2$, $\Delta t$}{C0, C1, C2, Delta t}}\label{sec:coeffs}
 
-The reconstruction does not use the full range histories, but four numbers per channel (\code{GetCoeffNu}). Both the
-monostatic path of the transmitter, $2r_{\mathrm T}(t)$, and the bistatic path of channel $i$, $r_{\mathrm T}(t)+r_{\mathrm R,i}(t)$,
-are fitted by parabolas around their own times of closest approach. Their difference defines
-\begin{itemize}
-  \item $C_{0,i}$, the difference between the minima of the two paths (a constant path offset, i.e.\ a constant phase
-        $2\pi C_{0,i}/\lambda$);
-  \item $C_{1,i}$ and $C_{2,i}$, the linear and quadratic terms that remain between the two parabolas (a residual Doppler
-        shift and a residual azimuth chirp);
-  \item $\Delta t_i$, the time between the two closest approaches (a delay, i.e.\ a linear phase in Doppler).
-\end{itemize}
-In the code the transfer function of channel $i$ relative to the monostatic reference has the form
+The reconstruction (\cref{ch:recon}) needs, for every channel $i$, its transfer function $H_i(f)$: the factor by which the
+Doppler spectrum of channel $i$ differs from the spectrum the monostatic system (transmitter and receiver at the
+transmitter) would record for the same scatterer. This section derives $H_i$ from the range histories of the reference
+point; the derivation follows the Doppler-domain approach of \cite{Sakar2020tgrs,Sakar2022thesis}.
+
+\paragraph{Step 1: two parabolas (time domain).} Let $M(t)=2r_{\mathrm T}(t)$ be the monostatic path and
+$B_i(t)=r_{\mathrm T}(t)+r_{\mathrm R,i}(t)$ the bistatic path of channel $i$, both for the reference point. Over the aperture
+each is well described by a parabola around its own minimum:
 \begin{equation}
-  H_i(f) = \exp\!\Bigl(-\jj 2\pi\bigl[\,C_{0,i}/\lambda + \Delta t_i\, f + C_{2,i}\,\lambda f^2\bigr]\Bigr),
+  M(t)\approx M_{\min}+m_2\,(t-t_M)^2, \qquad B_i(t)\approx B_{i,\min}+b_{2,i}\,(t-t_{B,i})^2 ,
+  \label{eq:parabolas}
+\end{equation}
+where $M_{\min}$, $B_{i,\min}$ are the smallest path lengths [m], $t_M$, $t_{B,i}$ the times at which they occur [s] and
+$m_2$, $b_{2,i}$ the curvatures [m/s$^2$]. The corresponding azimuth signals are
+$s_M(t)=w(t)\exp[-\jj 2\pi M(t)/\lambda]$ and $s_i(t)=w(t)\exp[-\jj 2\pi B_i(t)/\lambda]$.
+
+\paragraph{Step 2: from time to Doppler (stationary phase).} For a signal $\exp[-\jj2\pi P(t)/\lambda]$ with a parabolic path
+$P(t)=P_{\min}+p_2(t-t_P)^2$, the instantaneous frequency is
+\begin{equation}
+  f(t)=-\frac{1}{\lambda}\frac{\mathrm dP}{\mathrm dt}=-\frac{2p_2}{\lambda}(t-t_P)
+  \quad\Longrightarrow\quad t_f=t_P-\frac{\lambda f}{2p_2},
+\end{equation}
+so every Doppler frequency $f$ is produced at one time $t_f$ (the same relation as the ruler \eqref{eq:ruler} of \cref{ch:recon}). By the
+principle of stationary phase the phase of the spectrum at $f$ is the phase of the signal at $t_f$ minus $2\pi f t_f$. With
+$P(t_f)=P_{\min}+\lambda^2f^2/(4p_2)$,
+\begin{equation}
+  \Psi_P(f) = -\frac{2\pi}{\lambda}P(t_f)-2\pi f t_f
+  = -2\pi\Bigl[\frac{P_{\min}}{\lambda}+t_P\,f-\frac{\lambda f^2}{4p_2}\Bigr].
+  \label{eq:posp}
+\end{equation}
+The amplitude of the spectrum is set by the antenna pattern and is the same for the two paths.
+
+\paragraph{Step 3: the ratio of the two spectra (Doppler domain).} Applying \eqref{eq:posp} to $B_i$ and to $M$ and taking
+the difference of the phases gives the transfer function of channel $i$:
+\begin{equation}
+  H_i(f)=\e^{\jj[\Psi_{B_i}(f)-\Psi_M(f)]}
+  =\exp\!\Bigl(-\jj2\pi\Bigl[\frac{C_{0,i}}{\lambda}+(\Delta t_i-C_{1,i})\,f+C_{2,i}\,\lambda f^2\Bigr]\Bigr),
   \label{eq:Hi}
 \end{equation}
-so that $\Delta t_i$ (set by $\bat_{,i}$) gives the linear phase that makes the DPCA sampling work and $C_{0,i}$ (set by
-$\bxt_{,i}$) a constant phase per channel.
+with
+\begin{equation}
+  C_{0,i}=B_{i,\min}-M_{\min},\qquad
+  \Delta t_i-C_{1,i}=t_{B,i}-t_M,\qquad
+  C_{2,i}=\frac{1}{4m_2}-\frac{1}{4b_{2,i}} .
+  \label{eq:coeffs}
+\end{equation}
+In the simulator the two paths are sampled at the full PRF: $\Delta t_i$ is the time between the samples where $M$ and $B_i$
+are smallest and $C_{1,i}$ the sub-sample correction given by the linear terms of the two fitted parabolas, so that
+$\Delta t_i-C_{1,i}$ is the time between the two minima.
+
+\paragraph{Physical meaning.} Each coefficient corresponds to one effect of the bistatic geometry:
+\begin{itemize}
+  \item $C_{0,i}$ [m], the difference of the shortest paths, is a \emph{constant phase} $2\pi C_{0,i}/\lambda$. It is set by
+        the cross-track baseline, and it is the coefficient that changes with the height of the scatterer (\cref{sec:dc0}).
+  \item $\Delta t_i-C_{1,i}$ [s], the delay between the two minima, is a \emph{linear phase} in Doppler, i.e.\ a shift in time.
+        It is set by the along-track baseline ($\approx\bat_{,i}/(2v)$) and is what makes the channels sample the azimuth signal at
+        displaced positions (DPCA).
+  \item $C_{2,i}$ [s$^2$/m], the difference of the inverse curvatures, is a \emph{quadratic phase}: a small residual azimuth chirp.
+\end{itemize}
+For a scatterer other than the reference point the same derivation holds with its own paths; what changes, to first order, is
+$C_{0,i}$ (\cref{sec:dc0}).
 
 \Cref{fig:coeffsref} shows the four coefficients of the reference point. $C_0$ is the difference of the closest-approach
 distances of the receiver and of the transmitter, $\approx-\bxt\sin\theta$ ($\SI{-171}{m}$ for $\bxt=\SI{500}{m}$), and does
 not depend on $\bat$; $\Delta t=\bat/(2v)$ (\SIlist{0.5;1.0;1.5}{ms} for the three DPCA receivers) and does not depend on $\bxt$;
-$C_1$ and $C_2$ are of the order of micrometres per second and per second squared. \Cref{fig:rangefit} shows the curve that
-these numbers describe for one target: the bistatic minus the monostatic path varies by a few millimetres over the aperture
+$C_1$ is below \SI{0.2}{\micro s} and $C_2$ below \SI{4e-7}{s^2/m}, which at the edge of the processed band, $f=\Ba/2$, give phases
+of $2\pi C_1 f<\SI{1e-3}{rad}$ and $2\pi C_2\lambda f^2\approx\SI{0.2}{rad}$. \Cref{fig:rangefit} checks the parabolic model
+\eqref{eq:parabolas} for one target: the bistatic minus the monostatic path varies by a few millimetres over the aperture
 (\SI{5.6}{mm} for $\bxt=\SI{300}{m}$) and the parabola reproduces it within $10^{-4}$\,\si{mm}.
 
 \begin{figure}[htbp]
@@ -108,7 +153,7 @@ Right: difference between the simulated curve and the parabola.}
 \label{fig:rangefit}
 \end{figure}
 
-\section{The topographic residual \texorpdfstring{$\dC$}{Delta C0}}
+\section{The topographic residual \texorpdfstring{$\dC$}{Delta C0}}\label{sec:dc0}
 
 For a scatterer at height $h$ the coefficient $C_0$ of channel $i$ differs from the one of the reference point. The
 difference is the \emph{topographic residual}
@@ -120,21 +165,22 @@ difference is the \emph{topographic residual}
 \end{equation}
 i.e.\ the interferometric phase of the cross-track baseline; it vanishes for the transmitter channel ($\bxt=0$),
 since the targets are on the iso-range surface. The simulator computes $\Delta C_{0,i}$ exactly from the range
-histories (\code{residual\_C0}); the approximation \eqref{eq:dc0} agrees within about \SI{2}{\percent}. For a scatterer at \SI{500}{m} and $\bxt=[63.7, 27.0, 4.1, 1.7]$\,\si{m} the residuals are
+histories; the approximation \eqref{eq:dc0} agrees within about \SI{2}{\percent}. For a scatterer at \SI{500}{m} and $\bxt=[63.7, 27.0, 4.1, 1.7]$\,\si{m} the residuals are
 $[-113.9,-48.2,-7.3,-3.0]$\,\si{mm}, i.e.\ up to half a wavelength. The other coefficients change much less with height:
 the topography acts as a channel-dependent \emph{constant} phase over the aperture of each scatterer, a fact used by the
 joint reconstruction (\cref{ch:joint}). \Cref{fig:coeffsres} quantifies this: up to \SI{3}{km} of height and
-$\bxt=\SI{500}{m}$, $\Delta C_0$ follows \eqref{eq:dc0} within a few per cent, while the path changes produced by $\Delta C_1$ and
-$\Delta C_2$ at the edge of the aperture ($T/2\approx\SI{1.08}{s}$) stay below $10^{-5}$\,\si{mm}, nine orders of magnitude below
-$\Delta C_0$ and far below $\lambda/8$; $\Delta t$ does not change with height.
+$\bxt=\SI{500}{m}$, $\Delta C_0$ follows \eqref{eq:dc0} within a few per cent, and at the edge of the processed band the phase
+produced by $\Delta C_0$ (about \SI{80}{rad} at \SI{3}{km} with $\bxt=\SI{300}{m}$) is four orders of magnitude larger than the
+one produced by $\Delta C_2$ (\SI{4e-3}{rad}) and seven larger than the one produced by $\Delta C_1$ (\SI{4e-6}{rad}); $\Delta t$
+does not change with height.
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/coeffs_residual_height.pdf}
 \caption[Change of the coefficients with the height of the scatterer]{Change of the coefficients of receiver~1 when the
 scatterer is at height $h$ instead of the reference point. Left: $\Delta C_0$ (dots: exact, from the range histories; lines:
-\eqref{eq:dc0}) for three cross-track baselines. Right ($\bxt=\SI{300}{m}$): path change produced by each coefficient at the
-edge of the aperture, on a logarithmic scale.}
+\eqref{eq:dc0}) for three cross-track baselines. Right ($\bxt=\SI{300}{m}$): phase produced by each term of \eqref{eq:Hi} at the
+edge of the processed band, $f=\Ba/2$, on a logarithmic scale.}
 \label{fig:coeffsres}
 \end{figure}
 

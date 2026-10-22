@@ -18,8 +18,7 @@ each weighted by the transfer function $H_i$ of the channel relative to the mono
 with $\bm{s}$ the $\Nrx$ channel spectra and $\bm{u}$ the $\Nrx$ parcels. The standard reconstruction
 \cite{Krieger2004,Gebert2009} inverts this square system at every $\phi$, $\hat{\bm u}=\mathbf{P}(\phi)\bm s(\phi)$ with
 $\mathbf P=\mathbf H^{-1}$, and places the parcels at their true Doppler frequency to obtain the full-rate signal.
-$\mathbf H$ is built from the range-history coefficients of the reference point (\code{GetCoeffNu},
-\code{GetInversionFilters}).
+The entries of $\mathbf H$ are the transfer functions \eqref{eq:Hi} of the reference point, $H_{iq}(\phi)=H_i(f_q)$.
 
 Through the Doppler--angle relation, a Doppler frequency $f$ seen from the platform at azimuth position $x_c$ corresponds
 to the ground position

@@ -13,7 +13,7 @@ With the same sub-apertures as SATA, for every sub-aperture and every bin $\phi$
   \qquad x_q = x_c + \frac{\lambda r_0}{2v} f_q ,
 \end{equation}
 and solved for the parcels $U_q$, which are then placed at their true Doppler, transformed back and overlap-added at the
-full PRF (\code{reconstruct\_joint}). The steps are summarised in \cref{fig:flowsubap}. With $\dC=0$ this is the standard reconstruction ($\sim10^{-7}$); with one target it
+full PRF. The steps are summarised in \cref{fig:flowsubap}. With $\dC=0$ this is the standard reconstruction ($\sim10^{-7}$); with one target it
 equals the oracle. Its limit is the resolution of the sub-aperture: the DEM is read once per bin of a \SI{40}{ms} block, i.e.\
 the terrain phase is taken as constant over about $\pm\SI{600}{m}$ of ground. A slope $s$ with a cross-track baseline is
 equivalent to shifting the phase centre of the channel by $\bxt s/(2\tan\theta)$; when that shift is not small compared with
@@ -24,8 +24,7 @@ $\Delta\varphi\lesssim\SI{0.5}{rad}$ and fails by 10 to \SI{35}{dB} above \SI{1}
 \begin{figure}[p]
 \centering
 \input{tikz/flow_subap}
-\caption[Flowchart of the joint reconstruction in the sub-apertures]{The joint reconstruction in the sub-apertures, as implemented in
-\code{reconstruct\_joint}. Green: preparation, done once. Blue: the loop over the blocks of 20 samples; inside each block a small
+\caption[Flowchart of the joint reconstruction in the sub-apertures]{The joint reconstruction in the sub-apertures. Green: preparation, done once. Blue: the loop over the blocks of 20 samples; inside each block a small
 least-squares system is solved for every bin. Violet: finishing. The DEM is read once per bin, at the position the ruler gives to
 each parcel.}
 \label{fig:flowsubap}
@@ -41,7 +40,7 @@ channels are modelled as
   \qquad \varphi_i(x)=\frac{2\pi}{\lambda}\Delta C_{0,i}\bigl(h(x)\bigr),
   \label{eq:jointmodel}
 \end{equation}
-where $\varphi_i(x)$ comes from the DEM only (\code{line\_maps}), $k_i$ is the response of channel $i$ to the reference
+where $\varphi_i(x)$ comes from the DEM only, $k_i$ is the response of channel $i$ to the reference
 point (the azimuth chirp filtered by the reference-point filter $H_i$ of the standard reconstruction) and $\mathcal D$ is
 the decimation to $\PRFop$ (\cref{fig:chainline}). Writing \eqref{eq:jointmodel} as $\bm s=\mathbf A\bm g$, the line is estimated by Tikhonov-regularised
 least squares,
@@ -69,8 +68,7 @@ domains. The adjoint is the usual SAR processor: it focuses each channel, remove
 \begin{figure}[p]
 \centering
 \input{tikz/flow_line}
-\caption[Flowchart of the joint reconstruction over the whole line]{The joint reconstruction over the whole line, as implemented in
-\code{reconstruct\_joint\_line}. Green: preparation, done once. Blue: the CGLS iterations, in two passes (iterated Tikhonov);
+\caption[Flowchart of the joint reconstruction over the whole line]{The joint reconstruction over the whole line. Green: preparation, done once. Blue: the CGLS iterations, in two passes (iterated Tikhonov);
 each iteration applies $\mathbf A$ and $\mathbf A\Hm$ once (two FFTs per channel each). Violet: back to the raw full-rate line,
 in the same form as the standard reconstruction.}
 \label{fig:flowline}

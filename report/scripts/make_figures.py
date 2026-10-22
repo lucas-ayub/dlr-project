@@ -55,6 +55,14 @@ def cached(name, fn):
     return r
 
 
+def legend_above(ax, ncol=1, **kw):
+    """Legend outside the axes, just above them, so that it never covers the data."""
+    leg = ax.legend(loc="lower left", bbox_to_anchor=(0.0, 1.01), ncol=ncol, frameon=False, borderaxespad=0.0,
+                    handlelength=1.6, columnspacing=1.2, fontsize=kw.pop("fontsize", 6.4), title_fontsize=6.6, **kw)
+    leg._legend_box.align = "left"
+    return leg
+
+
 def save(fig, name):
     fig.savefig(os.path.join(OUT, name + ".pdf"))
     plt.close(fig)
@@ -102,16 +110,17 @@ def fig_coeffs():
         return dict(bx=bx, ref=ref, hs=hs, res=res, bat=cfg.array.bat, r0=cfg.scene.r0, tt=tan_theta(cfg), T=Tap)
     d = cached("coeffs", run)
     # reference point
-    fig, ax = plt.subplots(1, 4, figsize=(W_FULL, 2.0))
+    fig, ax = plt.subplots(1, 4, figsize=(W_FULL, 2.15))
     lab = [r"Rx$_1$ ($b_{at}$ = 7.7 m)", r"Rx$_2$ ($b_{at}$ = 15.4 m)", r"Rx$_3$ ($b_{at}$ = 23.1 m)"]
     sty = ["-", "--", ":"]
-    for q, (ylab, scale) in enumerate([(r"$C_0$ [m]", 1.0), (r"$C_1$ [$\mu$m/s]", 1e6), (r"$C_2$ [$\mu$m/s$^2$]", 1e6), (r"$\Delta t$ [ms]", 1e3)]):
+    for q, (ylab, scale) in enumerate([(r"$C_0$ [m]", 1.0), (r"$C_1$ [$\mu$s]", 1e6), (r"$C_2$ [$10^{-7}$ s$^2$/m]", 1e7), (r"$\Delta t$ [ms]", 1e3)]):
         for i in range(3):
             ax[q].plot(d["bx"], scale * d["ref"][i, :, q], sty[i], color="k", lw=1.0, label=lab[i])
         ax[q].set_xlabel(r"$b_{xt}$ [m]"); ax[q].set_ylabel(ylab, labelpad=1)
     ax[3].set_ylim(0, 1.8)
-    ax[1].legend(loc="lower left", fontsize=5.8)
-    fig.tight_layout(w_pad=0.4)
+    h, l = ax[0].get_legend_handles_labels()
+    fig.legend(h, l, loc="upper center", ncol=3, frameon=False, fontsize=6.6, bbox_to_anchor=(0.5, 1.0))
+    fig.tight_layout(w_pad=0.4, rect=(0, 0, 1, 0.9))
     save(fig, "coeffs_reference_point")
     # residual against height
     fig, ax = plt.subplots(1, 2, figsize=(W_FULL, 2.4))
@@ -122,15 +131,16 @@ def fig_coeffs():
     ax[0].plot([], [], "-", color="k", lw=0.9, label=r"$-b_{xt}\,h/(r_0\tan\theta)$")
     ax[0].set_xlabel("height of the scatterer $h$ [m]"); ax[0].set_ylabel(r"$\Delta C_0$ [m]")
     ax[0].legend(loc="lower left", fontsize=6.5)
-    r = d["res"][300.0]; tau = d["T"] / 2
-    terms = [(np.abs(r[:, 0]), r"$|\Delta C_0|$", "-"), (np.abs(r[:, 1]) * tau, r"$|\Delta C_1|\,T/2$", "--"),
-             (np.abs(r[:, 2]) * tau ** 2, r"$|\Delta C_2|\,(T/2)^2$", "-.")]
-    for y, l, s in terms:
-        ax[1].semilogy(d["hs"][1:], 1e3 * y[1:], s, color="k", label=l)
-    ax[1].axhline(1e3 * 0.25 / 8, color="0.5", lw=0.8)
-    ax[1].text(80, 1e3 * 0.25 / 8 * 1.3, r"$\lambda/8$", fontsize=7, color="0.4")
-    ax[1].set_xlabel("height of the scatterer $h$ [m]"); ax[1].set_ylabel("path change [mm]")
-    ax[1].legend(loc="lower right", fontsize=6.5)
+    r = d["res"][300.0]; wl, fe = 0.25, 1234.8 / 2                   # phase of each term at the edge of the processed band
+    terms = [(2 * np.pi * np.abs(r[:, 0]) / wl, r"$2\pi|\Delta C_0|/\lambda$", "-"),
+             (2 * np.pi * np.abs(r[:, 2]) * wl * fe ** 2, r"$2\pi|\Delta C_2|\,\lambda f^2$", "-."),
+             (2 * np.pi * np.abs(r[:, 1]) * fe, r"$2\pi|\Delta C_1|\,f$", "--")]
+    for y, l, st in terms:
+        ax[1].semilogy(d["hs"][1:], y[1:], st, color="k", label=l)
+    ax[1].axhline(np.pi / 4, color="0.5", lw=0.8)
+    ax[1].text(80, np.pi / 4 * 1.5, r"$\pi/4$", fontsize=7, color="0.4")
+    ax[1].set_xlabel("height of the scatterer $h$ [m]"); ax[1].set_ylabel(r"phase at $f=B_a/2$ [rad]")
+    ax[1].legend(loc="center right", fontsize=6.5)
     fig.tight_layout(w_pad=1.0)
     save(fig, "coeffs_residual_height")
 
@@ -146,7 +156,7 @@ def fig_rangehist():
             out.append((c[4]["tau"], c[4]["d_range"], c[4]["coeffs"]))
         return dict(out=out, bxt=cfg.array.bxt)
     d = cached("rangehist", run)
-    fig, ax = plt.subplots(1, 2, figsize=(W_FULL, 2.3))
+    fig, ax = plt.subplots(1, 2, figsize=(W_FULL, 2.6))
     cols = ["#1f77b4", "#ff7f0e", "#2ca02c", "#9467bd"]
     for i, (tau, dr, c) in enumerate(d["out"]):
         fit = c[0] + c[1] * tau + c[2] * tau ** 2
@@ -156,7 +166,7 @@ def fig_rangehist():
                    label=fr"Rx$_{i}$, $b_{{xt}}$ = {d['bxt'][i]:g} m (offset {c[0]:.2f} m)")
         ax[1].plot(tau, 1e3 * (dr - fit), "-", color=cols[i], lw=0.9)
     ax[0].set_xlabel(r"time from closest approach $\tau$ [s]"); ax[0].set_ylabel("bistatic $-$ monostatic range\nminus its offset [mm]")
-    ax[0].legend(fontsize=5.8, loc="upper center")
+    legend_above(ax[0], ncol=2, fontsize=5.6)
     ax[1].set_xlabel(r"time from closest approach $\tau$ [s]"); ax[1].set_ylabel("fit error [mm]")
     fig.tight_layout(w_pad=1.2)
     save(fig, "range_history_fit")
@@ -220,10 +230,11 @@ def fig_irf_height():
         for m in (-2, -1, 1, 2):
             a.axvline(m * d["dt"], color="0.55", lw=0.6, ls=":")
         a.set_xlim(-2.2, 2.2); a.set_ylim(-90, 3); a.set_xlabel("azimuth time [s]")
-        a.text(0.02, 0.95, f"one target at h = {h:g} m", transform=a.transAxes, va="top", fontsize=7.5,
-               bbox=dict(fc="white", ec="none", alpha=0.85))
-    ax[0].set_ylabel("[dB]"); ax[1].legend(loc="upper right", fontsize=6.5)
-    fig.tight_layout(w_pad=0.8)
+        a.set_title(f"one target at h = {h:g} m", fontsize=7.5)
+    ax[0].set_ylabel("[dB]")
+    h_, l_ = ax[1].get_legend_handles_labels()
+    fig.legend(h_, l_, loc="upper center", ncol=2, frameon=False, fontsize=6.8, bbox_to_anchor=(0.5, 1.0))
+    fig.tight_layout(w_pad=0.8, rect=(0, 0, 1, 0.9))
     save(fig, "irf_flat_vs_height")
 
 
@@ -280,7 +291,7 @@ def geometry_panels(ax2, ax3, r, zoom_pad=1500.0, folds=None):
         for x0 in folds:
             ax2.axvline(x0 / 1e3, color="0.5", ls=":", lw=0.7)
     ax2.set_xlim(lo / 1e3, hi / 1e3); ax2.set_xlabel("azimuth position $x$ [km]"); ax2.set_ylabel("height [m]")
-    ax2.legend(fontsize=6, loc="upper left")
+    legend_above(ax2, ncol=2)
     dy = iso_range_dy(hg)
     ax3.plot(tg / 1e3, dy / 1e3, hg, color=TERRAIN_C, lw=0.9)
     ax3.scatter(xs / 1e3, iso_range_dy(hs) / 1e3, hs, s=8, color="#1F4E79", depthshade=False)
@@ -294,15 +305,15 @@ def geometry_panels(ax2, ax3, r, zoom_pad=1500.0, folds=None):
     ax3.set_box_aspect((2.4, 1.0, 0.8), zoom=1.3)
 
 
-def irf_panel(a, r, keys, xlim=None):
+def irf_panel(a, r, keys, xlim=None, title=None):
     for k in [k for k in keys if k != "ref"] + (["ref"] if "ref" in keys else []):
         a.plot(r["t"], r["db"][k], color=COL[k], lw=0.9 if k == "ref" else 0.7,
                label=f"{LAB[k]}: highest ambiguity {r['res'][k]:.1f} dB")
-    a.set_ylim(-80, 24); a.set_yticks([-75, -50, -25, 0])
+    a.set_ylim(-80, 3); a.set_yticks([-75, -50, -25, 0])
     if xlim:
         a.set_xlim(*xlim)
     a.set_xlabel("azimuth time [s]"); a.set_ylabel("[dB]")
-    a.legend(fontsize=6.2, loc="upper right")
+    legend_above(a, title=title)
 
 
 def bxt_str(b):
@@ -313,8 +324,8 @@ def bxt_str(b):
 def fig_sata_controls():
     cases = [("ctrl_periodX_5", "N4b100"), ("ctrl_period1p5X_5", "N4b100")]
     rs = [run_audit(*c) for c in cases]
-    fig = plt.figure(figsize=(W_FULL, 7.6))
-    gs = GridSpec(5, 2, height_ratios=[0.9, 1, 1, 1, 1], hspace=0.62, wspace=0.28, figure=fig)
+    fig = plt.figure(figsize=(W_FULL, 8.6))
+    gs = GridSpec(5, 2, height_ratios=[0.9, 1, 1, 1, 1], hspace=0.95, wspace=0.28, figure=fig)
     for j, r in enumerate(rs):
         a = fig.add_subplot(gs[0, j])
         x0 = r["xs"][2]
@@ -329,7 +340,7 @@ def fig_sata_controls():
         a.set_xlim(-12, 12); a.set_ylim(-10, 215)
         a.set_xlabel("azimuth position $x$ [km]"); a.set_ylabel("height [m]")
         a.set_title(["period 6.23 km: same height at $x$ and $x\\pm6.23$ km",
-                     "period 9.34 km: different heights at $x$ and $x\\pm6.23$ km"][j], fontsize=7.5)
+                     "period 9.34 km: different heights at $x$ and $x\\pm6.23$ km"][j], fontsize=7.2, pad=4)
         for q, k in enumerate(["none", "whole", "sub", "joint_line"]):
             irf_panel(fig.add_subplot(gs[1 + q, j]), r, [k, "ref"], (-2.6, 2.6))
     save(fig, "sata_controls")
@@ -337,8 +348,8 @@ def fig_sata_controls():
 
 def fig_sata_realistic():
     r = run_audit("few_mountains_5", "N4b300")
-    fig = plt.figure(figsize=(W_FULL, 5.3))
-    gs = GridSpec(3, 2, height_ratios=[1.15, 1.0, 1.0], hspace=0.55, wspace=0.28, figure=fig)
+    fig = plt.figure(figsize=(W_FULL, 6.0))
+    gs = GridSpec(3, 2, height_ratios=[1.15, 1.0, 1.0], hspace=0.8, wspace=0.28, figure=fig)
     geometry_panels(fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[0, 1], projection="3d"), r)
     irf_panel(fig.add_subplot(gs[1, 0]), r, ["ref", "none"])
     irf_panel(fig.add_subplot(gs[1, 1]), r, ["ref", "whole"])
@@ -350,8 +361,8 @@ def fig_sata_realistic():
 
 def fig_sata_refpoint():
     r = run_audit("one_refpoint", "N4b100")
-    fig = plt.figure(figsize=(W_FULL, 3.6))
-    gs = GridSpec(2, 2, height_ratios=[1.0, 1.15], hspace=0.5, wspace=0.28, figure=fig)
+    fig = plt.figure(figsize=(W_FULL, 4.3))
+    gs = GridSpec(2, 2, height_ratios=[1.0, 1.15], hspace=0.85, wspace=0.28, figure=fig)
     geometry_panels(fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[0, 1], projection="3d"), r, zoom_pad=8000.0)
     irf_panel(fig.add_subplot(gs[1, 0]), r, ["ref", "none", "whole"], (-2.6, 2.6))
     irf_panel(fig.add_subplot(gs[1, 1]), r, ["ref", "sub", "joint_line"], (-2.6, 2.6))
@@ -408,13 +419,13 @@ def fig_joint_convergence():
 def fig_joint_nrx():
     tags = ["N2b300", "N3b300", "N4b300", "N8b300"]
     rs = [run_audit("many_mountains_49", t) for t in tags]
-    fig = plt.figure(figsize=(W_FULL, 5.6))
-    gs = GridSpec(3, 2, height_ratios=[1.15, 1.0, 1.0], hspace=0.75, wspace=0.28, figure=fig)
+    fig = plt.figure(figsize=(W_FULL, 6.4))
+    gs = GridSpec(3, 2, height_ratios=[1.15, 1.0, 1.0], hspace=0.95, wspace=0.28, figure=fig)
     geometry_panels(fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[0, 1], projection="3d"), rs[0], zoom_pad=1500.0)
     for j, r in enumerate(rs):
         a = fig.add_subplot(gs[1 + j // 2, j % 2])
-        irf_panel(a, r, ["ref", "joint_line"], (-3.2, 3.2))
-        a.set_title(fr"$N_{{rx}}$ = {len(r['bxt'])}, $b_{{xt}}$ = {bxt_str(r['bxt'])}", fontsize=6.6)
+        irf_panel(a, r, ["ref", "joint_line"], (-3.2, 3.2),
+                  title=fr"$N_{{rx}}$ = {len(r['bxt'])}, $b_{{xt}}$ = {bxt_str(r['bxt'])}")
         print(tags[j], {k: round(v, 1) for k, v in r["res"].items() if k in LAB})
     save(fig, "joint_nrx_mountains49")
 
