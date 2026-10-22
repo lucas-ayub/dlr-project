@@ -1,16 +1,31 @@
-% DEM in radar geometry: the same slant range lands on another ground range when the terrain is high
+% DEM in radar geometry: the same slant range r meets the terrain at another ground range than the flat terrain.
+% Platform P = (0, 4.6); terrain h(y) = 1.6 exp(-((y-6)/1.2)^2); flat point F = (5, 0); r = |PF| = 6.794;
+% terrain point T = (6.091, 1.591) solves y^2 + (4.6 - h(y))^2 = r^2 (computed once, see the caption).
 \begin{tikzpicture}[x=1cm,y=1cm]
-  \fill[terrainfill] (0,0) -- (0,0.25) .. controls (2.5,0.25) and (3.5,0.4) .. (4.6,1.25) .. controls (5.6,2.0) and (6.6,1.7) .. (8,1.2) -- (8,0) -- cycle;
-  \draw[terrain,line width=0.9pt] (0,0.25) .. controls (2.5,0.25) and (3.5,0.4) .. (4.6,1.25) .. controls (5.6,2.0) and (6.6,1.7) .. (8,1.2);
-  \draw[inkb,dashed] (0,0.25) -- (8,0.25) node[right,nota] {flat terrain};
-  \node[sat] at (-1.2,4.6) {};
-  \node[nota,above=2pt] at (-1.2,4.65) {platform (track into the page)};
-  \draw[cblue,line width=0.8pt] (3.47,0.25) arc[start angle=-43.0,end angle=-30.5,radius=6.39];
-  \draw[cblue,->] (-1.2,4.6) -- (4.25,0.95) node[midway,above,sloped,nota,text=cblue] {slant range $r$};
-  \fill[cblue] (4.25,0.95) circle (2pt);
-  \fill[inkb] (3.47,0.25) circle (2pt);
-  \draw[cota] (3.47,-0.25) -- (4.25,-0.25) node[midway,below,nota] {same $r$, other $y$};
-  \draw[inkb,densely dotted] (4.25,0.95) -- (4.25,-0.25); \draw[inkb,densely dotted] (3.47,0.25) -- (3.47,-0.25);
-  \draw[cota] (4.75,0.25) -- (4.75,0.95) node[midway,right,nota] {$h$};
-  \draw[->,inkb] (0,-0.95) -- (8,-0.95) node[right,nota] {ground range $y$};
+  \coordinate (P) at (0,4.6);
+  \coordinate (F) at (5.0,0);
+  \coordinate (T) at (6.091,1.591);
+  % terrain and flat reference
+  \fill[terrainfill] (0.6,0) -- plot[smooth,domain=0.6:9.4,samples=80] (\x,{1.6*exp(-((\x-6.0)/1.2)^2)}) -- (9.4,-0.25) -- (0.6,-0.25) -- cycle;
+  \draw[terrain,line width=0.9pt] plot[smooth,domain=0.6:9.4,samples=80] (\x,{1.6*exp(-((\x-6.0)/1.2)^2)});
+  \draw[inkb,dashed] (0.6,0) -- (9.4,0) node[right,nota]{flat terrain};
+  % platform and slant range
+  \node[sat] at (P) {};
+  \node[nota,anchor=south] at ($(P)+(0,0.15)$) {platform (track into the page)};
+  \draw[cblue,line width=0.8pt] (P) -- (T) node[pos=0.45,above,sloped,nota,text=cblue]{slant range $r$};
+  \draw[cblue!60,line width=0.5pt,densely dotted] (P) -- (F);
+  % arc of constant range through the flat point and the terrain point
+  \draw[cblue,line width=0.9pt] (P) ++(-44:6.794) arc[start angle=-44,end angle=-22,radius=6.794];
+  \node[nota,text=cblue,anchor=west,align=left] at ($(P)+(-22:6.794)+(0.08,0.02)$) {same range $r$};
+  % the two points
+  \fill[inkb] (F) circle (2pt);
+  \fill[cblue] (T) circle (2.2pt);
+  % height of the terrain point
+  \draw[cota] (6.091,0) -- node[right,nota,text=ink]{$h$} (6.091,1.5);
+  % ground-range shift
+  \draw[inkb,densely dotted] (F) -- (5.0,-0.55);
+  \draw[inkb,densely dotted] (6.091,0) -- (6.091,-0.55);
+  \draw[cota] (5.0,-0.5) -- (6.091,-0.5);
+  \node[nota,anchor=north] at (5.55,-0.55) {same $r$, other $y$};
+  \draw[->,inkb] (0.6,-1.25) -- (9.4,-1.25) node[right,nota]{ground range $y$};
 \end{tikzpicture}
