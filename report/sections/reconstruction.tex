@@ -70,6 +70,20 @@ different heights.}
 \label{fig:folding}
 \end{figure}
 
+\Cref{fig:spectra} shows the two sides of this for one target on flat terrain and four channels. A single channel at
+$\PRFop=\SI{500}{Hz}$ sees the processed band $\Ba=\SI{1235}{Hz}$ folded two to three times onto its own band; the standard
+reconstruction combines the four channels and recovers the full-rate spectrum of the reference.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{figures/spectra_reconstruction.pdf}
+\caption[Aliased channel and reconstructed spectrum]{One target at $h=0$, four channels ($\bxt=[0,300,119.8,100.5]$\,\si{m}).
+Left: power spectrum of one channel at $\PRFop=\SI{500}{Hz}$ (averaged over 25 bins): the folded parcels overlap. Right: spectrum of
+the reference and of the standard reconstruction at the full PRF; the grey band is the processed band $\Ba$ and the dotted lines
+are the borders of the four parcels, $\PRFop$ apart.}
+\label{fig:spectra}
+\end{figure}
+
 \section{How topography creates ambiguities}\label{sec:mismatch}
 
 For a scatterer at height $h$, channel $i$ carries the extra constant phase $\e^{-\jj\varphi_i}$ of \eqref{eq:dc0}, so the
@@ -90,6 +104,32 @@ appears in the image as an ambiguity displaced by $mX$ (\SI{0.81}{s}$\cdot m$). 
 $c_m=0$ for $m\ne0$ and the reconstruction is exact; with cross-track baselines the phases differ and the ambiguity level
 grows with the spread of $\bxt_{,i}h$. Weighted by the fraction of the target bandwidth that falls in the leaking parcels,
 $|c_m|$ predicts the ambiguity of the uncorrected reconstruction within \SI{0.15}{dB} for heights above \SI{50}{m}.
+
+\Cref{fig:irfheight} shows the effect on one target. At $h=0$ the channels carry no residual and the standard reconstruction is
+the reference (up to the band limitation to $\Ba$); at \SI{500}{m} copies of the target appear at multiples of the ambiguity time, \SI{0.81}{s}. \Cref{fig:ambheight}
+gives the highest ambiguity against the height of the target for three sets of baselines: it grows by \SI{20}{dB} per decade of
+height (for small phases $|c_m|$ is proportional to $\varphi_i$, hence to $\bxt h$) and saturates between \SI{-15}{dB} and
+\SI{-5}{dB} once the phases of the channels are of the order of a radian, i.e.\ above about \SI{100}{m} with
+$\bxt^{\max}=\SI{300}{m}$.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{figures/irf_flat_vs_height.pdf}
+\caption[Standard reconstruction of a target at the reference height and above it]{Azimuth impulse response of one target
+($\bxt=[0,300,119.8,100.5]$\,\si{m}) after the standard reconstruction (no SATA) and of the reference. Dotted lines: the ambiguity
+positions, $\pm1$ and $\pm2$ times \SI{0.81}{s}. Left: target at the reference height, the two responses coincide. Right: target at
+\SI{500}{m}.}
+\label{fig:irfheight}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.62\linewidth]{figures/ambiguity_vs_height.pdf}
+\caption[Highest ambiguity of the standard reconstruction against height]{Highest ambiguity of the standard reconstruction (no
+SATA) for one target at height $h$, four channels, three sets of cross-track baselines. At $h=0$ the three sets give
+\SI{-63.6}{dB}, the level of the reference limited to the processed band $\Ba$.}
+\label{fig:ambheight}
+\end{figure}
 
 Two consequences recur in the rest of the report:
 \begin{itemize}

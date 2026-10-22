@@ -57,3 +57,4 @@ _backup/
 !report/**/*.tex
 !report/report.pdf
 !report/figures/*.png
+!report/figures/*.pdf

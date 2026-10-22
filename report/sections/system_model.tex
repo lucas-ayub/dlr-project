@@ -55,18 +55,58 @@ the ground every $d$, like a single channel at the full PRF.}
 The simulator works with point targets. In the 1-D study the targets lie on a terrain profile $h(x)$ along azimuth;
 each target is placed on the iso-range surface of the reference point (same monostatic slant range $r_0$), so that
 only its height changes the bistatic geometry. The reference point is at $x=0$, $h=0$. In the 2-D study (\cref{ch:joint2d}) the terrain
-is a surface $h(x,y)$ and the data are range compressed. For channel $i$ the two-way path of a scatterer,
-$R_{\mathrm{T}}(t)+R_{\mathrm{R},i}(t)$, is fitted by a polynomial around the time of closest approach,
+is a surface $h(x,y)$ and the data are range compressed. The azimuth signal of channel $i$ is
 \begin{equation}
-  R_i(t) \approx C_{0,i} + C_{1,i}\,(t-\Delta t_i) + C_{2,i}\,(t-\Delta t_i)^2 ,
-  \label{eq:rangehistory}
+  s_i(t) = \sum_{p} a_p\, w(t-t_p)\, \exp\!\left(-\jj\frac{2\pi}{\lambda} \bigl[r_{\mathrm T,p}(t)+r_{\mathrm R,i,p}(t)\bigr]\right),
 \end{equation}
-and the azimuth signal of the channel is
+with $a_p$ the complex amplitude of scatterer $p$, $w$ the antenna pattern and $r_{\mathrm T}+r_{\mathrm R,i}$ the bistatic
+path (\cref{fig:geometry}).
+
+\section{The coefficients \texorpdfstring{$C_0$, $C_1$, $C_2$ and $\Delta t$}{C0, C1, C2 and Delta t}}\label{sec:coeffs}
+
+The reconstruction does not use the full range histories, but four numbers per channel (\code{GetCoeffNu}). Both the
+monostatic path of the transmitter, $2r_{\mathrm T}(t)$, and the bistatic path of channel $i$, $r_{\mathrm T}(t)+r_{\mathrm R,i}(t)$,
+are fitted by parabolas around their own times of closest approach. Their difference defines
+\begin{itemize}
+  \item $C_{0,i}$, the difference between the minima of the two paths (a constant path offset, i.e.\ a constant phase
+        $2\pi C_{0,i}/\lambda$);
+  \item $C_{1,i}$ and $C_{2,i}$, the linear and quadratic terms that remain between the two parabolas (a residual Doppler
+        shift and a residual azimuth chirp);
+  \item $\Delta t_i$, the time between the two closest approaches (a delay, i.e.\ a linear phase in Doppler).
+\end{itemize}
+In the code the transfer function of channel $i$ relative to the monostatic reference has the form
 \begin{equation}
-  s_i(t) = \sum_{p} a_p\, w(t-t_p)\, \exp\!\left(-\jj\frac{2\pi}{\lambda} R_{i,p}(t)\right),
+  H_i(f) = \exp\!\Bigl(-\jj 2\pi\bigl[\,C_{0,i}/\lambda + \Delta t_i\, f + C_{2,i}\,\lambda f^2\bigr]\Bigr),
+  \label{eq:Hi}
 \end{equation}
-with $a_p$ the complex amplitude of scatterer $p$ and $w$ the antenna pattern. The reconstruction filters
-(\cref{ch:recon}) are built from the coefficients $C_{0,i},C_{1,i},C_{2,i},\Delta t_i$ of the \emph{reference point}.
+so that $\Delta t_i$ (set by $\bat_{,i}$) gives the linear phase that makes the DPCA sampling work and $C_{0,i}$ (set by
+$\bxt_{,i}$) a constant phase per channel.
+
+\Cref{fig:coeffsref} shows the four coefficients of the reference point. $C_0$ is the difference of the closest-approach
+distances of the receiver and of the transmitter, $\approx-\bxt\sin\theta$ ($\SI{-171}{m}$ for $\bxt=\SI{500}{m}$), and does
+not depend on $\bat$; $\Delta t=\bat/(2v)$ (\SIlist{0.5;1.0;1.5}{ms} for the three DPCA receivers) and does not depend on $\bxt$;
+$C_1$ and $C_2$ are of the order of micrometres per second and per second squared. \Cref{fig:rangefit} shows the curve that
+these numbers describe for one target: the bistatic minus the monostatic path varies by a few millimetres over the aperture
+(\SI{5.6}{mm} for $\bxt=\SI{300}{m}$) and the parabola reproduces it within $10^{-4}$\,\si{mm}.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{figures/coeffs_reference_point.pdf}
+\caption[Coefficients of the reference point]{$C_0$, $C_1$, $C_2$ and $\Delta t$ of the reference point for the receivers
+1, 2 and 3 of the DPCA formation ($\bat=\SIlist{7.7;15.4;23.1}{m}$), as a function of the cross-track baseline $\bxt$
+(the same for the three receivers). The three curves of $C_0$ and of $C_2$ coincide.}
+\label{fig:coeffsref}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{figures/range_history_fit.pdf}
+\caption[Bistatic minus monostatic path and its parabola]{One target at $x=0$, $h=\SI{500}{m}$, four channels with
+$\bxt=[0,300,119.8,100.5]$\,\si{m}. Left: bistatic minus monostatic path of every channel against the time from closest
+approach, minus its constant offset ($C_0$, given in the legend); dots: simulated geometry; lines: the fitted parabola.
+Right: difference between the simulated curve and the parabola.}
+\label{fig:rangefit}
+\end{figure}
 
 \section{The topographic residual \texorpdfstring{$\dC$}{Delta C0}}
 
@@ -80,11 +120,23 @@ difference is the \emph{topographic residual}
 \end{equation}
 i.e.\ the interferometric phase of the cross-track baseline; it vanishes for the transmitter channel ($\bxt=0$),
 since the targets are on the iso-range surface. The simulator computes $\Delta C_{0,i}$ exactly from the range
-histories (\code{residual\_C0}); the approximation \eqref{eq:dc0} agrees within a fraction of a millimetre for the cases of
-this report. For a scatterer at \SI{500}{m} and $\bxt=[63.7, 27.0, 4.1, 1.7]$\,\si{m} the residuals are
+histories (\code{residual\_C0}); the approximation \eqref{eq:dc0} agrees within about \SI{2}{\percent}. For a scatterer at \SI{500}{m} and $\bxt=[63.7, 27.0, 4.1, 1.7]$\,\si{m} the residuals are
 $[-113.9,-48.2,-7.3,-3.0]$\,\si{mm}, i.e.\ up to half a wavelength. The other coefficients change much less with height:
 the topography acts as a channel-dependent \emph{constant} phase over the aperture of each scatterer, a fact used by the
-joint reconstruction (\cref{ch:joint}).
+joint reconstruction (\cref{ch:joint}). \Cref{fig:coeffsres} quantifies this: up to \SI{3}{km} of height and
+$\bxt=\SI{500}{m}$, $\Delta C_0$ follows \eqref{eq:dc0} within a few per cent, while the path changes produced by $\Delta C_1$ and
+$\Delta C_2$ at the edge of the aperture ($T/2\approx\SI{1.08}{s}$) stay below $10^{-5}$\,\si{mm}, nine orders of magnitude below
+$\Delta C_0$ and far below $\lambda/8$; $\Delta t$ does not change with height.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{figures/coeffs_residual_height.pdf}
+\caption[Change of the coefficients with the height of the scatterer]{Change of the coefficients of receiver~1 when the
+scatterer is at height $h$ instead of the reference point. Left: $\Delta C_0$ (dots: exact, from the range histories; lines:
+\eqref{eq:dc0}) for three cross-track baselines. Right ($\bxt=\SI{300}{m}$): path change produced by each coefficient at the
+edge of the aperture, on a logarithmic scale.}
+\label{fig:coeffsres}
+\end{figure}
 
 \Cref{fig:crosstrack} shows where \eqref{eq:dc0} comes from. Moving from the reference point to a scatterer at height $h$ on
 the same range arc of the transmitter is a displacement $s=h/\sin\theta$ perpendicular to the line of sight of the transmitter,

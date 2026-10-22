@@ -123,10 +123,25 @@ in the model of the channels and inverts model and topography together.}
         alarm for DEM errors.
   \item \textbf{Cost.} About \SI{3.3}{s} per line with four channels in the 1-D simulator (median over 680 runs), against
         \SI{0.15}{s} for SATA whole band.
+  \item \textbf{Convergence.} \Cref{fig:convergence} follows the iterations on the example of \cref{fig:example1d}. The
+        first iteration is the adjoint, i.e.\ the channels focused, corrected and summed (\SI{-10.2}{dB}, close to no SATA);
+        about ten iterations bring the ambiguities below \SI{-39}{dB}, and the second pass gains another \SI{1}{dB}
+        (\SI{-43.5}{dB} after $2\times60$ iterations). The unexplained part of the channels falls to \SI{-38}{dB} in the same
+        way.
   \item \textbf{Ill-conditioned configurations.} Where the baselines do not separate the parcels (two channels, equally
         spaced baselines, certain heights with long baselines) the information is not in the data; the regularisation then
         leaves the ambiguity instead of amplifying noise.
 \end{itemize}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{figures/joint_convergence.pdf}
+\caption[Convergence of the joint reconstruction]{Joint reconstruction over the whole line on the example of
+\cref{fig:example1d} (five targets on a \SI{1000}{m} mountain, four channels). Left: highest ambiguity against the total number of
+conjugate-gradient iterations, with one pass and with two passes, against the reference and no SATA. Right: part of the channels
+that the model does not explain, $\|\bm s-\mathbf A\hat{\bm g}\|/\|\bm s\|$, during the first pass.}
+\label{fig:convergence}
+\end{figure}
 
 \Cref{fig:example1d} shows the example used throughout the development: five targets on a \SI{1000}{m} Gaussian mountain
 with $\bxt=[0,134.9,20.5,8.3]$\,\si{m}. The highest ambiguity goes from \SI{-8.7}{dB} without correction to \SI{-43.5}{dB}

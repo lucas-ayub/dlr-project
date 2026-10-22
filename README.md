@@ -3,12 +3,31 @@
 Numerical study of **multichannel / multistatic SAR azimuth reconstruction over topography** (HRWS systems), developed
 at the DLR Microwaves and Radar Institute (DLR-HR) within a DLR-DAAD fellowship.
 
+## 📄 Project report — [read the PDF](report/report.pdf)
+
+<table>
+<tr>
+<td width="32%"><a href="report/report.pdf"><img src="report/figures/readme_cover.png" alt="Report cover" width="100%"></a></td>
+<td>
+<b><a href="report/report.pdf">Topography-Dependent Azimuth Reconstruction in Multistatic SAR Systems</a></b> (draft)<br><br>
+Signal model and the coefficients C<sub>0</sub>, C<sub>1</sub>, C<sub>2</sub>; multichannel reconstruction and how topography
+creates ambiguities; SATA and why it fails on aliased channels; the joint reconstruction (final method) in 1-D and 2-D;
+sweeps over terrains, numbers of channels and baselines.<br><br>
+<a href="report/report.pdf">PDF</a> · <a href="report/">LaTeX sources</a>
+</td>
+</tr>
+</table>
+
+<p align="center">
+<a href="report/report.pdf"><img src="report/figures/readme_result.png" alt="SATA versus the joint reconstruction" width="85%"></a><br>
+<sub>Five targets on random mountains, four channels: no SATA, SATA whole band, SATA per sub-band and the joint
+reconstruction (bottom right), all with the DEM only.</sub>
+</p>
+
 A multichannel SAR samples the azimuth signal at a PRF below the Doppler bandwidth and recovers it by combining the
 channels. The reconstruction filters assume a reference geometry (flat earth); when the scene has topography and the
 channels have cross-track baselines, every scatterer carries a channel-dependent phase residual
 (&Delta;C<sub>0</sub>) and the folded parts of the spectrum no longer cancel, leaving azimuth ambiguities.
-
-📄 **Project report:** [`report/report.pdf`](report/report.pdf) (draft; LaTeX sources in [`report/`](report/))
 
 **Questions addressed**
 

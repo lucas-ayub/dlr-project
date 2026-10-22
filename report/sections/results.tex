@@ -60,6 +60,75 @@ A distributed scene (about \num{11900} scatterers, oracle \SI{-34.2}{dB}, measur
 ranking: with $\bxt\sim U(0,100)$\,\si{m} SATA per channel gives \SIrange{-22.5}{-8.7}{dB} and the whole-line joint
 \SIrange{-34.1}{-33.2}{dB}; with $U(0,500)$\,\si{m}, \SIrange{-13}{-6}{dB} and \SIrange{-33.6}{-31.4}{dB}.
 
+\section{Why the joint reconstruction is the final method}\label{sec:whyjoint}
+
+\Cref{fig:satavsjoint} compares all the methods on one realistic scene: five targets on random mountains (relief \SI{1000}{m}),
+four channels with $\bxt^{\max}=\SI{300}{m}$. No SATA leaves \SI{-4.6}{dB}; SATA whole band \SI{-14.6}{dB}; SATA per sub-band
+\SI{-8.6}{dB}; the joint reconstruction over the whole line \SI{-43.6}{dB}, \SI{5}{dB} from the reference (\SI{-48.7}{dB}).
+\Cref{fig:auditscatter} shows that this is not a particular case: over the \AuditRuns{} runs of the audit the joint reconstruction
+is better than SATA in every run, by a median of \SI{\AuditLineBetterWhole}{dB} (whole band) and \SI{\AuditLineBetterSub}{dB} (per
+sub-band).
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{figures/sata_vs_joint_mountains.pdf}
+\caption[All the methods on a realistic scene]{Five targets \SI{2.6}{km} apart on random mountains (relief \SI{1000}{m},
+correlation length \SI{3}{km}), four channels, $\bxt=[0,300,119.8,100.5]$\,\si{m}. Top: the targets and the terrain near them
+(left) and along the whole azimuth line (right). Below: impulse responses of the reference and of no SATA, SATA whole band, SATA
+per sub-band and the joint reconstruction over the whole line. Every method reads only the DEM.}
+\label{fig:satavsjoint}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[group style={group size=2 by 1, horizontal sep=1.5cm},
+  width=0.46\linewidth, height=0.46\linewidth, xmin=-75, xmax=15, ymin=-75, ymax=15,
+  ylabel={joint (whole line) [dB]}, grid=major, grid style={gray!20},
+  scatter/classes={2={mark=*,cnone,mark size=0.8pt}, 3={mark=*,cwhole,mark size=0.8pt}, 4={mark=*,cjoint,mark size=0.8pt},
+                   6={mark=*,cocc,mark size=0.8pt}, 8={mark=*,cref,mark size=0.8pt}},
+  legend style={font=\scriptsize,draw=none,fill=white,fill opacity=0.85,text opacity=1}, legend pos=north west]
+\nextgroupplot[xlabel={SATA whole band [dB]}]
+  \addplot[scatter,only marks,scatter src=explicit symbolic,opacity=0.6] table[x=whole,y=line,meta=nrx] {data/audit_scatter.dat};
+  \addplot[gray,dashed,domain=-75:15] {x};
+  \legend{$\Nrx=2$,3,4,6,8}
+\nextgroupplot[xlabel={SATA per sub-band [dB]}, ylabel={}]
+  \addplot[scatter,only marks,scatter src=explicit symbolic,opacity=0.6] table[x=sub,y=line,meta=nrx] {data/audit_scatter.dat};
+  \addplot[gray,dashed,domain=-75:15] {x};
+\end{groupplot}
+\end{tikzpicture}
+\caption[SATA against the joint reconstruction, every run]{Highest ambiguity of the joint reconstruction over the whole line
+against SATA whole band (left) and SATA per sub-band (right), for the \AuditRuns{} runs of the audit (every method with the DEM
+only), coloured by the number of channels. Every point is below the diagonal.}
+\label{fig:auditscatter}
+\end{figure}
+
+The reasons, collected from the previous chapters:
+\begin{enumerate}
+  \item \textbf{SATA has the right phase in the wrong place.} SATA reads the correct correction, the $\Delta C_0$ of the DEM. But
+        on an aliased channel each bin is the sum of parcels from positions $X\approx\SI{6.2}{km}$ apart, and a per-channel
+        correction can give that sum only one phase (\cref{fig:binconflict}). The standard reconstruction that follows assumes that
+        every channel is now exact, so the error of the other parcels becomes leakage between the parcels. SATA is exact only when the
+        terrain has the same height at all the folded positions (\cref{fig:satacontrols}), it can damage a target that needed no
+        correction (\cref{fig:satarefpoint}), and the level it leaves is predicted by the geometry (\cref{fig:sataprediction}): it is a
+        property of the order of the operations, not of the implementation. Applying SATA after the reconstruction does not help
+        either, since one phase cannot undo a sum that has already been formed.
+  \item \textbf{The joint reconstruction solves both problems together.} Separating the parcels needs the phases corrected, and
+        correcting each parcel needs the parcels separated. The joint reconstruction writes the phase of every ground position
+        \emph{inside} the model of the channels (\cref{fig:pipelines}) and inverts model and topography together. With a flat DEM it is
+        the standard reconstruction; on the periodic terrains where SATA is exact it gives the same result as SATA; everywhere else it
+        keeps working.
+  \item \textbf{The whole-line version removes the last approximation.} The joint reconstruction in the sub-apertures still reads
+        the DEM once per bin of a \SI{40}{ms} block, i.e.\ it takes the terrain phase as constant over about $\pm\SI{600}{m}$, and fails
+        on steep terrain with long baselines (median \SI{-30.9}{dB} in the audit). Over the whole line the residual of every
+        scatterer is a pointwise phase on the focused line, with no cell at all (median \SI{-41.4}{dB}).
+  \item \textbf{It uses only what a real case has.} The method receives the channels, the system geometry and the DEM; the
+        positions of the targets are never used, and the unexplained part of the channels gives a check of the DEM.
+  \item \textbf{It degrades gracefully.} Where the baselines do not separate the parcels the regularisation leaves the ambiguity
+        instead of amplifying noise, and the cost (a few seconds per line in the 1-D simulator) is that of a few tens of FFTs per
+        channel and iteration.
+\end{enumerate}
+
 \section{Sweep of the final joint reconstruction in 1-D}\label{sec:sweep1d}
 
 The complete 1-D sweep (\code{joint\_cases/sweep\_joint\_all.py}) runs the reference, the uncorrected reconstruction and
@@ -117,7 +186,20 @@ against the uncorrected reconstruction, coloured by the number of channels. Poin
 The \SweepOneUnresolved{} runs that are not resolved (above \SI{-30}{dB} and more than \SI{10}{dB} from the reference)
 are almost all configurations whose baselines cannot separate the parcels: 53 have two channels and 25 the equally spaced set
 \code{s50}; only 5 have four random baselines (3 with $\bxt^{\max}=\SI{300}{m}$, 2 with \SI{500}{m}). \Cref{fig:alpine} shows a
-typical resolved case on a fractal alpine relief.
+typical resolved case on a fractal alpine relief. \Cref{fig:jointnrx} shows the role of the number of channels on one scene with
+49 targets on random mountains and $\bxt^{\max}=\SI{300}{m}$: with three or more channels the joint reconstruction is within
+\SIrange{1}{4}{dB} of the reference; with two channels there is no redundancy and it stops at \SI{-22.3}{dB} (reference
+\SI{-38.5}{dB}), still \SI{8}{dB} better than no SATA.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{figures/joint_nrx_mountains49.pdf}
+\caption[Joint reconstruction with 2, 3, 4 and 8 channels]{49 targets \SI{250}{m} apart on random mountains (relief
+\SI{1000}{m}), largest cross-track baseline \SI{300}{m}, channel~0 on the transmitter. Top: the targets and the terrain near them
+(left) and along the whole azimuth line (right). Below: impulse responses of the reference and of the joint reconstruction over the
+whole line for $\Nrx=2$, 3, 4 and 8.}
+\label{fig:jointnrx}
+\end{figure}
 
 \begin{figure}[p]
 \centering
