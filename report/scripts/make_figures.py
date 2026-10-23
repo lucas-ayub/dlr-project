@@ -3,7 +3,7 @@ Result figures of the report (vector PDFs in ../figures), computed with the sata
 
     python make_figures.py all            # every figure (a few minutes on four cores)
     python make_figures.py coeffs rangehist spectra irf_height amb_height sata_controls sata_realistic \
-                           sata_refpoint joint_convergence joint_nrx
+                           sata_refpoint joint_convergence joint_nrx system_coupling
 
 Intermediate results are cached in ~/DLR/dlr-project_resultados/report_figures_cache (delete it to recompute).
 Every method receives only the system parameters and the DEM; the targets are used only to simulate the echoes.
@@ -24,7 +24,7 @@ SC = os.path.normpath(os.path.join(HERE, "..", "..", "sata1d_code"))
 sys.path[:0] = [SC, os.path.join(SC, "joint_cases")]
 import sata1d as S                                                     # noqa: E402
 from sata1d.config import ArrayGeometry                                # noqa: E402
-from sata1d.joint_line import height_table, line_maps, channel_maps, reconstruct_joint_line   # noqa: E402
+from sata1d.joint_line import height_table, line_maps, channel_maps, reconstruct_joint_line, LineModel   # noqa: E402
 from sweep_geometry_plots import iso_range_dy                          # noqa: E402
 import audit_dem as A                                                  # noqa: E402
 
@@ -430,9 +430,48 @@ def fig_joint_nrx():
     save(fig, "joint_nrx_mountains49")
 
 
+def fig_system_coupling():
+    """One column of A^H A in the Doppler domain: the bins that a single Doppler bin of g is coupled with."""
+    def run():
+        cfg, tr, terrain, xs = mountain_example()
+        half = 0.5 * cfg.Na / cfg.prf * cfg.system.vs
+        hg = terrain(np.linspace(-half - 100.0, half + 100.0, 8001))
+        relief = line_maps(cfg, tr, terrain, height_table(cfg, tr, hg.min(), hg.max()))
+        f = np.fft.fftfreq(cfg.Na, 1.0 / cfg.prf)
+        k0 = int(np.argmin(np.abs(f - 137.0)))
+        e = np.zeros(cfg.Na, complex); e[k0] = 1.0
+        out = {}
+        for tag, dC0 in (("flat", np.zeros_like(relief)), ("relief", relief)):
+            M = LineModel(cfg, tr, dC0)
+            out[tag] = np.abs(np.fft.fft(M.adjoint(M.forward(np.fft.ifft(e)))))
+        return dict(f=np.fft.fftshift(f), f0=float(f[k0]), prf_op=float(cfg.PRF_op), ba=float(cfg.system.abw),
+                    **{k: np.fft.fftshift(v) for k, v in out.items()})
+    d = cached("system_coupling", run)
+    pk = max(d["flat"].max(), d["relief"].max())
+    db = {k: 20 * np.log10(np.maximum(d[k] / pk, 1e-8)) for k in ("flat", "relief")}
+    fig, ax = plt.subplots(1, 2, figsize=(W_FULL, 2.35), gridspec_kw=dict(width_ratios=[1.6, 1.0]))
+    for a in ax:
+        a.plot(d["f"], db["flat"], color="k", lw=1.0, label="flat terrain")
+        a.plot(d["f"], db["relief"], color=COL["joint_line"], lw=0.9, alpha=0.9, label="with relief (1000 m mountain)")
+        a.set_ylim(-80, 4); a.set_xlabel("Doppler frequency [Hz]")
+    for q in range(-3, 4):
+        fq = d["f0"] + q * d["prf_op"]
+        if -1000.0 <= fq < 1000.0:
+            ax[0].axvline(fq, color="0.55", lw=0.6, ls=":")
+    ax[0].axvspan(-d["ba"] / 2, d["ba"] / 2, color="0.93", zorder=0, lw=0)
+    ax[0].set_xlim(-1000, 1000); ax[0].set_ylabel(r"$|$column of $\mathbf{A}^H\mathbf{A}|$ [dB]")
+    fa = d["f0"] - d["prf_op"]
+    ax[1].set_xlim(fa - 40, fa + 40); ax[1].set_ylim(-80, -10)
+    ax[1].set_title(f"zoom on the first alias ({fa:.0f} Hz)", fontsize=7.2)
+    legend_above(ax[0], ncol=2)
+    fig.tight_layout(w_pad=1.0)
+    save(fig, "system_coupling")
+
+
 FIGS = dict(coeffs=fig_coeffs, rangehist=fig_rangehist, spectra=fig_spectra, irf_height=fig_irf_height,
             amb_height=fig_amb_height, sata_controls=fig_sata_controls, sata_realistic=fig_sata_realistic,
-            sata_refpoint=fig_sata_refpoint, joint_convergence=fig_joint_convergence, joint_nrx=fig_joint_nrx)
+            sata_refpoint=fig_sata_refpoint, joint_convergence=fig_joint_convergence, joint_nrx=fig_joint_nrx,
+            system_coupling=fig_system_coupling)
 
 if __name__ == "__main__":
     names = sys.argv[1:] or ["all"]

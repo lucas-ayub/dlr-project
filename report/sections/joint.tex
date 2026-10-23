@@ -110,6 +110,119 @@ in the model of the channels and inverts model and topography together.}
 \label{fig:pipelines}
 \end{figure}
 
+\section{Building the model and solving the system}\label{sec:joint-system}
+
+This section derives the model \eqref{eq:jointmodel} from the echo of a single point, writes it as a linear system and
+explains how that system is solved without ever forming its matrix.
+
+\subsection{The model, step by step}
+
+The full-rate line has $N=12288$ samples $n$ at $\PRF=\SI{2000}{Hz}$, one every $d=v/\PRF=\SI{3.84}{m}$ along track. Let
+$k[n]$ be the monostatic echo of the reference point (the azimuth chirp) and $K(f)$ its DFT. The model is built by adding
+one ingredient at a time.
+\begin{enumerate}
+  \item \emph{One target at the reference point, monostatic:} $u[n]=k[n]$, so $U(f)=K(f)$.
+  \item \emph{The same target at $\ell=x/d$:} $u[n]=k[n-\ell]$, so $U(f)=K(f)\,\e^{-\jj2\pi f\ell/\PRF}$.
+  \item \emph{Several targets} at $\ell_p$ with amplitudes $a_p$:
+        \begin{equation}
+          U(f)=\sum_p a_p K(f)\,\e^{-\jj2\pi f\ell_p/\PRF}=K(f)\,G(f),\qquad
+          g[\ell]=\sum_p a_p\,\delta[\ell-\ell_p],
+        \end{equation}
+        where $G$ is the DFT of $g$. The focused line $g$ has one peak per target and is the unknown of the joint reconstruction.
+  \item \emph{Several channels:} channel $i$ is the monostatic echo filtered by its transfer function \eqref{eq:Hi},
+        $K_i(f)=H_i(f)\,K(f)$, so on flat terrain $S_i(f)=K_i(f)\,G(f)$.
+  \item \emph{Relief:} a target at $\ell_p$ gets in channel $i$ the constant phase
+        $\varphi_i[\ell_p]=\frac{2\pi}{\lambda}\Delta C_{0,i}(\ell_p)$ of \eqref{eq:dc0}:
+        \begin{equation}
+          S_i(f)=K_i(f)\sum_p a_p\,\e^{-\jj\varphi_i[\ell_p]}\,\e^{-\jj2\pi f\ell_p/\PRF}
+                =K_i(f)\,\mathcal F\bigl\{\e^{-\jj\varphi_i}\odot g\bigr\}(f).
+        \end{equation}
+        The phase depends on the \emph{position} of the target (and on the channel), not on the frequency; it is therefore applied
+        to $g$ as a pointwise ``screen'', before the DFT.
+  \item \emph{Sampling of the channel:} the channel keeps one sample in $\Nrx$ of the full-rate signal,
+        $s_i[k]=s_i^{\mathrm{full}}[\Nrx k]$. With $\mathbf F$ the DFT, $\mathbf K_i=\mathrm{diag}(K_i)$,
+        $\bm\Theta_i=\mathrm{diag}(\e^{-\jj\varphi_i})$ and $\mathcal D$ the decimation,
+        \begin{equation}
+          \bm s_i=\underbrace{\mathcal D}_{\downarrow\Nrx}\ \underbrace{\mathbf F^{-1}}_{\text{IFFT}}\
+          \underbrace{\mathbf K_i}_{\times K_i}\ \underbrace{\mathbf F}_{\text{FFT}}\
+          \underbrace{\bm\Theta_i}_{\times\e^{-\jj\varphi_i}}\ \bm g=\mathbf A_i\bm g ,
+          \label{eq:Ai}
+        \end{equation}
+        which is \eqref{eq:jointmodel} in matrix form. Stacking the channels gives $\bm s=\mathbf A\bm g$: with four
+        channels, $4\times3072=12288$ equations for $12288$ unknowns.
+\end{enumerate}
+
+\subsection{The matrix is never built}
+
+$\mathbf A$ is a $12288\times12288$ complex matrix: stored, it would take $12288^2\times\SI{16}{B}\approx\SI{2.4}{GB}$ and
+each product would cost about $10^8$ multiplications. Every factor of \eqref{eq:Ai}, however, is either diagonal or a
+fast transform, so $\mathbf A$ and $\mathbf A\Hm$ are applied as sequences of operations (\cref{fig:chainline}) and only
+the diagonals are kept in memory (\cref{tab:operators}): about \SI{1.6}{MB} and eight FFTs per product with four channels.
+$\mathbf A\Hm\mathbf A$ is never formed either; the solver only needs products with $\mathbf A$ and $\mathbf A\Hm$.
+
+\begin{table}[htbp]
+\centering
+\caption[Objects of the joint model]{The objects of the model \eqref{eq:Ai} and how each one is represented ($N=12288$, four channels).}
+\label{tab:operators}
+\footnotesize\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}llll@{}}
+\toprule
+object & meaning & size & represented as \\
+\midrule
+$\bm g$, $\bm s_i$ & focused line, channel $i$ & $N$, $N/\Nrx$ & vectors \\
+$\bm\Theta_i$ & DEM screen of channel $i$ & $N\times N$, diagonal & its diagonal only \\
+$\mathbf K_i=\mathrm{diag}(H_iK)$ & chirp and channel filter & $N\times N$, diagonal & its diagonal only \\
+$\mathbf F$, $\mathbf F^{-1}$ & DFT & $N\times N$ & FFT, $\mathcal O(N\log N)$ \\
+$\mathcal D$, $\mathcal D\Hm$ & decimation / zero insertion & $N/\Nrx\times N$ & index selection \\
+$\mathbf A$, $\mathbf A\Hm$ & model and adjoint & $N\times N$ & chains of the above (\cref{fig:chainline}) \\
+$\mathbf A\Hm\mathbf A+\mu^2\mathbf I$ & normal matrix & $N\times N$ & never formed \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Why the system must be solved as a whole.} On flat terrain the screens are constant, $\mathbf F\bm\Theta_i\mathbf F^{-1}$
+is a multiple of the identity and the only coupling between Doppler bins is the folding of $\mathcal D$, which links a bin
+$f$ to $f\pm\PRFop,\ f\pm2\PRFop,\dots$ only. Ordered by bin, $\mathbf A$ then splits into $3072$ independent $4\times4$
+blocks (rows: channels, columns: parcels): this is exactly the standard reconstruction \eqref{eq:fold}, the only place where
+a matrix is actually assembled and inverted. With relief, $\mathbf F\bm\Theta_i\mathbf F^{-1}$ is a convolution in Doppler
+with the spectrum of the screen and couples each bin with its neighbours as well. \Cref{fig:coupling} shows one column of
+$\mathbf A\Hm\mathbf A$ for the example of \cref{fig:example1d}: on flat terrain a Doppler bin is coupled only with its
+aliases, more than \SI{40}{dB} below the bin itself; with the mountain the coupling with the aliases rises to about
+\SI{-22}{dB} and spreads over $\pm\SI{7}{Hz}$ (some 80 bins). The blocks no longer separate, and the whole line is solved
+at once, iteratively.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{figures/system_coupling.pdf}
+\caption[Coupling between Doppler bins in the joint model]{One column of $\mathbf A\Hm\mathbf A$ in the Doppler domain: the
+response to a single Doppler bin of $g$ at \SI{137}{Hz}, for the formation of \cref{fig:example1d}, on flat terrain and with the
+\SI{1000}{m} mountain. Dotted lines: the aliases of the bin, $\PRFop=\SI{500}{Hz}$ apart; grey: the processed band $\Ba$.
+Right: zoom on the first alias.}
+\label{fig:coupling}
+\end{figure}
+
+\subsection{Solving the system}
+
+The regularised problem and its normal equations are
+\begin{equation}
+  \hat{\bm g}=\arg\min_{\bm g}\ \|\mathbf A\bm g-\bm s\|^2+\mu^2\|\bm g\|^2
+  \quad\Longleftrightarrow\quad
+  \bigl(\mathbf A\Hm\mathbf A+\mu^2\mathbf I\bigr)\,\hat{\bm g}=\mathbf A\Hm\bm s ,
+  \qquad \mu=0.03\,\sigma_{\max}(\mathbf A).
+\end{equation}
+$\sigma_{\max}$ is obtained by the power method, $\bm x\leftarrow\mathbf A\Hm\mathbf A\bm x/\|\mathbf A\Hm\mathbf A\bm x\|$
+(12 iterations), $\sigma_{\max}\approx\sqrt{\|\mathbf A\Hm\mathbf A\bm x\|}$, which again uses only $\mathbf A$ and
+$\mathbf A\Hm$. CGLS solves the normal equations without forming them (\cref{fig:flowline}): each iteration applies
+$\mathbf A$ once, to the search direction $\bm p$, and $\mathbf A\Hm$ once, to the residual; $\alpha$ is the optimal step along
+$\bm p$ and the new direction is conjugate to the previous ones, so no direction is searched twice. The second pass solves the
+same problem for the residual left by the first and adds its solution to $\hat{\bm g}$ (iterated Tikhonov), which recovers
+what $\mu$ damped where the channels do measure the signal well. On the example of \cref{fig:example1d} the two passes take
+120 iterations in total.
+
+Finally the raw full-rate line is restored, $U=K\odot\mathbf F\hat{\bm g}$, set to zero for $|f|>\Ba/2$ and transformed back
+with $\mathbf F^{-1}$. This is the same raw line at \SI{2000}{Hz} that the standard reconstruction returns, so the azimuth
+focusing that follows is identical for every method.
+
 \section{Properties}
 
 \begin{itemize}
