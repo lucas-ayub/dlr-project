@@ -1,0 +1,13 @@
+% From the channels to the image: inversion, re-recording, focusing
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \node[blk,draw=cblue,fill=cblue!8,text width=22mm] (s) at (0,0) {$\textcolor{cblue}{\bm s}$\\[1pt] \footnotesize $\Nrx=4$ channels\\ \footnotesize \SI{500}{Hz}, aliased};
+  \node[blk,draw=cred,fill=cred!6,text width=22mm] (g) at (4.5,0) {$\textcolor{cred}{\hat{\bm g}}$\\[1pt] \footnotesize the scene\\ \footnotesize (peaks at targets)};
+  \node[blk,draw=caqua!80!black,fill=caqua!10,text width=22mm] (U) at (9.0,0) {$U$\\[1pt] \footnotesize 1 channel, \SI{2000}{Hz}\\ \footnotesize no aliasing};
+  \node[bdata,text width=19mm] (im) at (13.2,0) {image\\[1pt] \footnotesize dB at the folds};
+  \draw[seta] (s) -- node[above=1pt,nota]{invert $\mathbf A$\\ (CGLS)} (g);
+  \draw[seta] (g) -- node[above=1pt,nota]{re-record:\\ $\times K$,\\ band cut} (U);
+  \draw[seta] (U) -- node[above=1pt,nota]{focus:\\ $\times K^{*}$} (im);
+  \node[bdata,text width=40mm] (ref) at (9.0,-2.1) {reference (simulated directly)};
+  \draw[seta,dashed] (ref) -- node[right,nota]{$U\approx$ reference} (U);
+  \node[nota,anchor=north] at (6.6,-2.85) {example: reference \SI{-48.7}{dB}\qquad joint reconstruction \SI{-43.5}{dB}\qquad no SATA \SI{-8.7}{dB}};
+\end{tikzpicture}

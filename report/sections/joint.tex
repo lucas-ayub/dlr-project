@@ -112,84 +112,122 @@ in the model of the channels and inverts model and topography together.}
 
 \section{Building the model and solving the system}\label{sec:joint-system}
 
-This section derives the model \eqref{eq:jointmodel} from the echo of a single point, writes it as a linear system and
-explains how that system is solved without ever forming its matrix.
+This section builds the model \eqref{eq:jointmodel} from the echo of a single point, one ingredient at a time, writes it as
+a linear system, shows how that system is solved without ever forming its matrix and explains why the result is the
+full-rate line $U=K\odot\mathbf F\hat{\vg}$. Unknowns are drawn in red and data in blue.
 
-\subsection{The model, step by step}
+\subsection{Building the model}\label{sec:joint-build}
 
-The full-rate line has $N=12288$ samples $n$ at $\PRF=\SI{2000}{Hz}$, one every $d=v/\PRF=\SI{3.84}{m}$ along track. Let
-$k[n]$ be the monostatic echo of the reference point (the azimuth chirp) and $K(f)$ its DFT. The model is built by adding
-one ingredient at a time.
-\begin{enumerate}
-  \item \emph{One target at the reference point, monostatic:} $u[n]=k[n]$, so $U(f)=K(f)$.
-  \item \emph{The same target at $\ell=x/d$:} $u[n]=k[n-\ell]$, so $U(f)=K(f)\,\e^{-\jj2\pi f\ell/\PRF}$.
-  \item \emph{Several targets} at $\ell_p$ with amplitudes $a_p$:
-        \begin{equation}
-          U(f)=\sum_p a_p K(f)\,\e^{-\jj2\pi f\ell_p/\PRF}=K(f)\,G(f),\qquad
-          g[\ell]=\sum_p a_p\,\delta[\ell-\ell_p],
-        \end{equation}
-        where $G$ is the DFT of $g$. The focused line $g$ has one peak per target and is the unknown of the joint reconstruction.
-  \item \emph{Several channels:} channel $i$ is the monostatic echo filtered by its transfer function \eqref{eq:Hi},
-        $K_i(f)=H_i(f)\,K(f)$, so on flat terrain $S_i(f)=K_i(f)\,G(f)$.
-  \item \emph{Relief:} a target at $\ell_p$ gets in channel $i$ the constant phase
-        $\varphi_i[\ell_p]=\frac{2\pi}{\lambda}\Delta C_{0,i}(\ell_p)$ of \eqref{eq:dc0}:
-        \begin{equation}
-          S_i(f)=K_i(f)\sum_p a_p\,\e^{-\jj\varphi_i[\ell_p]}\,\e^{-\jj2\pi f\ell_p/\PRF}
-                =K_i(f)\,\mathcal F\bigl\{\e^{-\jj\varphi_i}\odot g\bigr\}(f).
-        \end{equation}
-        The phase depends on the \emph{position} of the target (and on the channel), not on the frequency; it is therefore applied
-        to $g$ as a pointwise ``screen'', before the DFT.
-  \item \emph{Sampling of the channel:} the channel keeps one sample in $\Nrx$ of the full-rate signal,
-        $s_i[k]=s_i^{\mathrm{full}}[\Nrx k]$. With $\mathbf F$ the DFT, $\mathbf K_i=\mathrm{diag}(K_i)$,
-        $\bm\Theta_i=\mathrm{diag}(\e^{-\jj\varphi_i})$ and $\mathcal D$ the decimation,
-        \begin{equation}
-          \bm s_i=\underbrace{\mathcal D}_{\downarrow\Nrx}\ \underbrace{\mathbf F^{-1}}_{\text{IFFT}}\
-          \underbrace{\mathbf K_i}_{\times K_i}\ \underbrace{\mathbf F}_{\text{FFT}}\
-          \underbrace{\bm\Theta_i}_{\times\e^{-\jj\varphi_i}}\ \bm g=\mathbf A_i\bm g ,
-          \label{eq:Ai}
-        \end{equation}
-        which is \eqref{eq:jointmodel} in matrix form. Stacking the channels gives $\bm s=\mathbf A\bm g$: with four
-        channels, $4\times3072=12288$ equations for $12288$ unknowns.
-\end{enumerate}
+\noindent\emph{Full-rate line:} $n$ is a sample at $\PRF=\SI{2000}{Hz}$, $N=12288$; $\mathcal F$ is the DFT; $k[n]$ is the
+echo of one point (the azimuth chirp) and $K(f)=\mathcal F\{k\}$.
 
-\subsection{The matrix is never built}
+\case{1} One target at the reference point, monostatic, sampled at $\PRF$:
+\begin{equation*}
+  u[n]=k[n]\ \xrightarrow{\ \mathcal F\ }\ U(f)=K(f).
+\end{equation*}
+
+\case{2} \caseref{1} with the target at $\ell=x/d$, $d=v/\PRF=\SI{3.844}{m}$:
+\begin{equation*}
+  u[n]=k[n-\ell]\ \xrightarrow{\ \mathcal F\ }\ U(f)=K(f)\,\e^{-\jj2\pi f\ell/\PRF}.
+\end{equation*}
+
+\case{3} \caseref{2} with several targets at $\ell_p$, with amplitudes $a_p$:
+\begin{gather}
+  u[n]=\sum_p a_p\,k[n-\ell_p]\ \xrightarrow{\ \mathcal F\ }\ U(f)=\sum_p a_pK(f)\,\e^{-\jj2\pi f\ell_p/\PRF}
+  =K(f)\underbrace{\Bigl[\sum_p a_p\,\e^{-\jj2\pi f\ell_p/\PRF}\Bigr]}_{G(f)=\mathcal F\{\gs\}},
+  \notag\\
+  \gs[\ell]=\sum_p a_p\,\delta[\ell-\ell_p]. \label{eq:case3}
+\end{gather}
+$\gs$ has one peak per target: it is the focused scene and the unknown of the joint reconstruction.
+
+\case{4} \caseref{1} with more channels ($i=0,\dots,\Nrx-1$): each channel is a filter applied to the monostatic echo,
+\begin{equation*}
+  K_i(f):=H_i(f)\,K(f),\qquad H_i(f)=\e^{-\jj2\pi\left[C_{0,i}/\lambda+(\Delta t_i-C_{1,i})f+C_{2,i}\lambda f^2\right]}
+  \quad\text{\eqref{eq:Hi}}.
+\end{equation*}
+
+\case{5} \caseref{3} $+$ \caseref{4}:
+\begin{equation*}
+  S_i(f)=K_i(f)\,G(f).
+\end{equation*}
+
+\case{6} \caseref{5} with relief: in channel $i$ each target gets the phase
+$\varphi_{i,p}=\frac{2\pi}{\lambda}\Delta C_{0,i}(\ell_p)$ of \eqref{eq:dc0},
+\begin{gather*}
+  s_i[n]=\sum_p a_p\,\e^{-\jj\varphi_{i,p}}\,k_i[n-\ell_p]\ \xrightarrow{\ \mathcal F\ }\
+  S_i(f)=K_i(f)\underbrace{\Bigl[\sum_p a_p\,\e^{-\jj\varphi_{i,p}}\,\e^{-\jj2\pi f\ell_p/\PRF}\Bigr]}_{\mathcal F\{\e^{-\jj\varphi_i}\gs\}}\\[2pt]
+  \Longrightarrow\quad
+  \boxed{\ S_i(f)=H_i(f)\,K(f)\,\mathcal F\{\theta_i\odot\gs\}(f),\qquad \theta_i[\ell]=\e^{-\jj\varphi_i[\ell]}\ }
+\end{gather*}
+The phase depends on the \emph{position} $\ell$ (and on the channel), not on the frequency: it is therefore applied to $\gs$,
+as a pointwise \emph{screen} $\theta_i$, \emph{before} the DFT. This is the reason for choosing the focused line as the
+unknown: in $\gs$ the relief of every target is one multiplication, whereas in the raw line the echo of a target spreads over
+its whole aperture and mixes with the echoes of the terrain $X$ apart, the problem that SATA could not solve (\cref{sec:sata-limit}).
+
+\case{7} \caseref{6} recorded by the channel. \caseref{6} is the full line (\SI{2000}{Hz}, $N=12288$); the channel records one
+sample in $\Nrx$ (\SI{500}{Hz}):
+\begin{equation}
+  \sv_i[k]=s_i^{\mathrm{full}}[\Nrx k]
+  \quad\Longrightarrow\quad
+  \boxed{\ \sv_i=\underbrace{\mathcal D}_{\downarrow\Nrx}\ \underbrace{\mathbf F^{-1}}_{\text{IFFT}}\
+  \underbrace{\mathrm{diag}(K_i)}_{\odot K_i}\ \underbrace{\mathbf F}_{\text{FFT}}\
+  \underbrace{\mathrm{diag}(\theta_i)}_{\odot\,\e^{-\jj\varphi_i}}\ \vg=\mathbf A_i\vg\ }
+  \label{eq:Ai}
+\end{equation}
+with $K_i=H_i\odot K$. Stacking the channels: $\sv=\mathbf A\vg$, with $\sv\in\mathbb C^{4\times3072}$ ($12288$ equations) and
+$\vg\in\mathbb C^{12288}$ ($12288$ unknowns). This is \eqref{eq:jointmodel} in matrix form.
+
+\subsection{What is stored and what is applied}
+
+The model and its adjoint are
+\begin{equation}
+  \mathbf A_i\vg=\mathcal D\,\mathbf F^{-1}\mathrm{diag}(K_i)\,\mathbf F\,\mathrm{diag}(\theta_i)\,\vg,
+  \qquad
+  \mathbf A\Hm\sv=\sum_i \mathrm{diag}(\theta_i)\Hm\,\mathbf F\Hm\,\mathrm{diag}(K_i)\Hm\,(\mathbf F^{-1})\Hm\,\mathcal D\Hm\,\sv_i ,
+  \label{eq:adjoint}
+\end{equation}
+with $\mathbf F\Hm=N\mathbf F^{-1}$, $(\mathbf F^{-1})\Hm=\mathbf F/N$ and $\mathcal D\Hm$ the insertion of $\Nrx-1$ zeros
+between samples. The adjoint runs the same chain backwards with every factor conjugated, and the channels are summed at the
+end (\cref{fig:chainline}): it focuses each channel with its own filter, removes its relief phase and adds the channels, i.e.\
+it is the usual SAR processor.
 
 $\mathbf A$ is a $12288\times12288$ complex matrix: stored, it would take $12288^2\times\SI{16}{B}\approx\SI{2.4}{GB}$ and
-each product would cost about $10^8$ multiplications. Every factor of \eqref{eq:Ai}, however, is either diagonal or a
-fast transform, so $\mathbf A$ and $\mathbf A\Hm$ are applied as sequences of operations (\cref{fig:chainline}) and only
-the diagonals are kept in memory (\cref{tab:operators}): about \SI{1.6}{MB} and eight FFTs per product with four channels.
-$\mathbf A\Hm\mathbf A$ is never formed either; the solver only needs products with $\mathbf A$ and $\mathbf A\Hm$.
+each product would cost about $10^8$ operations. Every factor of \eqref{eq:Ai}, however, is either diagonal or a fast
+transform, so $\mathbf A$ and $\mathbf A\Hm$ are applied as sequences of operations and only the diagonals are kept
+(\cref{tab:operators}): about \SI{1.6}{MB} and eight FFTs per product with four channels.
 
 \begin{table}[htbp]
 \centering
-\caption[Objects of the joint model]{The objects of the model \eqref{eq:Ai} and how each one is represented ($N=12288$, four channels).}
+\caption[Objects of the joint model]{The objects of the model \eqref{eq:Ai}, and whether each one is ever assembled ($N=12288$, four channels).}
 \label{tab:operators}
 \footnotesize\setlength{\tabcolsep}{5pt}
 \begin{tabular}{@{}llll@{}}
 \toprule
-object & meaning & size & represented as \\
+object & meaning & size & assembled? \\
 \midrule
-$\bm g$, $\bm s_i$ & focused line, channel $i$ & $N$, $N/\Nrx$ & vectors \\
-$\bm\Theta_i$ & DEM screen of channel $i$ & $N\times N$, diagonal & its diagonal only \\
-$\mathbf K_i=\mathrm{diag}(H_iK)$ & chirp and channel filter & $N\times N$, diagonal & its diagonal only \\
-$\mathbf F$, $\mathbf F^{-1}$ & DFT & $N\times N$ & FFT, $\mathcal O(N\log N)$ \\
-$\mathcal D$, $\mathcal D\Hm$ & decimation / zero insertion & $N/\Nrx\times N$ & index selection \\
-$\mathbf A$, $\mathbf A\Hm$ & model and adjoint & $N\times N$ & chains of the above (\cref{fig:chainline}) \\
-$\mathbf A\Hm\mathbf A+\mu^2\mathbf I$ & normal matrix & $N\times N$ & never formed \\
+$\vg$, $\sv$ & focused scene, channels & $N$, $4\times N/\Nrx$ & vectors \\
+$\mathrm{diag}(\theta_i)$ & DEM screen of channel $i$ & $N\times N$, diagonal & only the diagonal \\
+$\mathrm{diag}(K_i)$, $K_i=H_i\odot K$ & chirp and channel filter & $N\times N$, diagonal & only the diagonal \\
+$\mathbf F$, $\mathbf F^{-1}$ & DFT & $N\times N$ & no: FFT, $\mathcal O(N\log N)$ \\
+$\mathcal D$, $\mathcal D\Hm$ & decimation / zero insertion & $N/\Nrx\times N$ & no: index selection \\
+$\mathbf A$, $\mathbf A\Hm$ & model and adjoint & $N\times N$ & no: chains of the above \\
+$\mathbf A\Hm\mathbf A+\mu^2\mathbf I$ & normal matrix & $N\times N$ & never \\
+$\mu^2$ & regularisation & scalar & a number \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\paragraph{Why the system must be solved as a whole.} On flat terrain the screens are constant, $\mathbf F\bm\Theta_i\mathbf F^{-1}$
-is a multiple of the identity and the only coupling between Doppler bins is the folding of $\mathcal D$, which links a bin
-$f$ to $f\pm\PRFop,\ f\pm2\PRFop,\dots$ only. Ordered by bin, $\mathbf A$ then splits into $3072$ independent $4\times4$
-blocks (rows: channels, columns: parcels): this is exactly the standard reconstruction \eqref{eq:fold}, the only place where
-a matrix is actually assembled and inverted. With relief, $\mathbf F\bm\Theta_i\mathbf F^{-1}$ is a convolution in Doppler
-with the spectrum of the screen and couples each bin with its neighbours as well. \Cref{fig:coupling} shows one column of
-$\mathbf A\Hm\mathbf A$ for the example of \cref{fig:example1d}: on flat terrain a Doppler bin is coupled only with its
-aliases, more than \SI{40}{dB} below the bin itself; with the mountain the coupling with the aliases rises to about
-\SI{-22}{dB} and spreads over $\pm\SI{7}{Hz}$ (some 80 bins). The blocks no longer separate, and the whole line is solved
-at once, iteratively.
+\paragraph{Without relief} the screens are constant, $\mathbf F\,\mathrm{diag}(\theta_i)\,\mathbf F^{-1}$ is a multiple of
+the identity and the only coupling between Doppler bins is the folding of $\mathcal D$, which links a bin $f$ only to
+$f\pm\PRFop$, $f\pm2\PRFop,\dots$ Ordered by bin, $\mathbf A$ splits into $3072$ independent $4\times4$ blocks (one per
+bin; rows: channels, columns: parcels). This is exactly the standard reconstruction \eqref{eq:fold}, and the only place in the
+project where a matrix is actually assembled and inverted.
+
+\paragraph{With relief} $\mathbf F\,\mathrm{diag}(\theta_i)\,\mathbf F^{-1}$ is a convolution in Doppler with the spectrum of
+the screen: it is full and mixes the bins, so the system no longer separates and the whole line is solved at once,
+iteratively. \Cref{fig:coupling} shows one column of $\mathbf A\Hm\mathbf A$ for the example of \cref{fig:example1d}: on flat
+terrain a Doppler bin is coupled only with its aliases, more than \SI{40}{dB} below the bin itself; with the mountain the
+coupling with the aliases rises to about \SI{-22}{dB} and spreads over $\pm\SI{7}{Hz}$ (some 80 bins).
 
 \begin{figure}[htbp]
 \centering
@@ -201,27 +239,120 @@ Right: zoom on the first alias.}
 \label{fig:coupling}
 \end{figure}
 
-\subsection{Solving the system}
+\subsection{The problem that is solved}
 
-The regularised problem and its normal equations are
 \begin{equation}
-  \hat{\bm g}=\arg\min_{\bm g}\ \|\mathbf A\bm g-\bm s\|^2+\mu^2\|\bm g\|^2
+  \hat{\vg}=\arg\min_{\vg}\ \|\mathbf A\vg-\sv\|^2+\mu^2\|\vg\|^2
   \quad\Longleftrightarrow\quad
-  \bigl(\mathbf A\Hm\mathbf A+\mu^2\mathbf I\bigr)\,\hat{\bm g}=\mathbf A\Hm\bm s ,
+  \bigl(\mathbf A\Hm\mathbf A+\mu^2\mathbf I\bigr)\,\hat{\vg}=\mathbf A\Hm\sv ,
   \qquad \mu=0.03\,\sigma_{\max}(\mathbf A).
+  \label{eq:tikhonov}
 \end{equation}
-$\sigma_{\max}$ is obtained by the power method, $\bm x\leftarrow\mathbf A\Hm\mathbf A\bm x/\|\mathbf A\Hm\mathbf A\bm x\|$
-(12 iterations), $\sigma_{\max}\approx\sqrt{\|\mathbf A\Hm\mathbf A\bm x\|}$, which again uses only $\mathbf A$ and
-$\mathbf A\Hm$. CGLS solves the normal equations without forming them (\cref{fig:flowline}): each iteration applies
-$\mathbf A$ once, to the search direction $\bm p$, and $\mathbf A\Hm$ once, to the residual; $\alpha$ is the optimal step along
-$\bm p$ and the new direction is conjugate to the previous ones, so no direction is searched twice. The second pass solves the
-same problem for the residual left by the first and adds its solution to $\hat{\bm g}$ (iterated Tikhonov), which recovers
-what $\mu$ damped where the channels do measure the signal well. On the example of \cref{fig:example1d} the two passes take
-120 iterations in total.
+The equivalence follows by setting the gradient of the cost to zero, $\mathbf A\Hm(\mathbf A\vg-\sv)+\mu^2\vg=\bm 0$.
+$\sigma_{\max}$ is estimated by the power method, $\bm x\leftarrow\mathbf A\Hm\mathbf A\bm x/\|\mathbf A\Hm\mathbf A\bm x\|$
+(12 iterations), $\sigma_{\max}\approx\sqrt{\|\mathbf A\Hm\mathbf A\bm x\|}$, which again uses only $\mathbf A$ and $\mathbf A\Hm$.
 
-Finally the raw full-rate line is restored, $U=K\odot\mathbf F\hat{\bm g}$, set to zero for $|f|>\Ba/2$ and transformed back
-with $\mathbf F^{-1}$. This is the same raw line at \SI{2000}{Hz} that the standard reconstruction returns, so the azimuth
-focusing that follows is identical for every method.
+\paragraph{Why regularise ($\mu^2\|\vg\|^2$).} Writing $\mathbf A$ through its singular values,
+$\mathbf A\bm v_k=\sigma_k\bm u_k$, every direction $\bm v_k$ of the scene is recovered with its own weight:
+\begin{equation}
+  \hat{\vg}=\sum_k \underbrace{\phi_k}_{\text{weight}}\,(\bm u_k\Hm\sv)\,\bm v_k ,
+  \qquad
+  \phi_k=\begin{cases}
+    1/\sigma_k & \text{without $\mu$ (inverse)},\\[2pt]
+    \dfrac{\sigma_k}{\sigma_k^2+\mu^2} & \text{with $\mu$ (Tikhonov)}.
+  \end{cases}
+  \label{eq:filterfactors}
+\end{equation}
+A small $\sigma_k$ is a direction that the channels hardly measure, for example parcels that the channels see with almost the
+same phases (the conditioning discussed in \cref{sec:mismatch}). Without $\mu$, the factor $1/\sigma_k$ amplifies in those
+directions the noise and the model errors (the echo shape that the model ignores, the interpolation of the height table,
+rounding), and $\hat{\vg}$ explodes. With $\mu$: for $\sigma_k\gg\mu$, $\phi_k\approx1/\sigma_k$, the same as the inverse;
+for $\sigma_k\ll\mu$, $\phi_k\approx\sigma_k/\mu^2\to0$, the direction is damped. With $\mu=0.03\,\sigma_{\max}$ only what the
+channels measure with less than about \SI{3}{\percent} of the best direction is damped; the second pass recovers part of
+what $\mu$ removed where the measurement is good.
+
+\subsection{Conjugate gradients for least squares}
+
+$\mathbf A\Hm\mathbf A+\mu^2\mathbf I$ is Hermitian and positive definite, so \eqref{eq:tikhonov} can be solved by conjugate
+gradients. CGLS does it with products by $\mathbf A$ and $\mathbf A\Hm$ only, never forming the normal matrix (which would
+also square the condition number in finite precision). The loop is in \cref{fig:flowline}:
+\begin{itemize}
+  \item each iteration costs one model ($\bm q=\mathbf A\bm p$) and one adjoint ($\bm z=\mathbf A\Hm\bm r-\mu^2\bm\delta$);
+        $\alpha=\|\bm z\|^2/(\|\bm q\|^2+\mu^2\|\bm p\|^2)$ is the optimal step along the direction $\bm p$, and
+        $\bm p\leftarrow\bm z+\beta\bm p$, $\beta=\|\bm z_{\mathrm{new}}\|^2/\|\bm z\|^2$, is conjugate to the previous
+        directions, so no direction is searched twice;
+  \item a pass stops when $\|\bm z\|\le10^{-4}\|\bm z_0\|$ or after 60 iterations, and adds its result to $\hat{\vg}$;
+  \item two passes: the second solves the same problem for the residual left by the first and adds its solution to
+        $\hat{\vg}$ (iterated Tikhonov). The weight becomes $\bigl[1-\bigl(\mu^2/(\sigma_k^2+\mu^2)\bigr)^2\bigr]/\sigma_k$,
+        closer to $1/\sigma_k$ where the channels measure well and still zero where they do not;
+  \item on the example of \cref{fig:example1d}: 120 iterations in total, with \SI{-40.3}{dB} of the channels left unexplained.
+\end{itemize}
+
+\subsection{The answer: \texorpdfstring{$U=K\odot\mathbf F\hat{\vg}$}{U = K F g}}\label{sec:joint-answer}
+
+\paragraph{What is wanted.} The line that an ideal \emph{monostatic} radar, at the transmitter, would record at
+$\PRF=\SI{2000}{Hz}$, without aliasing. In the simulation this is the reference. $\hat{\vg}$ is the scene; $U$ is that scene
+recorded again by the ideal radar.
+
+\paragraph{Where it comes from.} It is \caseref{3}, \eqref{eq:case3}, applied to the scene that was found:
+\begin{equation}
+  U(f)=\underbrace{K(f)}_{\text{echo of one point}}\ \underbrace{\hat G(f)}_{\mathcal F\{\hat{\gs}\}}
+  \quad\Longleftrightarrow\quad
+  u[n]=\sum_\ell \hat{\gs}[\ell]\,k[n-\ell],
+  \label{eq:answer}
+\end{equation}
+i.e.\ one chirp at each position of the scene, weighted by $\hat{\gs}$ and summed.
+
+\paragraph{Why without the screen.} The screen is the phase of channel $i$ \emph{relative to the monostatic} path; for the
+monostatic radar itself it is one ($\bat=\bxt=0\Rightarrow C_0=0\Rightarrow\Delta C_0=0\Rightarrow\theta\equiv1$). The
+effects of the topography are therefore split as in \cref{tab:topo}: the monostatic phase of each target is common to all
+channels and is part of its amplitude $a_p$, so it is estimated inside $\hat{\vg}$ and reaches $U$, exactly as in the
+reference; the channel-dependent phase lives in the model $\mathbf A$ and is used only to explain the channels. $U$ thus
+contains what the reference contains, the scene with its monostatic phases, and none of the phases that differ between
+channels, which are the ones that create the ambiguities.
+
+\begin{table}[htbp]
+\centering
+\caption[How the topography enters the joint model]{How each effect of the topography enters the joint model and the answer $U$.}
+\label{tab:topo}
+\footnotesize\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{43mm}>{\raggedright\arraybackslash}p{38mm}>{\raggedright\arraybackslash}p{30mm}>{\raggedright\arraybackslash}p{20mm}@{}}
+\toprule
+effect of the topography & type & in the model & in $U$? \\
+\midrule
+monostatic range phase, $\e^{-\jj4\pi r_p/\lambda}$ & constant per target, same in every channel & in $a_p$ (inside $\vg$) & yes, through $\hat{\vg}$ \\
+extra phase of channel $i$, $\varphi_i=2\pi\Delta C_{0,i}/\lambda$ & constant per target, differs per channel & screen $\theta_i$ (inside $\mathbf A$) & no ($\theta\equiv1$) \\
+echo shape ($K_a\propto1/r$; $C_1$, $C_2$ with $h$) & not constant & ignored ($\Delta r/r\approx\SI{0.1}{\percent}$) & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Why back to the raw line, and not stop at $\hat{\vg}$.}
+\begin{itemize}
+  \item \emph{Fair comparison:} the reference, the standard reconstruction, SATA and the joint reconstruction all return the
+        raw line of $12288$ samples at \SI{2000}{Hz}; the focusing that follows is the same for all of them.
+  \item \emph{Band:} outside $|f|\le\Ba/2$ the data do not determine $\vg$; the multiplication by $K$ and the band cut
+        discard that part.
+  \item \emph{SAR chain:} the reconstruction is a pre-processing step (aliased channels in, one clean channel out); the SAR
+        processor expects raw data.
+\end{itemize}
+In practice $U=K\odot\mathbf F\hat{\vg}$, then $U(f)=0$ for $|f|>\Ba/2$ ($\Ba=\SI{1234.8}{Hz}$), and the line is
+$\mathbf F^{-1}U$, in the same format as the standard reconstruction.
+
+\paragraph{Afterwards (the same for every method).} The focusing is
+$\text{image}=\mathbf F^{-1}\{K^*U\}=\mathbf F^{-1}\{|K|^2\hat G\}$, i.e.\ $\hat G$ with a smooth window inside the band: one
+peak per target ($\SI{-3}{dB}$ width $\approx\SI{5.8}{m}$). The metric of \cref{sec:metric} is then the highest ghost at the
+folds relative to the peak of the reference. \Cref{fig:answer} summarises the chain.
+
+\begin{figure}[htbp]
+\centering
+\input{tikz/answer_chain}
+\caption[From the channels to the image]{From the aliased channels to the image. The joint reconstruction inverts the model to
+find the scene $\hat{\vg}$, records it again with the ideal monostatic radar ($\times K$ and band cut) to obtain $U$, which is
+compared with the reference simulated directly; the focusing is the same for every method. Values: example of
+\cref{fig:example1d}.}
+\label{fig:answer}
+\end{figure}
 
 \section{Properties}
 
