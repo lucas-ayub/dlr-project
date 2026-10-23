@@ -63,16 +63,22 @@ resolution, a fraction $\bxt/\bxt^{\mathrm{crit}}$ of the band; with the \SI{5}{
 keeps \SI{93}{\percent} of the band and the worst pixel \SI{45}{\percent}. A wider system bandwidth (e.g.\ \SI{50}{MHz})
 would reduce this loss about tenfold.
 
-\Cref{fig:example2d} shows a 3-D case: 49 targets on an isolated \SI{1000}{m} mountain with four channels and
-$\bxt^{\max}=\SI{300}{m}$.
+\Cref{fig:example2d} shows three 3-D scenes of the 2-D sweep, each with 49 targets spread over \SI{5.4}{km} of azimuth and
+\SI{2.4}{km} of ground range: an oblique ramp and a U-shaped valley with four channels and $\bxt^{\max}=\SI{300}{m}$, and the
+isolated \SI{1000}{m} mountain with six channels and $\bxt^{\max}=\SI{500}{m}$. Without correction the highest ambiguities are
+\SIlist{-10.6;-12.3;-8.6}{dB}; the joint reconstruction, reading only the DEM, brings them to within \SI{1}{dB} of the reference in
+all three. Not every case is this good: the same mountain with four channels and $\bxt=[0,300,119.8,100.5]$\,\si{m} keeps
+\SI{-25.1}{dB} (reference \SI{-44.4}{dB}), one of the hard configurations of \cref{ch:results}, while with the baselines
+$[0,100,39.9,33.5]$\,\si{m} it reaches the reference exactly.
 
 \begin{figure}[p]
 \centering
-\includegraphics[width=\linewidth]{figures/sweep2d_mountain49_N4b300.png}
-\caption[Example of the 2-D sweep]{A page of the 2-D sweep: 49 targets on an isolated \SI{1000}{m} mountain (Gaussian,
-$\sigma=\SI{1.5}{km}$ in azimuth and \SI{4}{km} in ground range), $\Nrx=4$, $\bxt=[0,300,119.8,100.5]$\,\si{m}. Top left:
-reference and joint reconstruction; bottom left: reference and no correction; right: the scene and the $\dC$ of the channel
-with the largest baseline, which is all the joint reconstruction reads. This is one of the harder cases (the joint
-reconstruction leaves \SI{-25.1}{dB}, an improvement of \SI{14.6}{dB}).}
+\includegraphics[width=0.94\linewidth]{figures/joint2d_examples.pdf}
+\caption[Examples of the 2-D joint reconstruction]{Azimuth impulse responses of three scenes of the 2-D sweep (49 targets
+each, every target focused with its own 2-D matched filter, envelope over the targets; all curves in the same azimuth and common
+range band). Left: reference and no correction; centre: reference and the 2-D joint reconstruction; right: the terrain seen
+from above with the targets. The joint reconstruction reads only the DEM. (a) Oblique ramp of $6^\circ$, \SI{35}{\degree} off the
+flight direction; (b) glacial valley with walls up to \SI{900}{m}, axis \SI{60}{\degree} off the flight direction; (c) isolated
+\SI{1000}{m} Gaussian mountain.}
 \label{fig:example2d}
 \end{figure}

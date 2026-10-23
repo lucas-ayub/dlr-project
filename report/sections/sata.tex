@@ -1,23 +1,52 @@
 \chapter{SATA before the reconstruction}\label{ch:sata}
 
-\section{The SATA algorithm}
+\section{The SATA algorithm}\label{sec:sata-algo}
 
 SATA was developed for airborne motion compensation \cite{Prats2005topo,Prats2005thesis}. Its idea is that a short piece
 of the azimuth signal is a low-resolution image of the ground: inside a sub-aperture, each Doppler frequency belongs to one
 ground position through the ruler \eqref{eq:ruler}. The topography-dependent phase can therefore be removed frequency by
-frequency, with the value of the DEM at the position that frequency points to. The steps, for one channel, are
-(\cref{fig:sata}):
+frequency, with the value of the DEM at the position that frequency points to.
+
+\subsection{Why a sub-aperture is an image}
+
+Take a sub-aperture of duration $T$ centred on the platform position $x_c$. A scatterer at $x_p$ has, at that moment, the
+Doppler $f\approx 2v(x_p-x_c)/(\lambda r_0)$, and during the sub-aperture its Doppler sweeps
+$B_T=2v^2T/(\lambda r_0)$. In the spectrum of the sub-aperture the scatterer is therefore a peak at the frequency that the
+ruler maps back to $x_p$. Two effects blur this image of the ground:
+\begin{itemize}
+  \item the sweep $B_T$, which through the ruler covers a ground length $\frac{\lambda r_0}{2v}B_T=vT$, the length of the
+        sub-aperture itself;
+  \item the frequency resolution $1/T$, which covers $\frac{\lambda r_0}{2v}\cdot\frac1T=\frac{\lambda r_0}{2vT}$ of ground.
+\end{itemize}
+The first grows and the second shrinks with $T$; they are equal for
+\begin{equation}
+  vT=\frac{\lambda r_0}{2vT}
+  \quad\Longrightarrow\quad
+  \delta x=vT=\sqrt{\frac{\lambda r_0}{2}}=\SI{309.5}{m},
+  \label{eq:satares}
+\end{equation}
+the ground resolution of SATA. At $\PRFop=\SI{500}{Hz}$ this is a sub-aperture of 20 samples (\SI{40}{ms}). Since the
+residual $\Delta C_{0,i}$ of a scatterer is a constant phase over its whole aperture (\cref{ch:model}), multiplying a bin by
+the phase of the position it points to removes the topographic phase of whatever lies in that cell of about \SI{310}{m}.
+
+\subsection{The steps}
+
+For one channel $i$ (\cref{fig:sata}):
 \begin{enumerate}
-  \item cut the azimuth line into sub-apertures with triangular windows and \SI{50}{\percent} overlap;
-  \item Fourier transform each sub-aperture (with zero padding);
-  \item for every bin $f$, compute the ground position $x(f)$ with the ruler and multiply the bin by
-        $\exp\bigl(+\jj\,2\pi\Delta C_{0,i}(x(f))/\lambda\bigr)$, with $\Delta C_{0,i}$ read from the DEM;
-  \item inverse transform and overlap-add.
+  \item cut the azimuth line into sub-apertures $b$ of $T=20$ samples, with a triangular window $w$ and a hop of 10 samples
+        (\SI{50}{\percent} overlap, so that the windows add up to a constant);
+  \item Fourier transform each sub-aperture with zero padding to $N_{zp}=128$ points: bins $f_m$ in the band of the channel;
+  \item give each bin a ground position with the ruler, $x_{b,m}=x_{c,b}+r_0\tan\bigl(\arcsin(\lambda f_m/2v)\bigr)$,
+        read the residual of that position from the DEM and rotate the bin,
+        \begin{equation}
+          S_b(f_m)\ \leftarrow\ S_b(f_m)\,\exp\!\Bigl(+\jj\frac{2\pi}{\lambda}\,\Delta C_{0,i}\bigl(x_{b,m}\bigr)\Bigr);
+          \label{eq:satakernel}
+        \end{equation}
+  \item inverse transform, keep the 20 samples, overlap-add the sub-apertures and divide by the sum of the windows.
 \end{enumerate}
-The length of the sub-aperture balances two errors: it must be short enough that the frequency-to-position mapping is sharp,
-and long enough that the frequency resolution resolves the ground. The optimum gives a ground resolution
-$\delta x=\sqrt{\lambda r_0/2}=\SI{309.5}{m}$; at $\PRFop=\SI{500}{Hz}$ this is a block of 20 samples (\SI{40}{ms}),
-a hop of 10 samples and a zero-padded FFT of 128 points.
+The map $\Delta C_{0,i}(x)$ is computed once per channel from the DEM: the height $h(x)$ is converted into the residual of
+\eqref{eq:dc0} with the bistatic geometry of channel $i$ (through a table of $\Delta C_{0,i}$ against height). With a zero map
+the kernel is the identity ($<10^{-15}$), and with a constant map it rotates the line by that phase.
 
 \begin{figure}[htbp]
 \centering
@@ -43,18 +72,53 @@ associates each sub-aperture bin with a ground position.}
 \label{fig:sata}
 \end{figure}
 
-\section{SATA on each channel, then the standard reconstruction}
+\section{SATA on each channel, then the standard reconstruction}\label{sec:sata-variants}
 
-The natural way to use SATA in a multichannel system is to correct every channel with its own $\Delta C_{0,i}$ and then run the
-standard reconstruction. Two variants were implemented:
-\begin{description}
-  \item[Whole band] each bin of the channel is labelled with the position of its base-band parcel; the corrected channels
-        go through the standard reconstruction.
-  \item[Per sub-band] for every output sub-band $k$, each bin is labelled with the position of the parcel of sub-band $k$
-        (absolute Doppler), and sub-band $k$ of the output is reconstructed only from the channels corrected for $k$.
-\end{description}
-Both variants are the identity with a zero map ($<10^{-15}$), rotate the line by the right phase with a constant map, and
-the kernel agrees with the original SATA implementation within \SI{0.44}{\percent} rms.
+The natural way to use SATA in a multichannel system is to correct every channel with its own $\Delta C_{0,i}$ and then run
+the standard reconstruction. The difficulty is step 3: the kernel needs the Doppler frequency of each bin, and in an
+aliased channel a bin $\phi\in[-\PRFop/2,\PRFop/2)$ holds the $\Nrx$ parcels $f_q=\phi+q\PRFop-\frac{\Nrx-1}{2}\PRFop$
+(\cref{fig:folding}). Some frequency must be chosen to label the bin, and the two variants differ only in that choice
+(\cref{fig:satavariants}).
+
+\subsection{Whole band}
+
+Each bin is labelled with the Doppler it has in the channel, $f=\phi$, as if the channel were not aliased. Each channel is
+corrected once with \eqref{eq:satakernel}, and the corrected channels go through the standard reconstruction \eqref{eq:fold}.
+The cost is one SATA per channel. The correction is right only for the parcel that actually lies at $f=\phi$, i.e.\ for the
+part of the target spectrum inside $[-\PRFop/2,\PRFop/2)$; the other parcels of the bin receive the phase of a position
+$X$, $2X,\dots$ away.
+
+\subsection{Per sub-band}
+
+The output spectrum is divided into $\Nrx$ sub-bands of width $\PRFop$, centred at
+$f_k=\bigl(k-\frac{\Nrx}{2}+\frac12\bigr)\PRFop$, $k=0,\dots,\Nrx-1$. For every $k$:
+\begin{enumerate}
+  \item each bin is labelled with its alias inside sub-band $k$,
+        \begin{equation}
+          f_k(\phi)=f_k-\frac{\PRFop}{2}+\Bigl[\Bigl(\phi-f_k+\frac{\PRFop}{2}\Bigr)\bmod\PRFop\Bigr],
+        \end{equation}
+        i.e.\ with the Doppler of the parcel of sub-band $k$, whose position is $x(f_k(\phi))$;
+  \item every channel is corrected with this labelling and the standard reconstruction is run;
+  \item only sub-band $k$ of the output is kept.
+\end{enumerate}
+The $\Nrx$ sub-bands are then put side by side. The cost is $\Nrx$ SATA passes per channel and $\Nrx$ reconstructions. In
+sub-band $k$ the parcel of that sub-band now has the right phase, but the other parcels of the same bin received the phase of
+the position of parcel $k$, and the reconstruction lets them leak into it.
+
+\begin{figure}[htbp]
+\centering
+\input{tikz/sata_variants}
+\caption[The two SATA variants]{The two SATA variants for an aliased channel ($\Nrx=4$, $\PRFop=\SI{500}{Hz}$). (a) A bin
+$\phi$ of the channel holds four parcels; the whole-band variant labels it with $f=\phi$, the per-sub-band variant labels it
+with its alias $f_k(\phi)$ inside each output sub-band (dots). Through the ruler each label is a ground position, the four labels
+being $X$ apart. (b) Whole band: one correction per channel, one reconstruction. (c) Per sub-band: one correction and one
+reconstruction for each $k$, of which only sub-band $k$ is kept.}
+\label{fig:satavariants}
+\end{figure}
+
+Both variants are the identity with a zero map ($<10^{-15}$) and rotate the line by the right phase with a constant map, and
+the kernel agrees with the original SATA implementation within \SI{0.44}{\percent} rms. Neither, however, can give the
+parcels of one bin different phases: this is the limit analysed next.
 
 \subsection{Why it is exact only on special terrain}\label{sec:sata-limit}
 

@@ -1,0 +1,45 @@
+% Labels that the two SATA variants give to one bin of an aliased channel (N_rx = 4), and the two processing chains
+\begin{tikzpicture}[x=1cm,y=1cm]
+  % ---------------- (a) Doppler labels: 1 unit = 250 Hz
+  \node[font=\small\bfseries,anchor=west] at (-6.45,2.35) {(a) the Doppler that each variant assigns to bin $\phi$ of a channel};
+  \begin{scope}[xscale=1.5]
+  \foreach \k/\a/\c in {0/-4/ch0,1/-2/ch1,2/0/ch2,3/2/ch3}{
+    \fill[\c!12] (\a,0) rectangle ++(2,1.25);
+    \node[nota,text=\c!75!black] at (\a+1,1.5) {sub-band $k=\k$};}
+  \draw[->,inkb] (-4.3,0) -- (4.5,0) node[right,nota]{$f$ [Hz]};
+  \foreach \t/\l in {-4/-1000,-2/-500,0/0,2/500,4/1000} {\draw[inkb] (\t,0.07) -- (\t,-0.07); \node[nota,below] at (\t,-0.06) {\l};}
+  % channel band and bin phi
+  \draw[corange,line width=1.6pt] (-1,-0.85) -- (1,-0.85);
+  \node[nota,text=corange!85!black,anchor=north] at (0,-0.92) {band of the channel, $[-\PRFop/2,\PRFop/2)$};
+  \fill[corange] (0.6,-0.85) circle (2.4pt);
+  \node[nota,text=corange!85!black,anchor=west] at (1.05,-0.85) {bin $\phi$};
+  % whole band label
+  \draw[seta,corange] (0.6,-0.78) -- (0.6,0.5);
+  \node[nota,text=corange!85!black,anchor=south,fill=white,inner sep=1pt] at (0.6,0.55) {whole band: $f=\phi$};
+  % per sub-band labels: the alias of phi inside each window
+  \foreach \f/\c in {-3.4/ch0,-1.4/ch1,0.6/ch2,2.6/ch3}{\fill[\c] (\f,0.25) circle (2.4pt);}
+  \draw[cota] (-3.4,0.42) -- node[above,nota]{$\PRFop$} (-1.4,0.42);
+  \end{scope}
+  % ---------------- (b) the two chains
+  \begin{scope}[yshift=-2.9cm,xscale=1.2]
+    \node[font=\small\bfseries,anchor=west] at (-5.37,0.55) {(b) whole band};
+    \node[bdata,text width=17mm] (w1) at (-3.4,-0.35) {channels\\ $s_i$};
+    \node[blk,draw=cwhole,fill=cwhole!12,text width=27mm] (w2) at (-0.6,-0.35) {SATA on each channel,\\ label $f=\phi$};
+    \node[blk,text width=22mm] (w3) at (2.3,-0.35) {standard\\ reconstruction};
+    \node[bdata,text width=15mm] (w4) at (4.6,-0.35) {output};
+    \draw[seta] (w1) -- (w2); \draw[seta] (w2) -- (w3); \draw[seta] (w3) -- (w4);
+  \end{scope}
+  \begin{scope}[yshift=-5.05cm,xscale=1.2]
+    \node[font=\small\bfseries,anchor=west] at (-5.37,0.75) {(c) per sub-band: for every $k=0,\dots,\Nrx-1$};
+    \node[bdata,text width=17mm] (s1) at (-3.4,-0.35) {channels\\ $s_i$};
+    \node[blk,draw=csub,fill=csub!12,text width=27mm] (s2) at (-0.6,-0.35) {SATA on each channel,\\ label $f_k(\phi)$};
+    \node[blk,text width=22mm] (s3) at (2.3,-0.35) {standard\\ reconstruction};
+    \node[blk,text width=15mm] (s4) at (4.6,-0.35) {keep\\ sub-band $k$};
+    \draw[seta] (s1) -- (s2); \draw[seta] (s2) -- (s3); \draw[seta] (s3) -- (s4);
+    \begin{scope}[on background layer]
+      \foreach \d in {0.16,0.08} \draw[inkb!50,fill=white,rounded corners=2pt] ($(s2.south west)+(\d,-\d)$) rectangle ($(s4.north east)+(\d,-\d)$);
+    \end{scope}
+    \node[bdata,text width=40mm,below=7mm of s3] (s5) {output: the $\Nrx$ sub-bands side by side};
+    \draw[seta] (s4.south) |- (s5.east);
+  \end{scope}
+\end{tikzpicture}
