@@ -87,7 +87,7 @@ def sata_1d_subband(data, delta_C0_array, rref, prf, v, wl, r,
       f_k     : Doppler centroid of sub-band k [Hz]  (= (-Nrx/2+k+1/2)*PRF_op)
       beta_k  : beam angle of that centroid [rad]     (= asin(wl f_k / 2 v))
       f_dc    : OPTIONAL per-channel Doppler-centroid deviation [Hz] to add to
-                the sub-band centre (Nida thesis Eq. 3.38). Default 0.0 leaves
+                the sub-band centre (Sakar 2022, Eq. 3.38). Default 0.0 leaves
                 behaviour identical to before. When non-zero, the whole
                 f -> beta -> x_i axis (and the reference beam) is shifted by
                 f_dc, i.e. the sub-band centre is repositioned at f_k + f_dc.
@@ -177,7 +177,7 @@ def sata_1d_subband(data, delta_C0_array, rref, prf, v, wl, r,
 # 2) SATA every channel for one sub-band k, using the explicit kernel
 # ---------------------------------------------------------------------------
 def doppler_centroid_deviation(cfg, tracks, channel):
-    """Per-channel Doppler-centroid deviation df_DC,i [Hz] from the Nida thesis
+    """Per-channel Doppler-centroid deviation df_DC,i [Hz] from Sakar (2022),
     Eq. (3.38):
 
         df_DC,i = (Dt_i v^2) / (wl sqrt(r_ref^2 + v^2 Dt_i^2))  -  c1(b_i) / wl,

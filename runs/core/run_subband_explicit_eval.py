@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 r"""
 Evaluate the EXPLICIT per-sub-band SATA reconstruction and compare it against
-the other methods, to check whether fixing the issues Nida pointed out (the
+the other methods, to check whether fixing the known issues of the old axis (the
 per-sub-band f -> beta -> x_i frequency-axis rebuild, i.e. the Nyquist-edge
 degeneracy of the old squint-based axis for even Nrx) makes the new sub-band
 model actually work, and how it stacks up against whole-band SATA.
