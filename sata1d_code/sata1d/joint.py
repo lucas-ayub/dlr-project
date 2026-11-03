@@ -11,12 +11,15 @@ bin phi of the channel spectra, the Nrx x Nsb system
 
     s_i(phi) = sum_q  H_i(f_q) exp(-j 2 pi dC0_i(x_q) / lambda) u_q ,     f_q = f_q0 + phi,
 
-is solved for the parcels u_q, with x_q = c + a(f_q) the ground position of parcel q (the
-same f -> beta -> x ruler as the SATA kernel) and dC0_i(x_q) read from the look-up table of
-channel i at THAT position. The parcels u_q are monostatic (the line the reconstruction
-delivers), so x_q is a monostatic position; the tables are indexed like the channel lines
-(az_pixel_of_scatterer: cell of a point = its monostatic cell + bat_i / 2 ds), so channel i
-reads its table at c + a(f_q) + bat_i / (2 ds). The reference-point filters H_i are those of the standard
+is solved for the parcels u_q, with x_q = c + a(f_q) the cell of parcel q (the same
+f -> beta -> x ruler as the SATA kernel, c = centre of the block, (Tsub - 1) / 2 after its first
+sample) and dC0_i(x_q) read from the look-up table of channel i at THAT cell. The energy of bin f
+in the block of channel i comes from the channel-i cell c + a(f) (the channel line already
+carries the bat_i / 2 delay of its phase centre), and the tables are indexed like the channel
+lines (az_pixel_of_scatterer: cell of a point = its monostatic cell + bat_i / 2 ds), so every
+channel reads its table at c + a(f_q), exactly as the SATA kernel does. (Before 2026-10-27 the
+block centre was taken half a cell late and bat_i / 2 was added a second time: the DEM was read
+about one cell, 15 m, too far along azimuth.) The reference-point filters H_i are those of the standard
 reconstruction, evaluated at the true frequency of every parcel of every bin, so that the
 sub-aperture processing is the standard reconstruction done block-wise (zero-padded FFTs,
 overlap-add of the analysis windows, which sum to one). With dC0 = 0 the method reduces to the standard reconstruction; with the true dC0 of every
@@ -79,7 +82,6 @@ def reconstruct_joint(cfg: ExperimentConfig, tracks: PlatformTracks, s_channel, 
     if maps is None:
         raise ValueError("reconstruct_joint needs maps from the DEM (channel_maps / terrain_lookup_table)")
     maps = np.asarray(maps, float)                                    # [Nrx, Na_ch]
-    shift = 0.5 * np.asarray(cfg.array.bat, float) / (v / P)          # bat_i / 2 in cells: monostatic -> table index
     coef = reference_coefficients(cfg, tracks)                        # [Nrx, 4]: C0, C1, C2, Dt
 
     # 1) sub-aperture grid; parcel frequencies and ground positions of every bin
@@ -114,11 +116,13 @@ def reconstruct_joint(cfg: ExperimentConfig, tracks: PlatformTracks, s_channel, 
     U = np.zeros(Lb, complex)
     buf = np.zeros((Nrx, Nzp), complex)
     for start in range(0, Na_ch, hop):
-        c = start + 0.5 * Tsub
+        c = start + 0.5 * (Tsub - 1)                                            # centre of samples start .. start + Tsub - 1
         buf[:] = 0.0
         buf[:, lo:lo + Tsub] = spad[:, start:start + Tsub] * win
         S = np.fft.fft(buf, axis=1)                                             # [Nrx, Nzp]
-        pos = np.clip(np.round(c + a[None] + shift[:, None, None]).astype(int), 0, Na_ch - 1)   # [Nrx, Nsb, Nzp]
+        # The energy of bin f in the block of channel i comes from the channel-i cell c + a(f) (the channel line already
+        # carries the bat_i / 2 delay), and the table of channel i is indexed by that channel cell: no extra shift.
+        pos = np.broadcast_to(np.clip(np.round(c + a).astype(int), 0, Na_ch - 1), (Nrx, Nsb, Nzp))   # [Nrx, Nsb, Nzp]
         theta = np.take_along_axis(maps, pos.reshape(Nrx, -1), axis=1).reshape(pos.shape)       # [Nrx, Nsb, Nzp]
         G = Hq * np.exp(-2j * np.pi * theta.transpose(2, 0, 1) / wl)            # [Nzp, Nrx, Nsb]: s_i = sum_q G_iq u_q
         if occupied:                                                            # empty parcels: zero column, left out

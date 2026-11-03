@@ -72,7 +72,8 @@ def sata_kernel(data, delta_C0_array, Tsubeff, hop, Nzp, azpos, wl, inverse=Fals
         if L < 2:
             break
         centre = start + 0.5 * Tsubeff
-        posaux = np.clip(np.round(azpos + centre).astype(int), 0, dimx - 1)
+        # cell of the block centre: samples start .. start + Tsubeff - 1 -> start + (Tsubeff - 1) / 2
+        posaux = np.clip(np.round(azpos + start + 0.5 * (Tsubeff - 1)).astype(int), 0, dimx - 1)
         ph = -2.0 * np.pi / wl * delta_C0_array[posaux]
         ph[~np.isfinite(ph)] = 0.0
         rot = np.exp(-1j * ph) if inverse else np.exp(1j * ph)
