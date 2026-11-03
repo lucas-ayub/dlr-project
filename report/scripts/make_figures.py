@@ -5,6 +5,7 @@ Result figures of the report (vector PDFs in ../figures), computed with the sata
     python make_figures.py coeffs rangehist spectra irf_height amb_height sata_controls sata_realistic \
                            sata_refpoint joint_convergence joint_nrx system_coupling joint2d_examples
 
+sata_realistic also writes ../figures/readme_result.png, the figure of the README of the repository.
 Intermediate results are cached in ~/DLR/dlr-project_resultados/report_figures_cache (delete it to recompute).
 Every method receives only the system parameters and the DEM; the targets are used only to simulate the echoes.
 """
@@ -63,10 +64,16 @@ def legend_above(ax, ncol=1, **kw):
     return leg
 
 
-def save(fig, name):
-    fig.savefig(os.path.join(OUT, name + ".pdf"))
+def save(fig, name, png=None):
+    """Vector PDF for the report; png: also a PNG under that name (for the README).
+    The labels of 3-D axes are added to the tight bounding box, which otherwise cuts them."""
+    extra = fig.get_default_bbox_extra_artists() + [t for a in fig.axes if a.name == "3d"
+                                                    for t in (a.xaxis.label, a.yaxis.label, a.zaxis.label)]
+    fig.savefig(os.path.join(OUT, name + ".pdf"), bbox_extra_artists=extra)
+    if png:
+        fig.savefig(os.path.join(OUT, png + ".png"), dpi=220, bbox_extra_artists=extra)
     plt.close(fig)
-    print("wrote", name)
+    print("wrote", name, "and " + png + ".png" if png else "")
 
 
 def coeffs(cfg, tr, p, i, fit=False):
@@ -356,7 +363,7 @@ def fig_sata_realistic():
     irf_panel(fig.add_subplot(gs[2, 0]), r, ["ref", "sub"])
     irf_panel(fig.add_subplot(gs[2, 1]), r, ["ref", "joint_line"])
     print("few_mountains_5 N4b300", {k: round(v, 1) for k, v in r["res"].items() if k in LAB}, r["bxt"], r["label"])
-    save(fig, "sata_vs_joint_mountains")
+    save(fig, "sata_vs_joint_mountains", png="readme_result")              # the PNG is the figure of the README
 
 
 def fig_sata_refpoint():
