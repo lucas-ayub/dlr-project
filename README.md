@@ -24,11 +24,15 @@ sweeps over terrains, numbers of channels and baselines.<br><br>
 reconstruction (bottom right), all with the DEM only.</sub>
 </p>
 
-<p align="center"><b>🎬 How the joint reconstruction works</b> (animation, 6 min)</p>
+<p align="center"><b>🎬 How the joint reconstruction works</b> (animation, 4 min)</p>
 
 <!-- The video is a GitHub upload: a video committed to the repository does not play in a README.
      To set or replace it: edit this file on github.com, drag the .mp4 (H.264, under 10 MB) onto the empty line
      below this comment, wait until GitHub writes its https://github.com/user-attachments/assets/... link, and commit. -->
+
+https://github.com/user-attachments/assets/6e90b157-4b01-40fe-99bc-f6733f9ec6a3
+
+
 
 
 <p align="center"><sub>From the aliased channels to the focused line: the acquisition, the range histories and the
