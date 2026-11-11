@@ -241,6 +241,7 @@ def main():
     fig_cdf()
     s = numbers()
     s["zoom"] = fig_zoom()
+    fig_readme()
     with open(os.path.join(R.OUT, "summary.json"), "w") as fh:
         json.dump(s, fh, indent=1)
     print(json.dumps(s, indent=1))
@@ -248,3 +249,75 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# --------------------------------------------------------------------------------------------- README figure
+def fig_readme():
+    """report/figures/readme_realdem.png: the SRTM map with the lines, the Yosemite line and its two reconstructions,
+    and the 200 random lines."""
+    dem = R.DEM()
+    b = dem.bounds
+    z = np.load(os.path.join(R.OUT, "lines5_yosemite.npz"))
+    with open(os.path.join(R.OUT, "lines5.json")) as fh:
+        res = json.load(fh)["yosemite"]
+    rnd = np.loadtxt(os.path.join(R.OUT, "random_lines.csv"), delimiter=",")
+    lev = res["levels"]
+    peak = float(z["peak"])
+    pos = z["pos"] / 1e3
+
+    fig = plt.figure(figsize=(10.0, 5.6))
+    gs = fig.add_gridspec(3, 2, width_ratios=[1.0, 1.35], height_ratios=[0.9, 1.0, 1.0], wspace=0.22, hspace=0.42)
+    # map
+    am = fig.add_subplot(gs[0:2, 0])
+    cl = np.cos(np.deg2rad(37.6))
+    rgb = LightSource(azdeg=315, altdeg=40).shade(dem.h, cmap=plt.get_cmap("gist_earth"), vert_exag=0.05,
+                                                  blend_mode="soft", vmin=0, vmax=4200)
+    am.imshow(rgb, extent=[b.left, b.right, b.bottom, b.top], aspect=1 / cl, interpolation="bilinear")
+    for k, (key, L) in enumerate(R.LINES.items(), 1):
+        _, _, la, lo = dem.line(L["lat"], L["lon"], L["az"], step=500.0)
+        am.plot(lo, la, color="#ffd400" if key == "yosemite" else "#d62728", lw=2.2 if key == "yosemite" else 1.6)
+        dx, dy = (0.06, 0.0) if L["az"] == 0 else (0.0, 0.05)
+        am.text(L["lon"] + dx, L["lat"] + dy, str(k), color="white", fontsize=8, weight="bold", ha="left", va="bottom",
+                bbox=dict(boxstyle="round,pad=0.15", fc="#d62728", ec="none"))
+    am.set_title("SRTM 3'' DEM, Sierra Nevada (line 1: Yosemite Valley)", fontsize=9)
+    am.set_xlabel("longitude [deg]")
+    am.set_ylabel("latitude [deg]")
+    am.grid(False)
+    # 200 random lines
+    ac = fig.add_subplot(gs[2, 0])
+    for v, c, lab in ((rnd[:, 7], C_STD, "no correction"), (rnd[:, 8], C_JNT, "joint")):
+        s = np.sort(v)
+        ac.step(s, 100 * np.arange(1, len(s) + 1) / len(s), where="post", color=c, lw=1.3,
+                label=f"{lab} (median {np.median(v):.1f} dB)")
+    ac.axvline(np.median(rnd[:, 6]), color=C_REF, ls="--", lw=1.0, label=f"reference ({np.median(rnd[:, 6]):.1f} dB)")
+    ac.set_xlim(-50, 0)
+    ac.set_ylim(0, 102)
+    ac.set_xlabel("strongest ghost [dB]")
+    ac.set_ylabel("lines [%]")
+    ac.set_title("200 random SRTM lines", fontsize=9)
+    ac.legend(loc="center left", fontsize=6.6, frameon=True)
+    # Yosemite line
+    at = fig.add_subplot(gs[0, 1])
+    x, h = z["x"] / 1e3, z["h"]
+    at.fill_between(x, h.min() - 200, h, color=FILL_C, lw=0)
+    at.plot(x, h, color=TERRAIN_C, lw=1.0, label="terrain (SRTM)")
+    at.axhline(res["hmean"], color="0.35", ls="--", lw=0.8, label="reference height")
+    tg = np.array(res["targets"])
+    at.plot(tg[:, 0] / 1e3, tg[:, 1] + res["hmean"], "o", color="#1f3b5c", ms=4.5, mec="k", mew=0.5, label="point targets")
+    at.set_ylim(h.min() - 200, h.max() + 300)
+    at.set_ylabel("height [m]")
+    at.set_title(f"Yosemite Valley, north-south: {res['hmin']:.0f}-{res['hmax']:.0f} m, five targets", fontsize=9)
+    at.legend(loc="upper left", fontsize=6.6, ncol=3)
+    for row, k, c, lab in ((1, "std", C_STD, "no correction"), (2, "joint", C_JNT, "joint reconstruction")):
+        ax = fig.add_subplot(gs[row, 1], sharex=at)
+        ax.plot(pos, db(z[k], peak), color=c, lw=0.8, label=f"{lab}: strongest ghost {lev[k]:.1f} dB")
+        ax.plot(pos, db(z["ref"], peak), color=C_REF, lw=0.6, label=f"reference ({lev['ref']:.1f} dB)")
+        ax.set_ylim(-80, 5)
+        ax.set_ylabel("[dB]")
+        ax.legend(loc="upper right", fontsize=6.6, ncol=2)
+        if row == 2:
+            ax.set_xlabel("azimuth position [km]")
+    at.set_xlim(-20, 20)
+    fig.savefig(os.path.join(OUT, "readme_realdem.png"), dpi=200)
+    plt.close(fig)
+    print("wrote", os.path.join(OUT, "readme_realdem.png"))

@@ -19,9 +19,11 @@ sweeps over terrains, numbers of channels and baselines.<br><br>
 </table>
 
 <p align="center">
-<a href="report/report.pdf"><img src="report/figures/readme_result.png" alt="SATA versus the joint reconstruction" width="85%"></a><br>
-<sub>Five targets on random mountains, four channels: no SATA, SATA whole band, SATA per sub-band and the joint
-reconstruction (bottom right), all with the DEM only.</sub>
+<a href="report/report.pdf"><img src="report/figures/readme_realdem.png" alt="Joint reconstruction on real terrain (SRTM, Sierra Nevada)" width="95%"></a><br>
+<sub>Real terrain: 47 km azimuth lines cut from the SRTM 3'' DEM of the Sierra Nevada. Yosemite Valley (line 1, five
+targets, four channels): ghosts of &minus;5.7 dB without correction and &minus;41.5 dB with the joint reconstruction, at the
+level of the reference (&minus;41.6 dB); over 200 random lines the median goes from &minus;8.3 dB to &minus;41.5 dB, with the
+geometry and the DEM only. Code: <a href="sata1d_code/joint_cases/real_dem/">sata1d_code/joint_cases/real_dem</a>.</sub>
 </p>
 
 <p align="center"><b>🎬 How the joint reconstruction works</b> (animation, 4 min)</p>
