@@ -1,0 +1,3 @@
+# the SRTM raster (downloaded by run_real_dem.py) and the raw results; the tables used by the report are in report/data
+data/
+results/

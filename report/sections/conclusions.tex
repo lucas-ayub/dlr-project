@@ -15,6 +15,9 @@
         and the DEM it reaches a median of \SI{\SweepOneMedJoint}{dB} in 1-D (\SweepOneWithinTen\,\% of the runs within
         \SI{10}{dB} of the reference, about \SI{90}{\percent} for four or more channels) and \SI{\SweepTwoMedJoint}{dB} in 2-D,
         where with three or more channels it is within \SI{1}{dB} of the reference in the median.
+  \item On real terrain (200 azimuth lines cut from the SRTM DEM of the Sierra Nevada, relief up to \SI{2930}{m}) the
+        joint reconstruction lowers the median highest ambiguity from \SI{-8.3}{dB} to \SI{-41.5}{dB}, at the level of the
+        reference (\SI{-41.6}{dB}), and is within \SI{10}{dB} of it in 199 of the 200 lines (\cref{sec:realdem}).
   \item The remaining failures are formations whose baselines do not separate the folded parcels (two channels, equally
         spaced baselines). The regularisation leaves the ambiguity there instead of amplifying noise.
   \item The accuracy is limited by the DEM: the phase error grows as $\bxt\,\delta h$, so long baselines need accurate DEMs.

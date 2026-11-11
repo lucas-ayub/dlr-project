@@ -1,0 +1,7 @@
+# SRTM lines over the Sierra Nevada (run_real_dem.py): highest ambiguity [dB], 5 and 20 targets per line
+key lat lon az_deg hmin_m hmax_m ref5 nocorr5 joint5 ref20 nocorr20 joint20
+yosemite 37.735 -119.590 0 1213 2893 -41.59 -5.74 -41.52 -32.03 -5.11 -31.14
+escarpment 37.200 -118.500 90 1198 4053 -41.59 -8.16 -41.46 -32.03 -5.68 -28.09
+highsierra 37.880 -119.360 0 2351 3635 -41.59 -6.03 -41.58 -32.03 -5.75 -31.42
+foothills 37.650 -120.250 90 52 932 -41.59 -6.12 -41.38 -32.03 -5.62 -31.47
+mono 37.900 -119.100 0 1948 3432 -41.59 -6.24 -41.03 -32.03 -5.71 -31.34
