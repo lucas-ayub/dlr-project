@@ -40,7 +40,7 @@ plt.rcParams.update({"font.family": "serif", "mathtext.fontset": "cm", "font.siz
                      "savefig.pad_inches": 0.03, "legend.framealpha": 0.9})
 W_FULL = 6.3                                                           # text width of the report [in]
 COL = dict(ref="#2ca02c", none="#d62728", whole="#ff7f0e", sub="#8c564b", joint_occ="#1f77b4", joint_line="#9467bd")
-LAB = dict(ref="reference", none="no SATA", whole="SATA whole band", sub="SATA per sub-band",
+LAB = dict(ref="reference", none="no correction", whole="SATA whole band", sub="SATA per sub-band",
            joint_occ="joint (sub-apertures)", joint_line="joint (whole line)")
 TERRAIN_C, FILL_C = "#6D4C2F", "#D7C9A7"
 
@@ -414,7 +414,7 @@ def fig_joint_convergence():
     ax[0].semilogx(d["its"], d["one"], "o-", ms=3, color=COL["joint_line"], label="joint (whole line), 1 pass")
     ax[0].semilogx(2 * np.array(d["its"]), d["two"], "s--", ms=3, color="k", lw=0.9, label="joint (whole line), 2 passes")
     ax[0].axhline(d["ref"], color=COL["ref"], lw=1.4, label=f"reference ({d['ref']:.1f} dB)")
-    ax[0].axhline(d["none"], color=COL["none"], lw=1.0, ls="--", label=f"no SATA ({d['none']:.1f} dB)")
+    ax[0].axhline(d["none"], color=COL["none"], lw=1.0, ls="--", label=f"no correction ({d['none']:.1f} dB)")
     ax[0].set_xlabel("conjugate-gradient iterations (all passes)"); ax[0].set_ylabel("highest ambiguity [dB]")
     ax[0].legend(fontsize=6.2, loc="center right")
     ax[1].semilogx(d["its"], d["une"], "o-", ms=3, color="k")
@@ -501,10 +501,10 @@ def fig_joint2d_examples():
         for a in (a0, a1):
             a.plot(t, db["ref"], color=COL["ref"], lw=1.1, label="reference")
             a.set_xlim(-2.3, 2.3); a.set_ylim(-80, 3); a.set_xlabel("azimuth time [s]", labelpad=1)
-        a0.plot(t, db["none"], color=COL["none"], lw=0.55, label="no SATA")
+        a0.plot(t, db["none"], color=COL["none"], lw=0.55, label="no correction")
         a1.plot(t, db["joint"], color=COL["joint_line"], lw=0.55, label="joint reconstruction (2-D)")
         a0.set_ylabel("[dB]")
-        a0.set_title(f"no SATA: {r['none']:.1f} dB", fontsize=7.4)
+        a0.set_title(f"no correction: {r['none']:.1f} dB", fontsize=7.4)
         a1.set_title(f"joint: {r['joint']:.1f} dB (reference {r['ref']:.1f} dB)", fontsize=7.4)
         a1.set_yticklabels([])
         a0.text(0.0, 1.20, f"{name};  $N_{{rx}}$ = {p.Nrx}, $b_{{xt}}$ = {bxt_str(p.bxt)}", transform=a0.transAxes,
@@ -526,10 +526,35 @@ def fig_joint2d_examples():
     save(fig, "joint2d_examples")
 
 
+def fig_joint_example():
+    """The example of the guides (5 targets on a 1000 m mountain): reference, no correction and the joint reconstruction."""
+    def run():
+        cfg, tr, terrain, xs = mountain_example()
+        ch = S.generate_channels(cfg, tr)
+        ref = _irf(cfg, tr, S.generate_reference(cfg, tr)); pk = ref.max()
+        t = (np.arange(cfg.Na) - cfg.Na // 2) / cfg.prf
+        dt = cfg.PRF_op * cfg.system.wl * cfg.scene.r0 / (2.0 * cfg.system.vs ** 2)
+        env = dict(ref=ref, none=_irf(cfg, tr, S.reconstruct(cfg, tr, ch)),
+                   joint_line=_irf(cfg, tr, reconstruct_joint_line(cfg, tr, ch, line_maps(cfg, tr, terrain))))
+        res = {k: A.ambiguity_level(t, v, pk, xs, cfg.system.vs, dt) for k, v in env.items()}
+        tg = np.linspace(-23500, 23500, 4701)
+        return dict(res=res, db={k: 20 * np.log10(v / pk + 1e-12) for k, v in env.items()}, t=t, xs=xs,
+                    hs=terrain(xs), tgrid=tg, hgrid=terrain(tg), bxt=cfg.array.bxt, dt=dt)
+    r = cached("joint_example", run)
+    fig = plt.figure(figsize=(W_FULL, 4.9))
+    gs = GridSpec(2, 2, height_ratios=[1.1, 1.0], hspace=0.75, wspace=0.28, figure=fig)
+    geometry_panels(fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[0, 1], projection="3d"), r, zoom_pad=1500.0)
+    irf_panel(fig.add_subplot(gs[1, 0]), r, ["ref", "none"])
+    irf_panel(fig.add_subplot(gs[1, 1]), r, ["ref", "joint_line"])
+    print("joint_example", {k: round(v, 1) for k, v in r["res"].items()})
+    save(fig, "joint_example_1d")
+
+
 FIGS = dict(coeffs=fig_coeffs, rangehist=fig_rangehist, spectra=fig_spectra, irf_height=fig_irf_height,
             amb_height=fig_amb_height, sata_controls=fig_sata_controls, sata_realistic=fig_sata_realistic,
             sata_refpoint=fig_sata_refpoint, joint_convergence=fig_joint_convergence, joint_nrx=fig_joint_nrx,
-            system_coupling=fig_system_coupling, joint2d_examples=fig_joint2d_examples)
+            system_coupling=fig_system_coupling, joint2d_examples=fig_joint2d_examples,
+            joint_example=fig_joint_example)
 
 if __name__ == "__main__":
     names = sys.argv[1:] or ["all"]

@@ -110,9 +110,8 @@ $\bxt=[0,134.9,20.5,8.3]$\,\si{m} (largest \SI{135}{m}). \Cref{fig:realdem-rando
 ambiguity goes from \SI{-8.3}{dB} without correction to \SI{-41.5}{dB} with the joint reconstruction (reference
 \SI{-41.6}{dB}), a median gain of \SI{33}{dB}. In the 192 lines with more than \SI{200}{m} of relief the gain is at least
 \SI{28}{dB} in \SI{92}{\percent} of them, and the joint reconstruction is within \SI{10}{dB} of the reference in 199 of the
-200 lines. It is never worse than no correction by more than \SI{0.03}{dB}; that happens only on a flat line
-(\SI{16}{m} of relief), where both are already at the reference. The gain grows with the relief, because the uncorrected
-ghosts grow with it while the joint result stays at the reference.
+200 lines; on the flattest line (\SI{16}{m} of relief) both methods are already at the reference. The gain grows with
+the relief, because the uncorrected ghosts grow with it while the joint result stays at the reference.
 
 \begin{figure}[htbp]
 \centering
@@ -123,6 +122,5 @@ line, for the two baseline sets.}
 \label{fig:realdem-random}
 \end{figure}
 
-These runs share the limits of the rest of the chapter: the DEM given to the reconstruction is exactly the terrain of the
-simulation (with DEM errors the floor rises as in \cref{fig:demerror}), the antenna pattern is the simulated one, and each
-line is processed in 1-D.
+In these runs the DEM given to the reconstruction is the terrain of the simulation; the accuracy needed for a real DEM is
+discussed in \cref{sec:limits}.

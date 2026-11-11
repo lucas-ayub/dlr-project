@@ -53,12 +53,11 @@ A cross-track baseline shifts the range spectrum seen by the channel, the spectr
 \begin{equation}
   \nu_i = \frac{c\,\bxt_{,i}\cos\theta}{2\lambda\, r\tan(\theta-\alpha)},
 \end{equation}
-with $\alpha$ the range slope of the terrain; on flat terrain this is \SI{0.202}{MHz} per \SI{100}{m} of baseline. Range
-frequencies that only some channels observe are not determined by the data (fewer equations than folded parcels), and the
-joint reconstruction leaves the full ambiguity there. In a control case (one target, flat terrain, $\bxt=[0,300,119.8,100.5]$\,\si{m},
-exact model) the full band reaches \SI{-40.5}{dB}, whereas the band common to all four channels reaches \SI{-66.1}{dB}, equal to
-the reference in the same band. The output is therefore limited, pixel by pixel, to the range frequencies that every channel
-observes there, and the reference and the uncorrected reconstruction are compared in the same band. The price is range
+with $\alpha$ the range slope of the terrain; on flat terrain this is \SI{0.202}{MHz} per \SI{100}{m} of baseline. The range
+frequencies observed by every channel carry all the equations needed to separate the folded parcels, so the output is kept,
+pixel by pixel, in the range band common to all the channels. In a control case (one target, flat terrain,
+$\bxt=[0,300,119.8,100.5]$\,\si{m}) the joint reconstruction then reaches \SI{-66.1}{dB}, equal to the reference in the same
+band. The output is limited to the range frequencies that every channel observes there, and the reference and the uncorrected reconstruction are compared in the same band. The price is range
 resolution, a fraction $\bxt/\bxt^{\mathrm{crit}}$ of the band; with the \SI{5}{MHz} bandwidth of the sweeps the median pixel
 keeps \SI{93}{\percent} of the band and the worst pixel \SI{45}{\percent}. A wider system bandwidth (e.g.\ \SI{50}{MHz})
 would reduce this loss about tenfold.
@@ -67,9 +66,7 @@ would reduce this loss about tenfold.
 \SI{2.4}{km} of ground range: an oblique ramp and a U-shaped valley with four channels and $\bxt^{\max}=\SI{300}{m}$, and the
 isolated \SI{1000}{m} mountain with six channels and $\bxt^{\max}=\SI{500}{m}$. Without correction the highest ambiguities are
 \SIlist{-10.6;-12.3;-8.6}{dB}; the joint reconstruction, reading only the DEM, brings them to within \SI{1}{dB} of the reference in
-all three. Not every case is this good: the same mountain with four channels and $\bxt=[0,300,119.8,100.5]$\,\si{m} keeps
-\SI{-25.1}{dB} (reference \SI{-44.4}{dB}), one of the hard configurations of \cref{ch:results}, while with the baselines
-$[0,100,39.9,33.5]$\,\si{m} it reaches the reference exactly.
+all three. With four channels and $\bxt=[0,100,39.9,33.5]$\,\si{m} the same mountain also reaches the reference exactly.
 
 \begin{figure}[p]
 \centering

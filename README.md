@@ -11,8 +11,8 @@ at the DLR Microwaves and Radar Institute (DLR-HR) within a DLR-DAAD fellowship.
 <td>
 <b><a href="report/report.pdf">Topography-Dependent Azimuth Reconstruction in Multistatic SAR Systems</a></b> (draft)<br><br>
 Signal model and the coefficients C<sub>0</sub>, C<sub>1</sub>, C<sub>2</sub>; multichannel reconstruction and how topography
-creates ambiguities; SATA and why it fails on aliased channels; the joint reconstruction (final method) in 1-D and 2-D;
-sweeps over terrains, numbers of channels and baselines.<br><br>
+creates ambiguities; the joint topography correction and reconstruction with a DEM, in 1-D and 2-D; sweeps over terrains,
+numbers of channels and baselines, and results on real terrain (SRTM, Sierra Nevada).<br><br>
 <a href="report/report.pdf">PDF</a> · <a href="report/">LaTeX sources</a>
 </td>
 </tr>

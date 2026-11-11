@@ -3,24 +3,22 @@
 \section{Conclusions}
 
 \begin{itemize}
-  \item Cross-track baselines turn topography into a channel-dependent phase that the standard multichannel
-        reconstruction cannot absorb, $\varphi_i\approx 2\pi\bxt_{,i}h/(\lambda r_0\tan\theta)$. Without correction the median highest ambiguity of the sweeps is \SI{\SweepOneMedNone}{dB} in 1-D and
+  \item Cross-track baselines turn topography into a channel-dependent phase \eqref{eq:dc0}, proportional to $\bxt_{,i}h$, which the reconstruction filters of the reference geometry do not include. Without correction the median highest ambiguity of the sweeps is \SI{\SweepOneMedNone}{dB} in 1-D and
         \SI{\SweepTwoMedNone}{dB} in 2-D, against a reference near \SI{-48}{dB}.
-  \item SATA computes the right phase from the DEM, but applied to each aliased channel before the reconstruction it can give
-        only one phase to the parcels of positions $X\approx\SI{6.2}{km}$ apart that share a Doppler bin. It is exact only
-        when the terrain has the same height at all those positions; elsewhere it leaves a structural residual that is predicted
-        from the geometry within about \SI{1}{dB}, and with a DEM only it improves the median by \SI{5.5}{dB} at best.
-  \item Placing the DEM phase inside the inversion solves this. The joint reconstruction over the whole line models every
-        channel from the focused line and the DEM and inverts it by regularised least squares. Using only the system parameters
-        and the DEM it reaches a median of \SI{\SweepOneMedJoint}{dB} in 1-D (\SweepOneWithinTen\,\% of the runs within
-        \SI{10}{dB} of the reference, about \SI{90}{\percent} for four or more channels) and \SI{\SweepTwoMedJoint}{dB} in 2-D,
-        where with three or more channels it is within \SI{1}{dB} of the reference in the median.
+  \item This phase is known from the DEM and the system geometry. The joint reconstruction places it inside the model of
+        the channels, at every position of the focused line, and inverts model and topography together by regularised least
+        squares with conjugate gradients. The model and its adjoint are applied with FFTs only, and the method reduces to the
+        standard reconstruction on flat terrain.
+  \item Using only the system parameters and the DEM, the joint reconstruction reaches a median of
+        \SI{\SweepOneMedJoint}{dB} in 1-D (\SweepOneWithinTen\,\% of the runs within \SI{10}{dB} of the reference, about
+        \SI{90}{\percent} for four or more channels) and \SI{\SweepTwoMedJoint}{dB} in 2-D, where with three or more channels
+        it is within \SI{1}{dB} of the reference in the median.
   \item On real terrain (200 azimuth lines cut from the SRTM DEM of the Sierra Nevada, relief up to \SI{2930}{m}) the
         joint reconstruction lowers the median highest ambiguity from \SI{-8.3}{dB} to \SI{-41.5}{dB}, at the level of the
         reference (\SI{-41.6}{dB}), and is within \SI{10}{dB} of it in 199 of the 200 lines (\cref{sec:realdem}).
-  \item The remaining failures are formations whose baselines do not separate the folded parcels (two channels, equally
-        spaced baselines). The regularisation leaves the ambiguity there instead of amplifying noise.
-  \item The accuracy is limited by the DEM: the phase error grows as $\bxt\,\delta h$, so long baselines need accurate DEMs.
+  \item The method works best with three or more channels and cross-track baselines that are not equally spaced, so that
+        the channels see the folded parts of the spectrum with different phases. The accuracy of the DEM sets the final level:
+        the phase error grows as $\bxt\,\delta h$, so long baselines call for accurate DEMs.
 \end{itemize}
 
 \section{Outlook}

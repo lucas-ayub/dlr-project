@@ -115,7 +115,7 @@ $\bxt^{\max}=\SI{300}{m}$.
 \centering
 \includegraphics[width=\linewidth]{figures/irf_flat_vs_height.pdf}
 \caption[Standard reconstruction of a target at the reference height and above it]{Azimuth impulse response of one target
-($\bxt=[0,300,119.8,100.5]$\,\si{m}) after the standard reconstruction (no SATA) and of the reference. Dotted lines: the ambiguity
+($\bxt=[0,300,119.8,100.5]$\,\si{m}) after the standard reconstruction (no correction) and of the reference. Dotted lines: the ambiguity
 positions, $\pm1$ and $\pm2$ times \SI{0.81}{s}. Left: target at the reference height, the two responses coincide. Right: target at
 \SI{500}{m}.}
 \label{fig:irfheight}
@@ -125,18 +125,15 @@ positions, $\pm1$ and $\pm2$ times \SI{0.81}{s}. Left: target at the reference h
 \centering
 \includegraphics[width=0.62\linewidth]{figures/ambiguity_vs_height.pdf}
 \caption[Highest ambiguity of the standard reconstruction against height]{Highest ambiguity of the standard reconstruction (no
-SATA) for one target at height $h$, four channels, three sets of cross-track baselines. At $h=0$ the three sets give
+correction) for one target at height $h$, four channels, three sets of cross-track baselines. At $h=0$ the three sets give
 \SI{-63.6}{dB}, the level of the reference limited to the processed band $\Ba$.}
 \label{fig:ambheight}
 \end{figure}
 
-Two consequences recur in the rest of the report:
-\begin{itemize}
-  \item The amplitudes $c_m$ are the discrete Fourier transform of the channel phases. Baselines for which several
-        $\varphi_i$ coincide modulo $2\pi$, or that are equally spaced, make the system badly conditioned at certain heights:
-        the channels no longer separate the parcels.
-  \item With two channels there is no redundancy at all: two parcels, two equations.
-\end{itemize}
+The amplitudes $c_m$ are the discrete Fourier transform of the channel phases. This also says what a formation needs for
+the parcels to be separated once the phases are known: the channels must see them with \emph{different} phases. Cross-track
+baselines that are not equally spaced, and three or more channels, give this diversity; it is the property that the joint
+reconstruction of \cref{ch:joint} relies on.
 
 \section{Ambiguity metric}\label{sec:metric}
 

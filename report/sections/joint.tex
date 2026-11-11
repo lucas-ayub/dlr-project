@@ -1,25 +1,39 @@
 \chapter{Joint topography correction and reconstruction}\label{ch:joint}
 
-The analysis of \cref{sec:sata-limit} shows that the correct phase (the $\dC$ read from the DEM) is already known; what
-fails is applying it per channel before the parcels are separated. The joint reconstruction moves the DEM phase inside the
-inversion.
+The phase that the terrain adds to each channel, $\varphi_i=2\pi\Delta C_{0,i}/\lambda$, is known from the DEM and the
+system geometry (\cref{sec:dc0}). The joint reconstruction uses it \emph{inside} the inversion: the channels are modelled
+with the phase of every ground position, and the model and the topography are inverted together. This chapter first shows
+how the DEM is turned into the phase of every channel, then the two formulations of the method, and finally how the system
+is built and solved.
 
-\section{Joint reconstruction in the sub-apertures}
+\section{From the DEM to the phase of every channel}\label{sec:dem-phase}
 
-With the same sub-apertures as SATA, for every sub-aperture and every bin $\phi$ of the $\Nrx$ channel spectra the model
-\eqref{eq:fold} is written with the phase of each parcel at its own ground position:
+The residual $\Delta C_{0,i}$ depends on the height and on the channel, not on the azimuth position (\cref{sec:dc0}). It is
+therefore computed once per channel on a table of heights: for 33 heights $h_q$ equally spaced between the lowest and the
+highest point of the DEM, a virtual point is placed on the iso-range surface of the reference point at that height, and its
+$\Delta C_{0,i}(h_q)$ is obtained from the exact range histories. A cubic polynomial fitted to the 33 values gives
+$\Delta C_{0,i}(h)$ for any height, and evaluating it at the DEM height of every position $x$ of the line gives the phase map
 \begin{equation}
-  S_i(\phi) = \sum_q H_i(f_q)\,\exp\!\Bigl(-\jj\frac{2\pi}{\lambda}\Delta C_{0,i}(x_q)\Bigr)\,U_q,
-  \qquad x_q = x_c + \frac{\lambda r_0}{2v} f_q ,
+  \varphi_i(x)=\frac{2\pi}{\lambda}\,\Delta C_{0,i}\bigl(h(x)\bigr).
+  \label{eq:phasemap}
 \end{equation}
-and solved for the parcels $U_q$, which are then placed at their true Doppler, transformed back and overlap-added at the
-full PRF. The steps are summarised in \cref{fig:flowsubap}. With $\dC=0$ this is the standard reconstruction ($\sim10^{-7}$); with one target it
-equals the oracle. Its limit is the resolution of the sub-aperture: the DEM is read once per bin of a \SI{40}{ms} block, i.e.\
-the terrain phase is taken as constant over about $\pm\SI{600}{m}$ of ground. A slope $s$ with a cross-track baseline is
-equivalent to shifting the phase centre of the channel by $\bxt s/(2\tan\theta)$; when that shift is not small compared with
-the block, the per-bin model breaks. With $\Delta\varphi=\frac{2\pi}{\lambda}\,\frac{\bxt^{\max}\,s\,\delta x}{r_0\tan\theta}$
-the phase change inside one SATA cell, the method stays within about \SI{10}{dB} of the reference for
-$\Delta\varphi\lesssim\SI{0.5}{rad}$ and fails by 10 to \SI{35}{dB} above \SI{1}{rad}.
+The map is zero for the transmitter channel and, with a flat DEM, constant for every channel. It is the only information
+about the terrain that the reconstruction receives.
+
+\section{First formulation: in the sub-apertures}
+
+Through the ruler \eqref{eq:ruler}, the parcel $q$ of a channel bin comes from the ground position
+$x_q = x_c + \frac{\lambda r_0}{2v} f_q$ (\cref{fig:folding}). The first formulation cuts the line into sub-apertures of
+\SI{40}{ms} and, for every sub-aperture and every bin $\phi$ of the $\Nrx$ channel spectra, writes the model \eqref{eq:fold}
+with the phase of each parcel at its own ground position:
+\begin{equation}
+  S_i(\phi) = \sum_q H_i(f_q)\,\exp\!\Bigl(-\jj\frac{2\pi}{\lambda}\Delta C_{0,i}(x_q)\Bigr)\,U_q .
+\end{equation}
+The system is solved for the parcels $U_q$, which are then placed at their true Doppler, transformed back and overlap-added
+at the full PRF (\cref{fig:flowsubap}). With $\dC=0$ this is the standard reconstruction ($\sim10^{-7}$), and with one
+target it equals the oracle. Each parcel now receives the phase of its own position, which is the key step. In this
+formulation the DEM is read once per bin of a block, i.e.\ at a ground resolution of a few hundred metres; the second
+formulation applies it at every position of the line.
 
 \begin{figure}[p]
 \centering
@@ -30,9 +44,9 @@ each parcel.}
 \label{fig:flowsubap}
 \end{figure}
 
-\section{Joint reconstruction over the whole line}
+\section{Final formulation: over the whole line}
 
-The final version removes the sub-apertures. The topographic residual of a scatterer is a constant phase over its whole
+The final formulation removes the sub-apertures. The topographic residual of a scatterer is a constant phase over its whole
 aperture (\cref{ch:model}); in the \emph{focused} full-rate line $g(x)$ it is therefore a pointwise multiplication. The
 channels are modelled as
 \begin{equation}
@@ -40,7 +54,7 @@ channels are modelled as
   \qquad \varphi_i(x)=\frac{2\pi}{\lambda}\Delta C_{0,i}\bigl(h(x)\bigr),
   \label{eq:jointmodel}
 \end{equation}
-where $\varphi_i(x)$ comes from the DEM only, $k_i$ is the response of channel $i$ to the reference
+where $\varphi_i(x)$ is the phase map \eqref{eq:phasemap}, from the DEM only, $k_i$ is the response of channel $i$ to the reference
 point (the azimuth chirp filtered by the reference-point filter $H_i$ of the standard reconstruction) and $\mathcal D$ is
 the decimation to $\PRFop$ (\cref{fig:chainline}). Writing \eqref{eq:jointmodel} as $\bm s=\mathbf A\bm g$, the line is estimated by Tikhonov-regularised
 least squares,
@@ -79,15 +93,14 @@ in the same form as the standard reconstruction.}
 \begin{tikzpicture}[>=Latex, node distance=0.45cm and 0.45cm,
   box/.style={draw,rounded corners=2pt,fill=white,align=center,font=\small,minimum height=0.95cm,text width=2.3cm},
   dem/.style={draw,rounded corners=2pt,fill=terrainfill,align=center,font=\small,minimum height=0.85cm,text width=2.05cm}]
-  % (a) SATA + standard reconstruction
-  \node[font=\small\bfseries,anchor=west] at (-1.2,1.3) {(a) SATA on each channel, then the standard reconstruction};
+  % (a) standard reconstruction
+  \node[font=\small\bfseries,anchor=west] at (-1.2,1.3) {(a) Standard reconstruction (reference geometry)};
   \node[box] (a1) at (0,0) {channels\\ $s_i$ at $\PRFop$};
-  \node[box,right=of a1,fill=cwhole!15] (a2) {SATA$_i$\\ one phase per bin};
-  \node[box,right=of a2] (a3) {standard\\ reconstruction $\mathbf H^{-1}$};
+  \node[box,right=of a1] (a2) {filters $H_i$ of the\\ reference point};
+  \node[box,right=of a2] (a3) {invert $\mathbf H$\\ bin by bin};
   \node[box,right=of a3] (a4) {full-rate\\ line};
-  \node[dem,below=0.5cm of a2] (a5) {DEM $\to\Delta C_{0,i}$};
-  \draw[->] (a1) -- (a2); \draw[->] (a2) -- (a3); \draw[->] (a3) -- (a4); \draw[->] (a5) -- (a2);
-  \node[font=\scriptsize,align=center,cnone,below=0.15cm of a4] {exact only if\\ $h(x)=h(x\pm X)$};
+  \draw[->] (a1) -- (a2); \draw[->] (a2) -- (a3); \draw[->] (a3) -- (a4);
+  \node[font=\scriptsize,align=center,below=0.15cm of a2] {one height, $h_0=0$};
   % (b) joint
   \begin{scope}[yshift=-4.4cm]
   \node[font=\small\bfseries,anchor=west] at (-1.2,1.3) {(b) Joint reconstruction over the whole line (final version)};
@@ -104,9 +117,9 @@ in the same form as the standard reconstruction.}
   \draw[->] (cg.west) -| (g.south);
   \end{scope}
 \end{tikzpicture}
-\caption[SATA + reconstruction versus the joint reconstruction]{Where the DEM phase enters. (a) SATA gives each channel
-bin a single phase before the parcels are separated. (b) The joint reconstruction puts the phase of every ground position
-in the model of the channels and inverts model and topography together.}
+\caption[Standard and joint reconstruction]{Where the DEM phase enters. (a) The standard reconstruction uses the filters of
+the reference geometry for every scatterer. (b) The joint reconstruction puts the phase of every ground position in the model
+of the channels and inverts model and topography together.}
 \label{fig:pipelines}
 \end{figure}
 
@@ -161,8 +174,8 @@ $\varphi_{i,p}=\frac{2\pi}{\lambda}\Delta C_{0,i}(\ell_p)$ of \eqref{eq:dc0},
 \end{gather*}
 The phase depends on the \emph{position} $\ell$ (and on the channel), not on the frequency: it is therefore applied to $\gs$,
 as a pointwise \emph{screen} $\theta_i$, \emph{before} the DFT. This is the reason for choosing the focused line as the
-unknown: in $\gs$ the relief of every target is one multiplication, whereas in the raw line the echo of a target spreads over
-its whole aperture and mixes with the echoes of the terrain $X$ apart, the problem that SATA could not solve (\cref{sec:sata-limit}).
+unknown: in $\gs$ the relief of every target is one multiplication, at its own position, whereas in the raw line the echo of a
+target spreads over its whole aperture and mixes with the echoes of the terrain $X$ apart.
 
 \case{7} \caseref{6} recorded by the channel. \caseref{6} is the full line (\SI{2000}{Hz}, $N=12288$); the channel records one
 sample in $\Nrx$ (\SI{500}{Hz}):
@@ -329,7 +342,7 @@ echo shape ($K_a\propto1/r$; $C_1$, $C_2$ with $h$) & not constant & ignored ($\
 
 \paragraph{Why back to the raw line, and not stop at $\hat{\vg}$.}
 \begin{itemize}
-  \item \emph{Fair comparison:} the reference, the standard reconstruction, SATA and the joint reconstruction all return the
+  \item \emph{Fair comparison:} the reference, the standard reconstruction and the joint reconstruction all return the
         raw line of $12288$ samples at \SI{2000}{Hz}; the focusing that follows is the same for all of them.
   \item \emph{Band:} outside $|f|\le\Ba/2$ the data do not determine $\vg$; the multiplication by $K$ and the band cut
         discard that part.
@@ -359,20 +372,21 @@ compared with the reference simulated directly; the focusing is the same for eve
 \begin{itemize}
   \item \textbf{Consistency.} With a zero DEM the method reproduces the standard reconstruction within \SI{0.1}{\percent} rms.
   \item \textbf{Information used.} Only the channels, the system geometry and the DEM. The positions of the targets are never
-        used (\cref{sec:sata-maps}).
+        used: removing them from the configuration given to the method does not change a single bit of its output.
   \item \textbf{Self-test of the DEM.} The part of the channels that the model does not explain is \SIrange{-41}{-39}{dB} with
         the right DEM and \SIrange{-20}{-7}{dB} with a wrong one (mirrored or shifted by \SI{1}{km}), which makes it a natural
         alarm for DEM errors.
-  \item \textbf{Cost.} About \SI{3.3}{s} per line with four channels in the 1-D simulator (median over 680 runs), against
-        \SI{0.15}{s} for SATA whole band.
+  \item \textbf{Cost.} About \SI{3.3}{s} per line with four channels in the 1-D simulator (median over 680 runs): a few tens
+        of FFTs per channel and iteration.
   \item \textbf{Convergence.} \Cref{fig:convergence} follows the iterations on the example of \cref{fig:example1d}. The
-        first iteration is the adjoint, i.e.\ the channels focused, corrected and summed (\SI{-10.2}{dB}, close to no SATA);
+        first iteration is the adjoint, i.e.\ the channels focused, corrected and summed (\SI{-10.2}{dB});
         about ten iterations bring the ambiguities below \SI{-39}{dB}, and the second pass gains another \SI{1}{dB}
         (\SI{-43.5}{dB} after $2\times60$ iterations). The unexplained part of the channels falls to \SI{-38}{dB} in the same
         way.
-  \item \textbf{Ill-conditioned configurations.} Where the baselines do not separate the parcels (two channels, equally
-        spaced baselines, certain heights with long baselines) the information is not in the data; the regularisation then
-        leaves the ambiguity instead of amplifying noise.
+  \item \textbf{Stability.} The regularisation keeps the solution stable in every configuration: the directions that the
+        channels measure well are recovered, and the few that they hardly measure are damped instead of amplifying noise.
+        Three or more channels with cross-track baselines that are not equally spaced make almost every direction well
+        measured (\cref{sec:mismatch}).
 \end{itemize}
 
 \begin{figure}[htbp]
@@ -380,7 +394,7 @@ compared with the reference simulated directly; the focusing is the same for eve
 \includegraphics[width=\linewidth]{figures/joint_convergence.pdf}
 \caption[Convergence of the joint reconstruction]{Joint reconstruction over the whole line on the example of
 \cref{fig:example1d} (five targets on a \SI{1000}{m} mountain, four channels). Left: highest ambiguity against the total number of
-conjugate-gradient iterations, with one pass and with two passes, against the reference and no SATA. Right: part of the channels
+conjugate-gradient iterations, with one pass and with two passes, against the reference and no correction. Right: part of the channels
 that the model does not explain, $\|\bm s-\mathbf A\hat{\bm g}\|/\|\bm s\|$, during the first pass.}
 \label{fig:convergence}
 \end{figure}
@@ -390,11 +404,12 @@ with $\bxt=[0,134.9,20.5,8.3]$\,\si{m}. The highest ambiguity goes from \SI{-8.7
 with the joint reconstruction; the reference is \SI{-48.7}{dB}, and \SI{-43.9}{dB} once it is limited to the processed band
 $\Ba$, as every reconstruction is.
 
-\begin{figure}[p]
+\begin{figure}[htbp]
 \centering
-\includegraphics[width=\linewidth]{figures/joint_example_1d.png}
-\caption[Example: five targets on a mountain]{Five targets on a \SI{1000}{m} Gaussian mountain, four channels. Top left:
-azimuth impulse responses of the reference, of the standard reconstruction (no SATA) and of the joint reconstruction over the
-whole line. Right: the scene and the formation. The joint reconstruction reads only the DEM.}
+\includegraphics[width=\linewidth]{figures/joint_example_1d.pdf}
+\caption[Example: five targets on a mountain]{Five targets on a \SI{1000}{m} Gaussian mountain, four channels,
+$\bxt=[0,134.9,20.5,8.3]$\,\si{m}. Top: the targets on the terrain (left) and the whole azimuth line in 3-D (right). Bottom:
+azimuth impulse responses of the reference with the standard reconstruction (left) and with the joint reconstruction over the
+whole line (right). The joint reconstruction reads only the DEM.}
 \label{fig:example1d}
 \end{figure}
