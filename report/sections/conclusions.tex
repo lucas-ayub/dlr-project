@@ -3,32 +3,50 @@
 \section{Conclusions}
 
 \begin{itemize}
-  \item Cross-track baselines turn topography into a channel-dependent phase \eqref{eq:dc0}, proportional to $\bxt_{,i}h$, which the reconstruction filters of the reference geometry do not include. Without correction the median highest ambiguity of the sweeps is \SI{\SweepOneMedNone}{dB} in 1-D and
-        \SI{\SweepTwoMedNone}{dB} in 2-D, against a reference near \SI{-48}{dB}.
-  \item This phase is known from the DEM and the system geometry. The joint reconstruction places it inside the model of
-        the channels, at every position of the focused line, and inverts model and topography together by regularised least
-        squares with conjugate gradients. The model and its adjoint are applied with FFTs only, and the method reduces to the
-        standard reconstruction on flat terrain.
-  \item Using only the system parameters and the DEM, the joint reconstruction reaches a median of
-        \SI{\SweepOneMedJoint}{dB} in 1-D (\SweepOneWithinTen\,\% of the runs within \SI{10}{dB} of the reference, about
-        \SI{90}{\percent} for four or more channels) and \SI{\SweepTwoMedJoint}{dB} in 2-D, where with three or more channels
-        it is within \SI{1}{dB} of the reference in the median.
-  \item On real terrain (200 azimuth lines cut from the SRTM DEM of the Sierra Nevada, relief up to \SI{2930}{m}) the
-        joint reconstruction lowers the median highest ambiguity from \SI{-8.3}{dB} to \SI{-41.5}{dB}, at the level of the
-        reference (\SI{-41.6}{dB}), and is within \SI{10}{dB} of it in 199 of the 200 lines (\cref{sec:realdem}).
-  \item The method works best with three or more channels and cross-track baselines that are not equally spaced, so that
-        the channels see the folded parts of the spectrum with different phases. The accuracy of the DEM sets the final level:
-        the phase error grows as $\bxt\,\delta h$, so long baselines call for accurate DEMs.
+  \item Cross-track baselines turn topography into a channel-dependent phase that the standard multichannel
+        reconstruction cannot absorb, $\varphi_i\approx 2\pi\bxt_{,i}h/(\lambda r_0\tan\theta)$. On a \SI{1000}{m} mountain the
+        highest ambiguity of the standard reconstruction rises from \SI{-41}{dB} on flat terrain to \SI{-4.4}{dB}; on real terrain
+        its median is \SI{-6.2}{dB}, against a reference near \SI{-40}{dB}.
+  \item The right phase can be read from the DEM, but a correction applied to each aliased channel before the reconstruction
+        can give only one phase to the parcels of positions $X\approx\SI{6.2}{km}$ apart that share a Doppler bin.
+        Placing the DEM phase inside the inversion solves this. The joint reconstruction over the whole line models every
+        channel from the focused line and the DEM and inverts it by regularised least squares, without ever forming the matrix
+        of the model. Using only the system parameters and the DEM it reaches \SI{-40.8}{dB} on the \SI{1000}{m} mountain
+        (reference \SI{-41.4}{dB}), is within \SI{3}{dB} of the reference on seven of nine simulated terrains, on six of seven
+        real-terrain cuts and on 130 of 150 random real-terrain lines, and is never worse than the standard reconstruction.
+  \item The failures are blind heights: a place and the place $X$ away get the same phase difference in every receiver, and the
+        data do not contain the information to separate them. All simulated failures and four of the ten failing real lines meet
+        this condition; the other six are not explained yet. The regularisation leaves the ambiguity there instead of amplifying
+        noise.
+  \item On a mountain swept every \SI{100}{m} up to \SI{3}{km} the joint reconstruction is within \SI{3}{dB} of the reference at 22 of
+        31 heights; the three heights where it is clearly hurt are near blind heights. It keeps the target peaks and the \SI{3}{dB} width
+        of the reference (\SI{5.77}{m}): it does not cost resolution.
+  \item With 1 to 200 targets per line on six terrains its image error is about \SI{-30}{dB} at every density, set by the accuracy of the
+        model $K\,H_i$; the failures (9 of 108 runs) all involve a target near a blind height.
+  \item An abrupt height change between close targets is not a problem in itself: two targets on either side of a cliff up to
+    \SI{1000}{m} high stay at \SIrange{-59}{-43}{dB} and keep the separation of the reference. The joint reconstruction degrades only
+    for a target on the cliff face, where the height changes by more than about \SI{100}{m} between two samples of the DEM phase
+    (\SI{3.84}{m}); a finer DEM grid would remove this limit.
+  \item The accuracy is limited by the DEM: the phase error grows as $\bxt\,\delta h$, and with a \SI{300}{m} baseline a DEM error of
+        about \SI{2}{m} rms already raises the ambiguities to \SI{-30}{dB}.
+  \item On straight tracks only $\Delta C_0$ matters, also for airborne geometries. A cross-track baseline that changes during the
+        aperture by $\varepsilon(t)$ adds the phase $2\pi\varepsilon(t)\,h/(\lambda r_0\tan\theta)$ (the DEM phase with the baseline replaced by its change), mostly not a parabola; after a motion compensation to
+        $h=0$ the ambiguity follows $20\log_{10}\varphi-\SI{9.5}{dB}$, so \SI{-40}{dB} needs residual phases below about \SI{0.02}{rad}, not
+        $\pi/4$.
+  \item Without noise none of the tested parameter-choice rules (L-curve with RelSea, discrepancy principle, Bayes minimum risk)
+        improves on $\mu=0.03\,\sigma_{\max}$; at \SI{20}{dB} SNR the current solver loses about \SI{10}{dB} on the mountain, and the
+        sparsity-promoting MARIA recovers it on point-target scenes, at two to five times the cost and with a sparse prior.
 \end{itemize}
 
 \section{Outlook}
 
 \begin{itemize}
-  \item Validation with realistic antenna patterns, orbits and baselines that vary along the orbit, and eventually with real
-        multistatic data.
-  \item 2-D: distributed scenes, layover and shadow, finer range resolution (envelope interpolation) and wide swaths
-        (range-dependent kernels in blocks).
+  \item Validation with realistic antenna patterns, orbits and noise, and eventually with real multistatic data.
+  \item A topography-dependent motion compensation inside the model (a $\Delta C_0$ that changes along the aperture) for formations
+        whose baselines vary in time, in particular airborne ones.
+  \item Statistical, sparsity-promoting regularisation (MARIA-type) for noisy data, with safeguards for distributed scenes.
+  \item An extension to two dimensions (azimuth and range), with the DEM height of every pixel, is the natural next step.
   \item Joint estimation of a DEM correction, using the unexplained part of the channels as the cost.
-  \item Use of the conditioning analysis (\cref{sec:mismatch}) as a design rule for the cross-track baselines of a formation.
+  \item Use of the blind-height condition (\cref{sec:blind}) as a design rule for the cross-track baselines of a formation.
   \item Computational cost: block-wise or GPU implementation of the model and its adjoint for full scenes.
 \end{itemize}

@@ -2,10 +2,11 @@
 Result figures of the report (vector PDFs in ../figures), computed with the sata1d package of this repository.
 
     python make_figures.py all            # every figure (a few minutes on four cores)
-    python make_figures.py coeffs rangehist spectra irf_height amb_height sata_controls sata_realistic \
-                           sata_refpoint joint_convergence joint_nrx system_coupling joint2d_examples
+    python make_figures.py coeffs rangehist spectra irf_height amb_height joint_example joint_convergence \
+                           system_coupling readme_result
 
-sata_realistic also writes ../figures/readme_result.png, the figure of the README of the repository.
+readme_result writes ../figures/readme_result.png, the figure of the README of the repository (a raster copy of the
+mountain result of the report, figures/pres/res_mountain.pdf). The figures of the analyses of runs/analysis_v30 are made by the scripts of that folder.
 Intermediate results are cached in ~/DLR/dlr-project_resultados/report_figures_cache (delete it to recompute).
 Every method receives only the system parameters and the DEM; the targets are used only to simulate the echoes.
 """
@@ -40,7 +41,7 @@ plt.rcParams.update({"font.family": "serif", "mathtext.fontset": "cm", "font.siz
                      "savefig.pad_inches": 0.03, "legend.framealpha": 0.9})
 W_FULL = 6.3                                                           # text width of the report [in]
 COL = dict(ref="#2ca02c", none="#d62728", whole="#ff7f0e", sub="#8c564b", joint_occ="#1f77b4", joint_line="#9467bd")
-LAB = dict(ref="reference", none="no correction", whole="SATA whole band", sub="SATA per sub-band",
+LAB = dict(ref="reference", none="standard reconstruction", whole="SATA whole band", sub="SATA per sub-band",
            joint_occ="joint (sub-apertures)", joint_line="joint (whole line)")
 TERRAIN_C, FILL_C = "#6D4C2F", "#D7C9A7"
 
@@ -327,54 +328,14 @@ def bxt_str(b):
     return "[" + ", ".join(f"{x:g}" for x in b) + "] m"
 
 
-# --------------------------------------------------------------------------------------------- SATA figures
-def fig_sata_controls():
-    cases = [("ctrl_periodX_5", "N4b100"), ("ctrl_period1p5X_5", "N4b100")]
-    rs = [run_audit(*c) for c in cases]
-    fig = plt.figure(figsize=(W_FULL, 8.6))
-    gs = GridSpec(5, 2, height_ratios=[0.9, 1, 1, 1, 1], hspace=0.95, wspace=0.28, figure=fig)
-    for j, r in enumerate(rs):
-        a = fig.add_subplot(gs[0, j])
-        x0 = r["xs"][2]
-        folds = [x0 - 6228.7, x0, x0 + 6228.7]
-        k = np.abs(r["tgrid"]) <= 12000
-        a.fill_between(r["tgrid"][k] / 1e3, -10, r["hgrid"][k], color=FILL_C, alpha=0.55, lw=0)
-        a.plot(r["tgrid"][k] / 1e3, r["hgrid"][k], color=TERRAIN_C, lw=1.1)
-        a.scatter(r["xs"] / 1e3, r["hs"], s=12, color="#1F4E79", edgecolor="k", lw=0.4, zorder=3)
-        for f in folds:
-            a.plot([f / 1e3], [np.interp(f, r["tgrid"], r["hgrid"])], "o", ms=5, mfc="none", mec=COL["none"], mew=1.0)
-            a.axvline(f / 1e3, color="0.6", ls=":", lw=0.6)
-        a.set_xlim(-12, 12); a.set_ylim(-10, 215)
-        a.set_xlabel("azimuth position $x$ [km]"); a.set_ylabel("height [m]")
-        a.set_title(["period 6.23 km: same height at $x$ and $x\\pm6.23$ km",
-                     "period 9.34 km: different heights at $x$ and $x\\pm6.23$ km"][j], fontsize=7.2, pad=4)
-        for q, k in enumerate(["none", "whole", "sub", "joint_line"]):
-            irf_panel(fig.add_subplot(gs[1 + q, j]), r, [k, "ref"], (-2.6, 2.6))
-    save(fig, "sata_controls")
+# --------------------------------------------------------------------------------------------- README figure
+def fig_readme_result():
+    """Figure of the README of the repository: the 1000 m mountain of the results chapter (figures/pres/res_mountain.pdf,
+    standard reconstruction, joint reconstruction and reference), rasterised to readme_result.png with pdftoppm."""
+    import subprocess
+    src = os.path.join(OUT, "pres", "res_mountain.pdf")
+    subprocess.run(["pdftoppm", "-png", "-r", "220", "-singlefile", src, os.path.join(OUT, "readme_result")], check=True)
 
-
-def fig_sata_realistic():
-    r = run_audit("few_mountains_5", "N4b300")
-    fig = plt.figure(figsize=(W_FULL, 6.0))
-    gs = GridSpec(3, 2, height_ratios=[1.15, 1.0, 1.0], hspace=0.8, wspace=0.28, figure=fig)
-    geometry_panels(fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[0, 1], projection="3d"), r)
-    irf_panel(fig.add_subplot(gs[1, 0]), r, ["ref", "none"])
-    irf_panel(fig.add_subplot(gs[1, 1]), r, ["ref", "whole"])
-    irf_panel(fig.add_subplot(gs[2, 0]), r, ["ref", "sub"])
-    irf_panel(fig.add_subplot(gs[2, 1]), r, ["ref", "joint_line"])
-    print("few_mountains_5 N4b300", {k: round(v, 1) for k, v in r["res"].items() if k in LAB}, r["bxt"], r["label"])
-    save(fig, "sata_vs_joint_mountains", png="readme_result")              # the PNG is the figure of the README
-
-
-def fig_sata_refpoint():
-    r = run_audit("one_refpoint", "N4b100")
-    fig = plt.figure(figsize=(W_FULL, 4.3))
-    gs = GridSpec(2, 2, height_ratios=[1.0, 1.15], hspace=0.85, wspace=0.28, figure=fig)
-    geometry_panels(fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[0, 1], projection="3d"), r, zoom_pad=8000.0)
-    irf_panel(fig.add_subplot(gs[1, 0]), r, ["ref", "none", "whole"], (-2.6, 2.6))
-    irf_panel(fig.add_subplot(gs[1, 1]), r, ["ref", "sub", "joint_line"], (-2.6, 2.6))
-    print("one_refpoint N4b100", {k: round(v, 1) for k, v in r["res"].items() if k in LAB}, r["bxt"], r["label"])
-    save(fig, "sata_refpoint")
 
 
 # --------------------------------------------------------------------------------------------- joint figures
@@ -414,27 +375,13 @@ def fig_joint_convergence():
     ax[0].semilogx(d["its"], d["one"], "o-", ms=3, color=COL["joint_line"], label="joint (whole line), 1 pass")
     ax[0].semilogx(2 * np.array(d["its"]), d["two"], "s--", ms=3, color="k", lw=0.9, label="joint (whole line), 2 passes")
     ax[0].axhline(d["ref"], color=COL["ref"], lw=1.4, label=f"reference ({d['ref']:.1f} dB)")
-    ax[0].axhline(d["none"], color=COL["none"], lw=1.0, ls="--", label=f"no correction ({d['none']:.1f} dB)")
+    ax[0].axhline(d["none"], color=COL["none"], lw=1.0, ls="--", label=f"standard reconstruction ({d['none']:.1f} dB)")
     ax[0].set_xlabel("conjugate-gradient iterations (all passes)"); ax[0].set_ylabel("highest ambiguity [dB]")
     ax[0].legend(fontsize=6.2, loc="center right")
     ax[1].semilogx(d["its"], d["une"], "o-", ms=3, color="k")
     ax[1].set_xlabel("conjugate-gradient iterations (1 pass)"); ax[1].set_ylabel("unexplained part [dB]")
     fig.tight_layout(w_pad=1.2)
     save(fig, "joint_convergence")
-
-
-def fig_joint_nrx():
-    tags = ["N2b300", "N3b300", "N4b300", "N8b300"]
-    rs = [run_audit("many_mountains_49", t) for t in tags]
-    fig = plt.figure(figsize=(W_FULL, 6.4))
-    gs = GridSpec(3, 2, height_ratios=[1.15, 1.0, 1.0], hspace=0.95, wspace=0.28, figure=fig)
-    geometry_panels(fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[0, 1], projection="3d"), rs[0], zoom_pad=1500.0)
-    for j, r in enumerate(rs):
-        a = fig.add_subplot(gs[1 + j // 2, j % 2])
-        irf_panel(a, r, ["ref", "joint_line"], (-3.2, 3.2),
-                  title=fr"$N_{{rx}}$ = {len(r['bxt'])}, $b_{{xt}}$ = {bxt_str(r['bxt'])}")
-        print(tags[j], {k: round(v, 1) for k, v in r["res"].items() if k in LAB})
-    save(fig, "joint_nrx_mountains49")
 
 
 def fig_system_coupling():
@@ -480,50 +427,6 @@ JOINT2D_CASES = [("ramp_obl6_grid49", "N4b300", "(a) oblique ramp, 6$^\\circ$, 0
                  ("mountain_grid49", "N6b500", "(c) isolated 1000 m mountain")]
 
 
-def fig_joint2d_examples():
-    """Azimuth IRFs of the 2-D joint reconstruction on three 3-D scenes of the 2-D sweep (49 targets each)."""
-    R2 = os.path.join(_mac if os.path.isdir(_mac) else os.path.expanduser("~/DLR"), "dlr-project_resultados",
-                      "results", "sata2d", "sweep_joint2d_all")
-    sys.path.insert(0, os.path.normpath(os.path.join(HERE, "..", "..", "sar_reconstruction")))
-    import json
-    from sata2d import run_sweep_joint2d_all as J2                      # registers every scene of the sweep
-    nums = {(r["scene"], r["baseline"]): r for r in json.load(open(os.path.join(R2, "all_numbers.json")))}
-    fig = plt.figure(figsize=(W_FULL, 8.3))
-    gs = GridSpec(3, 3, figure=fig, width_ratios=[1.0, 1.0, 0.72], hspace=0.95, wspace=0.30)
-    for row, (sid, tag, name) in enumerate(JOINT2D_CASES):
-        r = nums[(sid, tag)]
-        z = np.load(os.path.join(R2, "data", f"{sid}__{tag}.npz"))
-        sc = J2.R.scene(sid, tag)
-        p, terrain, xy = sc["p"], sc["terrain"], sc["xy"]
-        t = (np.arange(p.Na) - p.Na // 2) / p.prf
-        db = {k: 20 * np.log10(z[f"env_{k}"] / float(z["pk"]) + 1e-12) for k in ("ref", "none", "joint")}
-        a0, a1 = fig.add_subplot(gs[row, 0]), fig.add_subplot(gs[row, 1])
-        for a in (a0, a1):
-            a.plot(t, db["ref"], color=COL["ref"], lw=1.1, label="reference")
-            a.set_xlim(-2.3, 2.3); a.set_ylim(-80, 3); a.set_xlabel("azimuth time [s]", labelpad=1)
-        a0.plot(t, db["none"], color=COL["none"], lw=0.55, label="no correction")
-        a1.plot(t, db["joint"], color=COL["joint_line"], lw=0.55, label="joint reconstruction (2-D)")
-        a0.set_ylabel("[dB]")
-        a0.set_title(f"no correction: {r['none']:.1f} dB", fontsize=7.4)
-        a1.set_title(f"joint: {r['joint']:.1f} dB (reference {r['ref']:.1f} dB)", fontsize=7.4)
-        a1.set_yticklabels([])
-        a0.text(0.0, 1.20, f"{name};  $N_{{rx}}$ = {p.Nrx}, $b_{{xt}}$ = {bxt_str(p.bxt)}", transform=a0.transAxes,
-                fontsize=7.8, fontweight="bold", va="bottom")
-        a2 = fig.add_subplot(gs[row, 2])
-        lo, hi = np.minimum(xy.min(axis=0), 0.0), np.maximum(xy.max(axis=0), 0.0)
-        pad = np.maximum(0.25 * (hi - lo), [1500.0, 1000.0])
-        xg = np.linspace(lo[0] - pad[0], hi[0] + pad[0], 161); yg = np.linspace(lo[1] - pad[1], hi[1] + pad[1], 111)
-        hg = terrain(xg[:, None], yg[None, :])
-        a2.contourf(xg / 1e3, yg / 1e3, hg.T, levels=16, cmap="terrain", alpha=0.85)
-        a2.plot(xy[:, 0] / 1e3, xy[:, 1] / 1e3, "o", ms=2.2, color="#1F4E79", mec="w", mew=0.3, ls="none")
-        a2.set_xlabel("azimuth [km]", labelpad=1); a2.set_ylabel("ground range [km]", labelpad=1)
-        a2.set_title(f"scene, $\\Delta h$ = {r['dh']:.0f} m", fontsize=7.4); a2.grid(False)
-        a2.tick_params(labelsize=6.5)
-        if row == 0:
-            h0, l0 = a0.get_legend_handles_labels(); h1, l1 = a1.get_legend_handles_labels()
-            fig.legend([h0[0], h0[1], h1[1]], [l0[0], l0[1], l1[1]], loc="lower center", bbox_to_anchor=(0.5, 0.955),
-                       ncol=3, frameon=False, fontsize=7.4)
-    save(fig, "joint2d_examples")
 
 
 def fig_joint_example():
@@ -551,10 +454,8 @@ def fig_joint_example():
 
 
 FIGS = dict(coeffs=fig_coeffs, rangehist=fig_rangehist, spectra=fig_spectra, irf_height=fig_irf_height,
-            amb_height=fig_amb_height, sata_controls=fig_sata_controls, sata_realistic=fig_sata_realistic,
-            sata_refpoint=fig_sata_refpoint, joint_convergence=fig_joint_convergence, joint_nrx=fig_joint_nrx,
-            system_coupling=fig_system_coupling, joint2d_examples=fig_joint2d_examples,
-            joint_example=fig_joint_example)
+            amb_height=fig_amb_height, joint_example=fig_joint_example, joint_convergence=fig_joint_convergence,
+            system_coupling=fig_system_coupling, readme_result=fig_readme_result)
 
 if __name__ == "__main__":
     names = sys.argv[1:] or ["all"]

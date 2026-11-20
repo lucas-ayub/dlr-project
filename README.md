@@ -11,19 +11,25 @@ at the DLR Microwaves and Radar Institute (DLR-HR) within a DLR-DAAD fellowship.
 <td>
 <b><a href="report/report.pdf">Topography-Dependent Azimuth Reconstruction in Multistatic SAR Systems</a></b> (draft)<br><br>
 Signal model and the coefficients C<sub>0</sub>, C<sub>1</sub>, C<sub>2</sub>; multichannel reconstruction and how topography
-creates ambiguities; the joint topography correction and reconstruction with a DEM, in 1-D and 2-D; sweeps over terrains,
-numbers of channels and baselines, and results on real terrain (SRTM, Sierra Nevada).<br><br>
+creates ambiguities; the joint reconstruction (final method) along one azimuth line: the model, the matrix-free solver and
+its regularisation; results on simulated and real (SRTM) terrain, ambiguity and resolution against the mountain height,
+scenes full of targets, blind heights, DEM accuracy, baselines that vary during the aperture and other regularisation
+methods.<br><br>
 <a href="report/report.pdf">PDF</a> · <a href="report/">LaTeX sources</a>
 </td>
 </tr>
 </table>
 
 <p align="center">
+<a href="report/report.pdf"><img src="report/figures/readme_result.png" alt="Standard reconstruction, joint reconstruction and reference over a 1000 m mountain" width="85%"></a><br>
+<sub>Five targets on a 1000 m Gaussian mountain, four channels: the standard reconstruction leaves ambiguities up to
+&minus;4.4 dB, the joint reconstruction (DEM only) reaches &minus;40.8 dB against &minus;41.4 dB for the reference; right: the
+same against the height of the mountain.</sub><br><br>
 <a href="report/report.pdf"><img src="report/figures/readme_realdem.png" alt="Joint reconstruction on real terrain (SRTM, Sierra Nevada)" width="95%"></a><br>
 <sub>Real terrain: 47 km azimuth lines cut from the SRTM 3'' DEM of the Sierra Nevada. Yosemite Valley (line 1, five
-targets, four channels): ghosts of &minus;5.7 dB without correction and &minus;41.5 dB with the joint reconstruction, at the
-level of the reference (&minus;41.6 dB); over 200 random lines the median goes from &minus;8.3 dB to &minus;41.5 dB, with the
-geometry and the DEM only. Code: <a href="sata1d_code/joint_cases/real_dem/">sata1d_code/joint_cases/real_dem</a>.</sub>
+targets, four channels): highest ambiguity &minus;5.7 dB with the standard reconstruction and &minus;41.5 dB with the joint
+reconstruction, at the level of the reference (&minus;41.6 dB); over 200 random lines (fixed target positions) the median goes
+from &minus;8.3 dB to &minus;41.5 dB, with the geometry and the DEM only. Code: <a href="sata1d_code/joint_cases/real_dem/">sata1d_code/joint_cases/real_dem</a>.</sub>
 </p>
 
 <p align="center"><b>🎬 How the joint reconstruction works</b> (animation, 4 min)</p>
@@ -39,7 +45,7 @@ https://github.com/user-attachments/assets/6e90b157-4b01-40fe-99bc-f6733f9ec6a3
 
 <p align="center"><sub>From the aliased channels to the focused line: the acquisition, the range histories and the
 channel filter H<sub>i</sub> inside K<sub>i</sub>, the model as matrices, why it cannot be solved Doppler bin by Doppler
-bin, the back-projection of all receivers, the CGLS iterations and the comparison with the reference IRF. Every curve
+bin, the back-projection of all receivers, the iterations of the regularised solver and the comparison with the reference IRF. Every curve
 comes from the simulation (four channels, three targets on a 250 m hill).</sub></p>
 
 A multichannel SAR samples the azimuth signal at a PRF below the Doppler bandwidth and recovers it by combining the
@@ -57,12 +63,11 @@ channels have cross-track baselines, every scatterer carries a channel-dependent
 | Method | Description | Code |
 | --- | --- | --- |
 | Reference | monostatic signal of the scene, no ambiguities | `sata1d.generate_reference` |
-| No SATA | standard reconstruction with the flat-earth filters | `sata1d.reconstruct` |
-| SATA, whole band | per-channel topography correction in sub-apertures, then reconstruction | `sata1d.sata_channels` |
-| SATA, per sub-band | the same, with one correction per output sub-band | `sata1d.reconstruct_subband` |
-| Joint (sub-apertures) | correction inside the inversion: the &Delta;C<sub>0</sub> of every folded parcel enters the matrix | `sata1d.reconstruct_joint` |
-| **Joint (whole line)** | final version: the channels are modelled from the focused line and the DEM and solved by regularised least squares (CGLS) | `sata1d.reconstruct_joint_line` |
-| Joint 2-D | the whole-line joint for 3-D scenes (azimuth × range) | `sata2d/joint2d.py` |
+| Standard reconstruction | multichannel reconstruction with the flat-earth filters | `sata1d.reconstruct` |
+| **Joint (whole line)** | final method, used in the report: the channels are modelled from the focused line and the DEM and solved by regularised least squares (conjugate gradients) | `sata1d.reconstruct_joint_line` |
+| Per-channel correction (whole band / per sub-band) | earlier approach, not used in the report: topography correction of each channel in sub-apertures before the reconstruction | `sata1d.sata_channels`, `sata1d.reconstruct_subband` |
+| Joint (sub-apertures) | earlier version of the joint: the &Delta;C<sub>0</sub> of every folded parcel enters the matrix | `sata1d.reconstruct_joint` |
+| Joint 2-D | exploratory extension to 3-D scenes (azimuth × range), not part of the report | `sata2d/joint2d.py` |
 | Oracle | targets simulated already corrected (lower bound, not realisable) | — |
 
 ## Repository layout
@@ -71,21 +76,22 @@ channels have cross-track baselines, every scatterer carries a channel-dependent
 dlr-project/
 ├── sata1d_code/                1-D study (azimuth only) — main code
 │   ├── sata1d/                 package: config, geometry, signal model, reconstruction,
-│   │                           SATA (whole band, per sub-band), joint, joint_line
+│   │                           per-channel correction (earlier approach), joint, joint_line
 │   ├── joint_cases/            joint reconstruction: case runs, sweeps, audits with a DEM only, guides
 │   ├── joint_standalone/       self-contained copy of the whole-line joint (package joint1d)
 │   ├── legacy/                 previous per-sub-band fit (used by the verification scripts)
 │   └── *.py                    single runs, sweeps, figures and verification (T1–T19)
 │
 ├── sar_reconstruction/
-│   ├── sata2d/                 2-D study: 3-D geometry, SATA 2-D, joint 2-D, sweeps
+│   ├── sata2d/                 exploratory 2-D study: 3-D geometry, joint 2-D, sweeps
 │   ├── sar_recon/              original reconstruction package (first phase of the project)
 │   └── CUSTOMIZATION_GUIDE.md
 │
 ├── runs/                       experiments of the first phase (sar_recon)
 │   ├── core/                   reconstruction, coefficient and sub-band experiments
 │   ├── validation/             validation against the analytic model
-│   └── sata/                   reference SATA code (IDL) and its Python port
+│   ├── sata/                   reference code of the per-channel correction (IDL) and its Python port
+│   └── analysis_v30/           analyses of the final report (height, dense scenes, close targets by a cliff, baselines, solvers)
 │
 ├── report/                     project report (LaTeX + TikZ, compiled PDF)
 ├── results/                    scripts that assemble the result PDFs
@@ -93,7 +99,7 @@ dlr-project/
 └── requirements.txt
 ```
 
-Detailed documentation: [`sata1d_code/README.md`](sata1d_code/README.md) (SATA and joint in 1-D),
+Detailed documentation: [`sata1d_code/README.md`](sata1d_code/README.md) (1-D package and the joint reconstruction),
 [`sata1d_code/joint_standalone/README.md`](sata1d_code/joint_standalone/README.md) (minimal joint),
 [`sar_reconstruction/sata2d/README.md`](sar_reconstruction/sata2d/README.md) (2-D study),
 [`sar_reconstruction/CUSTOMIZATION_GUIDE.md`](sar_reconstruction/CUSTOMIZATION_GUIDE.md) (`sar_recon`).
@@ -116,7 +122,7 @@ The 1-D package `sata1d` is not installed: run its scripts from `sata1d_code/`.
 **1-D — one scene, every method** (from `sata1d_code/`):
 
 ```bash
-python run_one_case.py --scene dense_ramp --mode none whole sub joint oracle
+python run_one_case.py --scene dense_ramp --mode none joint oracle
 python run_one_case.py --targets 0:500 --mode none joint      # custom targets x:h [m]
 ```
 
@@ -153,6 +159,23 @@ python joint_cases/sweep_joint_all.py --workers 4         # complete sweep of th
 python -m sata2d.run_sata2d_topo --plots                  # main 3-D geometry experiment
 python -m sata2d.run_sweep_joint2d_all --workers 3        # complete sweep of the 2-D joint (resumable)
 ```
+
+**1-D — analyses of the final report** (from `runs/analysis_v30/`, see the README of each folder):
+
+```bash
+cd runs/analysis_v30/joint_height_dense
+python3 -I item1_height.py && python3 -I plot_item1.py    # ambiguity and resolution vs mountain height (~1 min)
+DEM_DIR=/path/to/dem python3 -I item3_dense.py && python3 -I plot_item3.py   # scenes full of point targets (~5 min)
+cd ../baselines_solvers
+python3 -I item2_baseline_variation.py && python3 -I item2_joint.py           # baselines that vary in time (~5 min)
+DEM_DIR=/path/to/dem python3 -I item5_regularisation.py && python3 -I plot_item5.py   # other solvers (~12 min)
+cd ../close_targets_height_step
+python3 -I item_close.py && python3 -I plot_close.py           # close targets next to a cliff or a bump (~3 min)
+```
+
+The scripts find the repository root by walking up to `sata1d_code/` (or from `DLR_REPO`). The SRTM lines need the
+GeoTIFF `main_srtm90.tif` in `DEM_DIR` (default `data/dem/`, not versioned). Each folder has a `results.md` with every
+number of the report and the script that produces it.
 
 ## Outputs
 

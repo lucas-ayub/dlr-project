@@ -1,0 +1,283 @@
+\documentclass[tikz,border=4pt]{standalone}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb,mathtools,bm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,decorations.pathreplacing,backgrounds,fit,
+                shapes.geometric,shapes.misc}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepgfplotslibrary{groupplots}
+
+% ---------------------------------------------------------------------
+%  PALETTE (light theme of the mid-term presentation)
+% ---------------------------------------------------------------------
+\definecolor{ink}{RGB}{30,41,59}
+\definecolor{muted}{RGB}{100,116,139}
+\definecolor{rule}{RGB}{203,213,225}
+\definecolor{primary}{RGB}{21,101,146}
+\definecolor{teal}{RGB}{34,148,136}
+\definecolor{amber}{RGB}{224,122,63}
+\definecolor{plum}{RGB}{124,92,168}
+\definecolor{panel}{RGB}{238,243,247}
+\definecolor{panel2}{RGB}{233,242,240}
+\definecolor{cardln}{RGB}{210,222,232}
+% methods (the same colours as in every result figure of the report)
+\definecolor{cref}{HTML}{2CA02C}
+\definecolor{cnone}{HTML}{D62728}
+\definecolor{cwhole}{HTML}{FF7F0E}
+\definecolor{csub}{HTML}{8C564B}
+\definecolor{cocc}{HTML}{1F77B4}
+\definecolor{cjoint}{HTML}{9467BD}
+% terrain / DEM, unknown scene and data
+\definecolor{terrain}{RGB}{120,90,60}
+\definecolor{terrainfill}{RGB}{235,228,214}
+\definecolor{cunk}{HTML}{C62828}
+\definecolor{cdat}{HTML}{1565C0}
+% the four channels (one hue, light to dark)
+\definecolor{chA}{HTML}{0D47A1}
+\definecolor{chB}{HTML}{1E6FCC}
+\definecolor{chC}{HTML}{4A94DE}
+\definecolor{chD}{HTML}{90C2F0}
+
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{xcolor}
+% notation
+\newcommand{\dC}{\Delta C_0}
+\newcommand{\Nrx}{N_{\mathrm{rx}}}
+\newcommand{\PRF}{\mathrm{PRF}}
+\newcommand{\PRFop}{\mathrm{PRF}_{\mathrm{op}}}
+\newcommand{\bxt}{b_{\mathrm{xt}}}
+\newcommand{\bat}{b_{\mathrm{at}}}
+\newcommand{\bxti}{b_{\mathrm{xt},i}}
+\newcommand{\bati}{b_{\mathrm{at},i}}
+\newcommand{\Ba}{B_{\mathrm{a}}}
+\newcommand{\jj}{\mathrm{j}}
+\newcommand{\ee}{\mathrm{e}}
+\newcommand{\Hm}{^{\mathsf H}}
+\newcommand{\T}{^{\mathsf T}}
+\newcommand{\F}{\mathbf F}
+\newcommand{\D}{\mathcal D}
+\newcommand{\vg}{\bm g}
+\newcommand{\vgh}{\hat{\bm g}}
+\newcommand{\gs}{g}
+\newcommand{\sv}{{\color{cdat}\bm s}}
+\newcommand{\ssv}{{\color{cdat}s}}
+
+\tikzset{
+  >={Stealth[length=2.4mm]},
+  box/.style   ={rounded corners=3pt,draw=primary,line width=0.9pt,fill=panel,
+                 text=ink,align=center,inner sep=4pt,font=\scriptsize},
+  tbox/.style  ={rounded corners=3pt,draw=teal,line width=0.9pt,fill=panel2,
+                 text=ink,align=center,inner sep=4pt,font=\scriptsize},
+  abox/.style  ={rounded corners=3pt,draw=amber,line width=0.9pt,fill=amber!12,
+                 text=ink,align=center,inner sep=4pt,font=\scriptsize},
+  pbox/.style  ={rounded corners=3pt,draw=plum,line width=0.9pt,fill=plum!10,
+                 text=ink,align=center,inner sep=4pt,font=\scriptsize},
+  gbox/.style  ={rounded corners=3pt,draw=muted,line width=0.7pt,fill=white,
+                 text=ink,align=center,inner sep=4pt,font=\scriptsize},
+  dbox/.style  ={rounded corners=3pt,draw=terrain,line width=0.8pt,fill=terrainfill,
+                 text=ink,align=center,inner sep=4pt,font=\scriptsize},
+  dec/.style   ={diamond,aspect=2.3,draw=amber,line width=0.8pt,fill=amber!14,
+                 text=ink,align=center,inner sep=1pt,font=\tiny},
+  stepn/.style ={circle,fill=amber,text=white,font=\tiny\bfseries\sffamily,inner sep=0.6pt,minimum size=3.9mm},
+  arr/.style   ={-{Stealth[length=2.2mm]},line width=0.9pt,draw=muted},
+  bx/.style    ={rounded corners=2pt,line width=0.8pt,align=center,inner sep=2.5pt,text width=#1},
+  bx/.default=3.2cm,
+  lane/.style  ={rounded corners=5pt,line width=0.7pt},
+  ln/.style    ={anchor=north,align=center,font=\footnotesize},
+  tarr/.style  ={-{Stealth[length=2.2mm]},line width=1.0pt,draw=teal},
+  aarr/.style  ={-{Stealth[length=2.2mm]},line width=1.0pt,draw=amber},
+  parr/.style  ={-{Stealth[length=2.2mm]},line width=1.0pt,draw=plum},
+  cota/.style  ={<->,line width=0.5pt,draw=muted},
+  brc/.style   ={decorate,decoration={brace,amplitude=4pt},draw=muted,line width=0.6pt},
+  nota/.style  ={font=\scriptsize,text=muted,align=center},
+  % operators of the joint model, coloured by the domain in which they act
+  op/.style    ={draw=muted,fill=white,rounded corners=2pt,align=center,inner sep=2.5pt,
+                 minimum height=8mm,minimum width=10mm,font=\small,line width=0.6pt},
+  opx/.style   ={op,draw=teal,fill=panel2},      % position (focused line)
+  opf/.style   ={op,draw=primary,fill=panel},    % Doppler frequency
+  opt/.style   ={op,draw=amber,fill=amber!10},   % time (raw channel line)
+  sat/.style   ={circle,draw=ink,fill=white,line width=0.8pt,inner sep=2pt},
+}
+
+
+% ---------------------------------------------------------------------------------------------- helpers
+\tikzset{
+  invisible/.style={opacity=0,text opacity=0},
+  visible on/.style={alt={#1{}{invisible}}},
+  alt/.code args={<#1>#2#3}{\alt<#1>{\pgfkeysalso{#2}}{\pgfkeysalso{#3}}},
+  gvisible on/.style={alt={#1{}{transparency group,opacity=0}}},
+  nohyph/.style={execute at begin node={\hyphenpenalty=10000\exhyphenpenalty=10000}},
+  pillst/.style={rounded corners=4.5pt,inner xsep=4.5pt,inner ysep=1.6pt,font=\scriptsize\sffamily\bfseries},
+  lbl/.style={font=\scriptsize,text=ink},
+  mlbl/.style={font=\scriptsize,text=muted},
+}
+\definecolor{sl0}{HTML}{E2E8F0}\definecolor{sl1}{HTML}{CBD5E1}\definecolor{sl2}{HTML}{94A3B8}\definecolor{sl3}{HTML}{64748B}
+\newcommand{\pilltw}{\tikz[baseline=-0.62ex]\node[pillst,fill=primary!14,text=primary]{this work};}
+\newcommand{\cfg}[1]{\framesubtitle{#1}}
+\newcommand{\cfgp}[2]{\framesubtitle{#2\hfill#1}}
+\newcommand{\dt}{\enspace$\cdot$\enspace}
+\newcommand{\lyr}[2]{\node<#1>[anchor=north west,inner sep=0pt] at (0,0) {\includegraphics{figures/v20/#2}};}
+% phase dial: centre (#1,#2), radius #3; arrow at #4 degrees clockwise from 12 o'clock, colour #5
+\newcommand{\dialbase}[3]{\draw[rule,line width=0.6pt,fill=white] (#1,#2) circle (#3);
+  \draw[muted,line width=0.6pt] (#1,#2+#3) -- (#1,#2+0.78*#3);}
+\newcommand{\dialarc}[5]{\draw[#5,line width=0.8pt] ($(#1,#2)+(90:{0.58*#3})$) arc[start angle=90,end angle={90-(#4)},radius={0.58*#3}];}
+\newcommand{\dialarrow}[5]{\draw[-{Stealth[length=1.9mm,width=1.8mm]},line width=1.2pt,#5] (#1,#2) -- ++({90-(#4)}:{0.84*#3});}
+% slide 9: the scatterer on the iso-range arc of the Tx (angle #1 seen from the Tx), #2 > 0: label it
+\newcommand{\scat}[2]{%
+  \coordinate (P) at ($(Tx)+(#1:\rr)$);
+  \draw[primary,line width=0.9pt] (Tx) -- (P);
+  \draw[chB,line width=0.9pt] (Rx) -- (P);
+  \ifnum#2>1 \draw[cota] (P |- 0,\zg) -- node[right=-1pt]{$h$} (P); \fi
+  \ifnum#2>0 \node[anchor=west] at ($(P)+(0.25,0.1)$) {scatterer}; \fi
+  \fill[ink] (P) circle (2.3pt);}
+
+
+% ---------------------------------------------------------------------------------------------- v28 helpers
+% styles of the joint algorithm (overview, stage slides and closing)
+\tikzset{
+  pa/.style={rounded corners=2pt,line width=0.8pt,draw=ink!55,fill=white,align=center,text width=2.35cm,
+             inner sep=2.2pt,minimum height=1.55cm,nohyph},
+  lo/.style={rounded corners=2pt,line width=0.8pt,draw=primary,fill=panel,align=center,text width=2.1cm,
+             inner sep=2.2pt,minimum height=1.0cm,nohyph},
+  fi/.style={rounded corners=2pt,line width=0.8pt,draw=plum,fill=plum!10,align=center,text width=3.0cm,inner sep=2.2pt,
+             nohyph},
+  io/.style={rounded corners=2pt,line width=0.8pt,draw=muted,fill=muted!8,align=center,inner sep=2.2pt,nohyph},
+  bd/.style={circle,fill=amber,text=white,font=\scriptsize\bfseries\sffamily,inner sep=0pt,minimum size=5.0mm},
+  parr2/.style={-{Stealth[length=2.2mm]},line width=1.0pt,draw=primary},
+  lanelab/.style={anchor=west,align=left,text width=2.0cm,font=\footnotesize\bfseries,nohyph},
+}
+\newcommand{\jointstyles}{}
+% "you are here": a thumbnail of the overview (three lanes) in the top-right corner, below the title rule;
+% #1 = comma list of the lit cells: P1,P2,P3,P4,L (the loop),F1,F2
+\makeatletter
+\newcommand{\yhcell}[5]{% name, x, y, width, label
+  \edef\yh@do{\noexpand\in@{,#1,}{,\yhlist,}}\yh@do
+  \ifin@\node[draw=amber,fill=amber,text=white,minimum width=#4cm,minimum height=0.27cm,inner sep=0pt,rounded corners=1pt]
+     at (#2,#3) {#5};
+  \else\node[draw=rule,fill=white,text=muted,minimum width=#4cm,minimum height=0.27cm,inner sep=0pt,rounded corners=1pt]
+     at (#2,#3) {#5};\fi}
+\makeatother
+\newcommand{\youarehere}[1]{%
+  \def\yhlist{#1}%
+  \begin{tikzpicture}[remember picture,overlay]
+    \begin{scope}[shift={([xshift=-3.25cm,yshift=-2.75cm]current page.north east)},x=1cm,y=1cm,
+                  font=\fontsize{5}{5}\selectfont\sffamily\bfseries]
+      \fill[muted!5,rounded corners=1.5pt] (0,0.9) rectangle (2.65,1.3); \draw[ink!40,rounded corners=1.5pt,line width=0.4pt] (0,0.9) rectangle (2.65,1.3);
+      \fill[panel!60,rounded corners=1.5pt] (0,0.45) rectangle (2.65,0.85); \draw[primary,rounded corners=1.5pt,line width=0.4pt] (0,0.45) rectangle (2.65,0.85);
+      \fill[plum!6,rounded corners=1.5pt] (0,0) rectangle (2.65,0.4); \draw[plum,rounded corners=1.5pt,line width=0.4pt] (0,0) rectangle (2.65,0.4);
+      \yhcell{P1}{0.42}{1.1}{0.52}{P1}\yhcell{P2}{1.02}{1.1}{0.52}{P2}\yhcell{P3}{1.62}{1.1}{0.52}{P3}\yhcell{P4}{2.22}{1.1}{0.52}{P4}
+      \yhcell{L}{1.32}{0.65}{2.32}{S1--S3 loop}
+      \yhcell{F1}{0.72}{0.2}{1.12}{F1}\yhcell{F2}{1.92}{0.2}{1.12}{F2}
+    \end{scope}
+  \end{tikzpicture}}
+
+% ---- v28: the five factors of the model s_i = D H_i K Psi_i g, one colour each, the same on every joint slide
+%      (never red / green / purple: those mean standard / reference / joint reconstruction)
+\colorlet{fD}{amber!88!black}\colorlet{fH}{primary}\definecolor{fK}{HTML}{5B6B85}\colorlet{fP}{terrain}\colorlet{fG}{ink}
+\newcommand{\fD}{{\color{fD}D}}\newcommand{\fH}{{\color{fH}H_i}}\newcommand{\fK}{{\color{fK}K}}
+\newcommand{\fKi}{{\color{fK}K_i}}\newcommand{\fP}{{\color{fP}\Psi_i}}
+\newcommand{\modelA}{\mathbf A_i=\fD\cdot\fKi\cdot\fP}
+% ---- v28: the simulation parameters, the same grey block under the title of every result slide; #1 = what is
+%      specific to the slide
+\newcommand{\simline}{$N_{\mathrm{rx}}=4$ (Rx0 $=$ Tx)\dt 500\,Hz each (2000\,Hz together)\dt
+  $\bxt=300,\ 119.8,\ 100.5$\,m\dt $\lambda=0.25$\,m\dt $v=7689$\,m/s\dt $r_0=766$\,km}
+\newcommand{\simcfg}[1]{\framesubtitle{\simline\\ look angle $20^\circ$\dt $\Ba=1235$\,Hz\dt #1}}
+
+% standalone: every build step shown
+\tikzset{visible on/.style={},gvisible on/.style={}}
+\providecommand{\vstrip}[5]{\foreach \c in {1,...,#3}
+  \draw[#5,line width=0.5pt] ({#1+(\c-1)*#4},{#2-0.17}) rectangle ({#1+\c*#4},{#2+0.17});}
+
+% Channel i's model: each step on its own axis (places l, Doppler bins k, samples n)
+\begin{document}
+\begin{tikzpicture}[x=1cm,y=1cm,font=\footnotesize,
+      dl/.style={anchor=west,align=left,font=\footnotesize,text width=2.85cm,nohyph},
+      vn/.style={anchor=south west,font=\small,inner sep=1pt},
+      ix/.style={anchor=north,font=\footnotesize,text=ink!75,inner sep=1pt},
+      op/.style={rounded corners=2pt,line width=0.9pt,fill=white,align=center,inner sep=2.5pt,font=\small},
+      on/.style={align=center,font=\footnotesize,text=ink!75,inner sep=1pt},
+      tb/.style={rounded corners=2pt,line width=0.8pt,draw=ink!60,fill=white,align=center,inner sep=2pt,font=\footnotesize,minimum width=4.6cm},
+      ar/.style={-{Stealth[length=1.9mm]},line width=0.8pt,draw=ink!70}]
+    \path (-0.2,-1.0) rectangle (15.3,6.1);
+    \def\cw{0.22}\def\xA{3.2}\def\xB{10.6}\def\yA{5.3}\def\yB{3.05}\def\yC{0.8}
+    % ---- the three axes (bands)
+    \fill[ink!6,rounded corners=4pt]     (-0.15,4.43) rectangle (15.25,6.07);
+    \fill[primary!9,rounded corners=4pt] (-0.15,2.25) rectangle (15.25,3.82);
+    \fill[ink!6,rounded corners=4pt]     (-0.15,0.0) rectangle (15.25,1.57);
+    \node[dl] at (0.0,5.28) {\textbf{azimuth: places}\\ $x_\ell=\ell\,\Delta x$\\ $\ell=0\ldots N_{\mathrm{az}}-1$};
+    % ================= step 1: places -> places, one multiply per place
+    \vstrip{\xA}{\yA}{16}{\cw}{draw=fG!80,fill=white}
+    \fill[amber!45] ({\xA+6*\cw},\yA-0.17) rectangle ({\xA+7*\cw},\yA+0.17);
+    \draw[fG!80,line width=0.5pt] ({\xA+6*\cw},\yA-0.17) rectangle ({\xA+7*\cw},\yA+0.17);
+    \node[vn] at ({\xA-0.02},\yA+0.2) {$g[\ell]$: the scene};
+    \node[ix] at ({\xA+0.5*\cw},\yA-0.2) {$0$};
+    \node[ix] at ({\xA+6.5*\cw},\yA-0.2) {$\ell$};
+    \node[ix] at ({\xA+15.5*\cw},\yA-0.2) {$N_{\mathrm{az}}{-}1$};
+    \node[font=\footnotesize,text=muted] at ({\xA+1.76},4.6) {the same for every channel $i$};
+    \vstrip{\xB}{\yA}{16}{\cw}{draw=fP,fill=white}
+    \fill[amber!45] ({\xB+6*\cw},\yA-0.17) rectangle ({\xB+7*\cw},\yA+0.17);
+    \draw[fP,line width=0.5pt] ({\xB+6*\cw},\yA-0.17) rectangle ({\xB+7*\cw},\yA+0.17);
+    \node[vn] at ({\xB-0.02},\yA+0.2) {$u_i[\ell]$};
+    \node[ix] at ({\xB+6.5*\cw},\yA-0.2) {$\ell$};
+    \draw[ar] ({\xA+3.62},\yA) -- ({\xB-0.1},\yA);
+    \node[op,draw=fP] at ({(\xA+3.52+\xB)/2},\yA) {${\color{fP}\times\,\ee^{-\jj\varphi_i[\ell]}}$};
+    \node[on] at ({(\xA+3.52+\xB)/2},\yA+0.47) {one multiply per place};
+    \node[on] at ({(\xA+3.52+\xB)/2},\yA-0.47) {$u_i[\ell]={\color{fP}\ee^{-\jj\varphi_i[\ell]}}\,g[\ell]$};
+    % ================= step 2: FFT, then one multiply per Doppler bin (right to left)
+    \begin{scope}[visible on=<2->]
+      \node[dl,text=primary] at (0.0,3.03) {\textbf{Doppler: bins}\\ $f_k=k\,\mathrm{PRF}/N_{\mathrm{az}}$\\ $k=0\ldots N_{\mathrm{az}}-1$};
+      \node[tb] (fft) at ({\xB+1.76},4.16) {FFT: every bin $k$ sums all $N_{\mathrm{az}}$ places};
+      \draw[ar] ({\xB+1.76},\yA-0.43) -- (fft.north);
+      \draw[ar] (fft.south) -- ({\xB+1.76},\yB+0.42);
+      \vstrip{\xB}{\yB}{16}{\cw}{draw=ink!60,fill=white}
+      \fill[amber!45] ({\xB+10*\cw},\yB-0.17) rectangle ({\xB+11*\cw},\yB+0.17);
+      \draw[ink!60,line width=0.5pt] ({\xB+10*\cw},\yB-0.17) rectangle ({\xB+11*\cw},\yB+0.17);
+      \node[vn] at ({\xB-0.02},\yB+0.2) {$U_i[k]$};
+      \node[ix] at ({\xB+0.5*\cw},\yB-0.2) {$0$};
+      \node[ix] at ({\xB+10.5*\cw},\yB-0.2) {$k$};
+      \node[ix] at ({\xB+15.5*\cw},\yB-0.2) {$N_{\mathrm{az}}{-}1$};
+      \vstrip{\xA}{\yB}{16}{\cw}{draw=fK,fill=white}
+      \fill[amber!45] ({\xA+10*\cw},\yB-0.17) rectangle ({\xA+11*\cw},\yB+0.17);
+      \draw[fK,line width=0.5pt] ({\xA+10*\cw},\yB-0.17) rectangle ({\xA+11*\cw},\yB+0.17);
+      \node[vn] at ({\xA-0.02},\yB+0.2) {$V_i[k]$};
+      \node[ix] at ({\xA+10.5*\cw},\yB-0.2) {$k$};
+      \draw[ar] ({\xB-0.1},\yB) -- ({\xA+3.62},\yB);
+      \node[op,draw=fK] at ({(\xA+3.52+\xB)/2},\yB) {$\times\,{\color{fK}K[k]}\,{\color{fH}H_i[k]}$};
+      \node[on] at ({(\xA+3.52+\xB)/2},\yB+0.47) {one multiply per bin};
+      \node[on] at ({(\xA+3.52+\xB)/2},\yB-0.47) {$V_i[k]={\color{fK}K[k]}\,{\color{fH}H_i[k]}\,U_i[k]$};
+    \end{scope}
+    % ================= step 3: IFFT, then keep 1 sample in N_rx
+    \begin{scope}[visible on=<3->]
+      \node[dl] at (0.0,0.78) {\textbf{azimuth: fine grid,}\\ \textbf{then samples}\\ $m=0\ldots N_{\mathrm{az}}-1$};
+      \node[tb] (ifft) at ({\xA+1.76},1.91) {IFFT: back to azimuth, $m=0\ldots N_{\mathrm{az}}{-}1$};
+      \draw[ar] ({\xA+1.76},\yB-0.43) -- (ifft.north);
+      \draw[ar] (ifft.south) -- ({\xA+1.76},\yC+0.42);
+      \vstrip{\xA}{\yC}{16}{\cw}{draw=ink!60,fill=white}
+      \foreach \c in {0,4,8,12}{
+        \fill[fD!40] ({\xA+\c*\cw},\yC-0.17) rectangle ({\xA+(\c+1)*\cw},\yC+0.17);
+        \draw[ink!60,line width=0.5pt] ({\xA+\c*\cw},\yC-0.17) rectangle ({\xA+(\c+1)*\cw},\yC+0.17);}
+      \node[vn] at ({\xA-0.02},\yC+0.2) {$v_i[m]$};
+      \node[ix] at ({\xA+0.5*\cw},\yC-0.2) {$0$};
+      \node[ix] at ({\xA+4.5*\cw},\yC-0.2) {$N_{\mathrm{rx}}$};
+      \node[ix] at ({\xA+8.5*\cw},\yC-0.2) {$2N_{\mathrm{rx}}$};
+      \node[ix] at ({\xA+12.5*\cw},\yC-0.2) {$\cdots$};
+      \vstrip{11.5}{\yC}{4}{\cw}{draw=fD,fill=fD!40}
+      \node[vn] at (11.48,\yC+0.2) {$s_i[n]$};
+      \node[ix] at ({11.5+0.5*\cw},\yC-0.2) {$0$};
+      \node[ix] at ({11.5+3.5*\cw},\yC-0.2) {$\cdots$};
+      \draw[ar] ({\xA+3.62},\yC) -- (11.4,\yC);
+      \node[op,draw=fD] at ({(\xA+3.52+11.4)/2},\yC) {${\color{fD}\downarrow}$ keep 1 in $N_{\mathrm{rx}}$};
+      \node[on] at ({(\xA+3.52+11.4)/2},\yC-0.47) {$s_i[n]=v_i[N_{\mathrm{rx}}\,n]$};
+      \node[on,anchor=north west,align=left] at (12.75,\yC+0.42) {$n=0\ldots\frac{N_{\mathrm{az}}}{N_{\mathrm{rx}}}-1$\\ $t_n=n\,N_{\mathrm{rx}}/\mathrm{PRF}$};
+      \node[font=\footnotesize,text=ink!80,align=center] at (7.6,-0.5)
+        {one channel: two element-wise products, two FFTs and one pick-out, about $N_{\mathrm{az}}\log N_{\mathrm{az}}$ operations};
+    \end{scope}
+  \end{tikzpicture}
+\end{document}

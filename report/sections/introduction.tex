@@ -18,7 +18,7 @@ $h_0=0$); a scatterer at another height carries a residual phase that is differe
 no longer match the data, the aliased parts no longer cancel and azimuth ambiguities appear in the image.
 
 The same kind of height-dependent phase is known from airborne motion compensation, where it is computed from an external
-DEM and removed position by position \cite{Prats2005topo,Prats2005thesis}. This work builds on that idea: the phase that the
+DEM and removed position by position \cite{Prats2005topo,Prats2005thesis,Prats2007moco}. This work builds on that idea: the phase that the
 terrain adds to each channel is known from the DEM and the system geometry, and the question is how to use it so that the
 multichannel reconstruction recovers an image free of ambiguities.
 
@@ -37,20 +37,19 @@ questions:
 \section{Contributions}
 
 \begin{itemize}
-  \item A numerical simulator of the multistatic acquisition and of the multichannel reconstruction in one dimension
-        (azimuth) and in two dimensions (azimuth and range, 3-D scenes), with along- and cross-track baselines and arbitrary
-        terrain (\cref{ch:model,ch:recon}).
-  \item A joint topography correction and reconstruction that places the DEM phase of every position inside the model of
-        the channels and inverts it over the whole line by regularised least squares with conjugate gradients, using only
-        FFTs (\cref{ch:joint}), and its 2-D extension (\cref{ch:joint2d}).
-  \item Systematic sweeps over terrains, numbers of channels and baselines, and a validation on real terrain from the SRTM
-        DEM (\cref{ch:results}).
+  \item A numerical simulator of the multistatic acquisition and of the multichannel reconstruction along one azimuth line,
+        with along- and cross-track baselines and arbitrary terrain (\cref{ch:model,ch:recon}).
+  \item A joint reconstruction that places the DEM phase inside the inversion, first per sub-aperture and finally over
+        the whole line, solved by regularised least squares with conjugate gradients (\cref{ch:joint}).
+  \item Results with a DEM only on simulated terrains and on real terrain (SRTM), against the height of the relief and the
+        number of targets and for close targets next to an abrupt height change, an analysis of the failures (blind heights), of the DEM accuracy and of baselines that vary during the
+        aperture, and a comparison with other regularisation methods (\cref{ch:results}).
 \end{itemize}
 
 \section{Outline}
 
 \Cref{ch:model} introduces the acquisition geometry and the topographic residual $\dC$. \Cref{ch:recon} reviews the
 multichannel reconstruction and explains how topography produces ambiguities. \Cref{ch:joint} presents the joint
-reconstruction and \cref{ch:joint2d} its 2-D version. \Cref{ch:results} collects the results and \cref{ch:conclusions}
-concludes. The simulator, the methods and the scripts that produce every figure of this report are available at
-\href{https://github.com/lucas-ayub/dlr-project}{github.com/lucas-ayub/dlr-project}.
+reconstruction.
+\Cref{ch:results} collects the results and \cref{ch:conclusions} concludes. The simulator, the methods and the scripts that
+produce every figure of this report are available at \href{https://github.com/lucas-ayub/dlr-project}{github.com/lucas-ayub/dlr-project}.

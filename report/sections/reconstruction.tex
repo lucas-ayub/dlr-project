@@ -105,7 +105,7 @@ grows with the spread of $\bxt_{,i}h$. Weighted by the fraction of the target ba
 $|c_m|$ predicts the ambiguity of the uncorrected reconstruction within \SI{0.15}{dB} for heights above \SI{50}{m}.
 
 \Cref{fig:irfheight} shows the effect on one target. At $h=0$ the channels carry no residual and the standard reconstruction is
-the reference (up to the band limitation to $\Ba$); at \SI{500}{m} copies of the target appear at multiples of the ambiguity time, \SI{0.81}{s}. \Cref{fig:ambheight}
+the reference (up to the band limitation to $\Ba$); at \SI{500}{m} ambiguities of the target appear at multiples of the ambiguity time, \SI{0.81}{s}. \Cref{fig:ambheight}
 gives the highest ambiguity against the height of the target for three sets of baselines: it grows by \SI{20}{dB} per decade of
 height (for small phases $|c_m|$ is proportional to $\varphi_i$, hence to $\bxt h$) and saturates between \SI{-15}{dB} and
 \SI{-5}{dB} once the phases of the channels are of the order of a radian, i.e.\ above about \SI{100}{m} with
@@ -115,7 +115,7 @@ $\bxt^{\max}=\SI{300}{m}$.
 \centering
 \includegraphics[width=\linewidth]{figures/irf_flat_vs_height.pdf}
 \caption[Standard reconstruction of a target at the reference height and above it]{Azimuth impulse response of one target
-($\bxt=[0,300,119.8,100.5]$\,\si{m}) after the standard reconstruction (no correction) and of the reference. Dotted lines: the ambiguity
+($\bxt=[0,300,119.8,100.5]$\,\si{m}) after the standard reconstruction and of the reference. Dotted lines: the ambiguity
 positions, $\pm1$ and $\pm2$ times \SI{0.81}{s}. Left: target at the reference height, the two responses coincide. Right: target at
 \SI{500}{m}.}
 \label{fig:irfheight}
@@ -124,8 +124,7 @@ positions, $\pm1$ and $\pm2$ times \SI{0.81}{s}. Left: target at the reference h
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.62\linewidth]{figures/ambiguity_vs_height.pdf}
-\caption[Highest ambiguity of the standard reconstruction against height]{Highest ambiguity of the standard reconstruction (no
-correction) for one target at height $h$, four channels, three sets of cross-track baselines. At $h=0$ the three sets give
+\caption[Highest ambiguity of the standard reconstruction against height]{Highest ambiguity of the standard reconstruction for one target at height $h$, four channels, three sets of cross-track baselines. At $h=0$ the three sets give
 \SI{-63.6}{dB}, the level of the reference limited to the processed band $\Ba$.}
 \label{fig:ambheight}
 \end{figure}

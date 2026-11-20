@@ -54,8 +54,7 @@ the ground every $d$, like a single channel at the full PRF.}
 
 The simulator works with point targets. In the 1-D study the targets lie on a terrain profile $h(x)$ along azimuth;
 each target is placed on the iso-range surface of the reference point (same monostatic slant range $r_0$), so that
-only its height changes the bistatic geometry. The reference point is at $x=0$, $h=0$. In the 2-D study (\cref{ch:joint2d}) the terrain
-is a surface $h(x,y)$ and the data are range compressed. The azimuth signal of channel $i$ is
+only its height changes the bistatic geometry. The reference point is at $x=0$, $h=0$. The azimuth signal of channel $i$ is
 \begin{equation}
   s_i(t) = \sum_{p} a_p\, w(t-t_p)\, \exp\!\left(-\jj\frac{2\pi}{\lambda} \bigl[r_{\mathrm T,p}(t)+r_{\mathrm R,i,p}(t)\bigr]\right),
 \end{equation}
@@ -172,7 +171,8 @@ joint reconstruction (\cref{ch:joint}). \Cref{fig:coeffsres} quantifies this: up
 $\bxt=\SI{500}{m}$, $\Delta C_0$ follows \eqref{eq:dc0} within a few per cent, and at the edge of the processed band the phase
 produced by $\Delta C_0$ (about \SI{80}{rad} at \SI{3}{km} with $\bxt=\SI{300}{m}$) is four orders of magnitude larger than the
 one produced by $\Delta C_2$ (\SI{4e-3}{rad}) and seven larger than the one produced by $\Delta C_1$ (\SI{4e-6}{rad}); $\Delta t$
-does not change with height.
+does not change with height. This holds for straight tracks; a cross-track baseline that changes during the aperture adds a phase that
+$\Delta C_0$ alone does not describe (\cref{sec:timevar}).
 
 \begin{figure}[htbp]
 \centering

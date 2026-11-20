@@ -85,9 +85,9 @@ def line_figure(tag, key, name):
     a.set_ylim(h.min() - 200, h.max() + 300)
     a.set_ylabel("height [m]")
     legend_above(a)
-    for ax, k, c, lab in ((axs[1], "std", C_STD, "no correction"), (axs[2], "joint", C_JNT, "joint reconstruction")):
+    for ax, k, c, lab in ((axs[1], "std", C_STD, "standard reconstruction"), (axs[2], "joint", C_JNT, "joint reconstruction")):
         ax.plot(pos, db(z["ref"], peak), color=C_REF, lw=0.7, alpha=0.9, label=f"reference ({lev['ref']:.1f} dB)")
-        ax.plot(pos, db(z[k], peak), color=c, lw=0.8, label=f"{lab}: strongest ghost {lev[k]:.1f} dB")
+        ax.plot(pos, db(z[k], peak), color=c, lw=0.8, label=f"{lab}: highest ambiguity {lev[k]:.1f} dB")
         ax.set_ylim(-80, 5)
         ax.set_ylabel("[dB]")
         ax.legend(loc="upper right", fontsize=6.6, ncol=2)
@@ -124,7 +124,7 @@ def fig_zoom():
     a = fig.add_subplot(gs[0])
     m = np.abs(pos - t) <= 30
     i0 = np.argmin(np.abs(pos - t))
-    for k, c, lab, ls in (("ref", C_REF, "reference", "-"), ("joint", C_JNT, "joint", "--"), ("std", C_STD, "no correction", "-")):
+    for k, c, lab, ls in (("ref", C_REF, "reference", "-"), ("joint", C_JNT, "joint", "--"), ("std", C_STD, "standard reconstruction", "-")):
         a.plot(pos[m] - t, db(foc[k][m], peak), color=c, ls=ls, label=lab, lw=1.2 if k == "ref" else 1.0)
     a.set_ylim(-45, 3)
     a.set_xlabel("distance from the target [m]")
@@ -135,7 +135,7 @@ def fig_zoom():
 
     b = fig.add_subplot(gs[1], projection="polar")
     pr = foc["ref"][i0]
-    for k, c, lab in (("ref", C_REF, "reference"), ("joint", C_JNT, "joint"), ("std", C_STD, "no correction")):
+    for k, c, lab in (("ref", C_REF, "reference"), ("joint", C_JNT, "joint"), ("std", C_STD, "standard reconstruction")):
         v = foc[k][i0] / pr
         b.annotate("", xy=(np.angle(v), abs(v)), xytext=(0, 0), arrowprops=dict(arrowstyle="->", color=c, lw=1.4))
         print(f"zoom phasor {lab:14s} {20 * np.log10(abs(v)):6.2f} dB {np.degrees(np.angle(v)):7.2f} deg")
@@ -146,14 +146,14 @@ def fig_zoom():
 
     c_ = fig.add_subplot(gs[2])
     m2 = np.abs(pos - (t + X)) <= 300
-    for k, c, lab in (("ref", C_REF, "reference"), ("joint", C_JNT, "joint"), ("std", C_STD, "no correction")):
+    for k, c, lab in (("ref", C_REF, "reference"), ("joint", C_JNT, "joint"), ("std", C_STD, "standard reconstruction")):
         c_.plot((pos[m2] - t) / 1e3, db(foc[k][m2], peak), color=c, label=lab)
     lv = {k: db(np.abs(foc[k][m2]).max(), peak) for k in foc}
-    c_.text(0.03, 0.95, f"no correction {lv['std']:.1f} dB\njoint {lv['joint']:.1f} dB", transform=c_.transAxes,
+    c_.text(0.03, 0.95, f"standard {lv['std']:.1f} dB\njoint {lv['joint']:.1f} dB", transform=c_.transAxes,
             fontsize=6.8, va="top")
     c_.set_ylim(-85, 3)
     c_.set_xlabel("distance from the target [km]")
-    c_.set_title(f"(c) its ghost at +X = {X / 1e3:.2f} km", fontsize=8)
+    c_.set_title(f"(c) its ambiguity at +X = {X / 1e3:.2f} km", fontsize=8)
     save(fig, "realdem_zoom")
     vs = foc["std"][i0] / pr
     vj = foc["joint"][i0] / pr
@@ -172,7 +172,7 @@ def fig_bars20():
     std = [res[k]["levels"]["std"] for k in keys]
     jnt = [res[k]["levels"]["joint"] for k in keys]
     ref = np.median([res[k]["levels"]["ref"] for k in keys])
-    ax.barh(y + 0.18, std, height=0.34, color=C_STD, label="no correction")
+    ax.barh(y + 0.18, std, height=0.34, color=C_STD, label="standard reconstruction")
     ax.barh(y - 0.18, jnt, height=0.34, color=C_JNT, label="joint")
     for yy, s, j in zip(y, std, jnt):
         ax.text(s - 0.5, yy + 0.18, f"{s:.1f}", va="center", ha="right", fontsize=6.5)
@@ -181,7 +181,7 @@ def fig_bars20():
     ax.set_yticks(y)
     ax.set_yticklabels([R.LINES[k]["name"] for k in keys])
     ax.set_xlim(-40, 0)
-    ax.set_xlabel("strongest ghost [dB]")
+    ax.set_xlabel("highest ambiguity [dB]")
     legend_above(ax)
     save(fig, "realdem_lines20_summary")
 
@@ -192,12 +192,12 @@ def fig_cdf():
     ref, std, jnt = a[:, 6], a[:, 7], a[:, 8]
     fig, axs = plt.subplots(1, 2, figsize=(W_FULL, 2.4), gridspec_kw=dict(wspace=0.3))
     ax = axs[0]
-    for v, c, lab in ((std, C_STD, "no correction"), (jnt, C_JNT, "joint")):
+    for v, c, lab in ((std, C_STD, "standard reconstruction"), (jnt, C_JNT, "joint")):
         s = np.sort(v)
         ax.step(s, 100 * np.arange(1, len(s) + 1) / len(s), where="post", color=c, label=f"{lab} (median {np.median(v):.1f} dB)")
     ax.axvline(np.median(ref), color=C_REF, ls="--", lw=1.0, label=f"reference ({np.median(ref):.1f} dB)")
-    ax.set_xlabel("strongest ghost [dB]")
-    ax.set_ylabel("lines with a ghost below [%]")
+    ax.set_xlabel("highest ambiguity [dB]")
+    ax.set_ylabel("lines with the highest ambiguity below [%]")
     ax.set_xlim(-50, 0)
     ax.set_ylim(0, 102)
     legend_above(ax, ncol=1)
@@ -285,14 +285,14 @@ def fig_readme():
     am.grid(False)
     # 200 random lines
     ac = fig.add_subplot(gs[2, 0])
-    for v, c, lab in ((rnd[:, 7], C_STD, "no correction"), (rnd[:, 8], C_JNT, "joint")):
+    for v, c, lab in ((rnd[:, 7], C_STD, "standard reconstruction"), (rnd[:, 8], C_JNT, "joint")):
         s = np.sort(v)
         ac.step(s, 100 * np.arange(1, len(s) + 1) / len(s), where="post", color=c, lw=1.3,
                 label=f"{lab} (median {np.median(v):.1f} dB)")
     ac.axvline(np.median(rnd[:, 6]), color=C_REF, ls="--", lw=1.0, label=f"reference ({np.median(rnd[:, 6]):.1f} dB)")
     ac.set_xlim(-50, 0)
     ac.set_ylim(0, 102)
-    ac.set_xlabel("strongest ghost [dB]")
+    ac.set_xlabel("highest ambiguity [dB]")
     ac.set_ylabel("lines [%]")
     ac.set_title("200 random SRTM lines", fontsize=9)
     ac.legend(loc="center left", fontsize=6.6, frameon=True)
@@ -308,9 +308,9 @@ def fig_readme():
     at.set_ylabel("height [m]")
     at.set_title(f"Yosemite Valley, north-south: {res['hmin']:.0f}-{res['hmax']:.0f} m, five targets", fontsize=9)
     at.legend(loc="upper left", fontsize=6.6, ncol=3)
-    for row, k, c, lab in ((1, "std", C_STD, "no correction"), (2, "joint", C_JNT, "joint reconstruction")):
+    for row, k, c, lab in ((1, "std", C_STD, "standard reconstruction"), (2, "joint", C_JNT, "joint reconstruction")):
         ax = fig.add_subplot(gs[row, 1], sharex=at)
-        ax.plot(pos, db(z[k], peak), color=c, lw=0.8, label=f"{lab}: strongest ghost {lev[k]:.1f} dB")
+        ax.plot(pos, db(z[k], peak), color=c, lw=0.8, label=f"{lab}: highest ambiguity {lev[k]:.1f} dB")
         ax.plot(pos, db(z["ref"], peak), color=C_REF, lw=0.6, label=f"reference ({lev['ref']:.1f} dB)")
         ax.set_ylim(-80, 5)
         ax.set_ylabel("[dB]")

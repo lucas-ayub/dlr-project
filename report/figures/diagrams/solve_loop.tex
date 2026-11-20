@@ -1,0 +1,253 @@
+\documentclass[tikz,border=4pt]{standalone}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb,mathtools,bm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,decorations.pathreplacing,backgrounds,fit,
+                shapes.geometric,shapes.misc}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepgfplotslibrary{groupplots}
+
+% ---------------------------------------------------------------------
+%  PALETTE (light theme of the mid-term presentation)
+% ---------------------------------------------------------------------
+\definecolor{ink}{RGB}{30,41,59}
+\definecolor{muted}{RGB}{100,116,139}
+\definecolor{rule}{RGB}{203,213,225}
+\definecolor{primary}{RGB}{21,101,146}
+\definecolor{teal}{RGB}{34,148,136}
+\definecolor{amber}{RGB}{224,122,63}
+\definecolor{plum}{RGB}{124,92,168}
+\definecolor{panel}{RGB}{238,243,247}
+\definecolor{panel2}{RGB}{233,242,240}
+\definecolor{cardln}{RGB}{210,222,232}
+% methods (the same colours as in every result figure of the report)
+\definecolor{cref}{HTML}{2CA02C}
+\definecolor{cnone}{HTML}{D62728}
+\definecolor{cwhole}{HTML}{FF7F0E}
+\definecolor{csub}{HTML}{8C564B}
+\definecolor{cocc}{HTML}{1F77B4}
+\definecolor{cjoint}{HTML}{9467BD}
+% terrain / DEM, unknown scene and data
+\definecolor{terrain}{RGB}{120,90,60}
+\definecolor{terrainfill}{RGB}{235,228,214}
+\definecolor{cunk}{HTML}{C62828}
+\definecolor{cdat}{HTML}{1565C0}
+% the four channels (one hue, light to dark)
+\definecolor{chA}{HTML}{0D47A1}
+\definecolor{chB}{HTML}{1E6FCC}
+\definecolor{chC}{HTML}{4A94DE}
+\definecolor{chD}{HTML}{90C2F0}
+
+\renewcommand{\familydefault}{\sfdefault}
+\usepackage{xcolor}
+% notation
+\newcommand{\dC}{\Delta C_0}
+\newcommand{\Nrx}{N_{\mathrm{rx}}}
+\newcommand{\PRF}{\mathrm{PRF}}
+\newcommand{\PRFop}{\mathrm{PRF}_{\mathrm{op}}}
+\newcommand{\bxt}{b_{\mathrm{xt}}}
+\newcommand{\bat}{b_{\mathrm{at}}}
+\newcommand{\bxti}{b_{\mathrm{xt},i}}
+\newcommand{\bati}{b_{\mathrm{at},i}}
+\newcommand{\Ba}{B_{\mathrm{a}}}
+\newcommand{\jj}{\mathrm{j}}
+\newcommand{\ee}{\mathrm{e}}
+\newcommand{\Hm}{^{\mathsf H}}
+\newcommand{\T}{^{\mathsf T}}
+\newcommand{\F}{\mathbf F}
+\newcommand{\D}{\mathcal D}
+\newcommand{\vg}{\bm g}
+\newcommand{\vgh}{\hat{\bm g}}
+\newcommand{\gs}{g}
+\newcommand{\sv}{{\color{cdat}\bm s}}
+\newcommand{\ssv}{{\color{cdat}s}}
+
+\tikzset{
+  >={Stealth[length=2.4mm]},
+  box/.style   ={rounded corners=3pt,draw=primary,line width=0.9pt,fill=panel,
+                 text=ink,align=center,inner sep=4pt,font=\scriptsize},
+  tbox/.style  ={rounded corners=3pt,draw=teal,line width=0.9pt,fill=panel2,
+                 text=ink,align=center,inner sep=4pt,font=\scriptsize},
+  abox/.style  ={rounded corners=3pt,draw=amber,line width=0.9pt,fill=amber!12,
+                 text=ink,align=center,inner sep=4pt,font=\scriptsize},
+  pbox/.style  ={rounded corners=3pt,draw=plum,line width=0.9pt,fill=plum!10,
+                 text=ink,align=center,inner sep=4pt,font=\scriptsize},
+  gbox/.style  ={rounded corners=3pt,draw=muted,line width=0.7pt,fill=white,
+                 text=ink,align=center,inner sep=4pt,font=\scriptsize},
+  dbox/.style  ={rounded corners=3pt,draw=terrain,line width=0.8pt,fill=terrainfill,
+                 text=ink,align=center,inner sep=4pt,font=\scriptsize},
+  dec/.style   ={diamond,aspect=2.3,draw=amber,line width=0.8pt,fill=amber!14,
+                 text=ink,align=center,inner sep=1pt,font=\tiny},
+  stepn/.style ={circle,fill=amber,text=white,font=\tiny\bfseries\sffamily,inner sep=0.6pt,minimum size=3.9mm},
+  arr/.style   ={-{Stealth[length=2.2mm]},line width=0.9pt,draw=muted},
+  bx/.style    ={rounded corners=2pt,line width=0.8pt,align=center,inner sep=2.5pt,text width=#1},
+  bx/.default=3.2cm,
+  lane/.style  ={rounded corners=5pt,line width=0.7pt},
+  ln/.style    ={anchor=north,align=center,font=\footnotesize},
+  tarr/.style  ={-{Stealth[length=2.2mm]},line width=1.0pt,draw=teal},
+  aarr/.style  ={-{Stealth[length=2.2mm]},line width=1.0pt,draw=amber},
+  parr/.style  ={-{Stealth[length=2.2mm]},line width=1.0pt,draw=plum},
+  cota/.style  ={<->,line width=0.5pt,draw=muted},
+  brc/.style   ={decorate,decoration={brace,amplitude=4pt},draw=muted,line width=0.6pt},
+  nota/.style  ={font=\scriptsize,text=muted,align=center},
+  % operators of the joint model, coloured by the domain in which they act
+  op/.style    ={draw=muted,fill=white,rounded corners=2pt,align=center,inner sep=2.5pt,
+                 minimum height=8mm,minimum width=10mm,font=\small,line width=0.6pt},
+  opx/.style   ={op,draw=teal,fill=panel2},      % position (focused line)
+  opf/.style   ={op,draw=primary,fill=panel},    % Doppler frequency
+  opt/.style   ={op,draw=amber,fill=amber!10},   % time (raw channel line)
+  sat/.style   ={circle,draw=ink,fill=white,line width=0.8pt,inner sep=2pt},
+}
+
+
+% ---------------------------------------------------------------------------------------------- helpers
+\tikzset{
+  invisible/.style={opacity=0,text opacity=0},
+  visible on/.style={alt={#1{}{invisible}}},
+  alt/.code args={<#1>#2#3}{\alt<#1>{\pgfkeysalso{#2}}{\pgfkeysalso{#3}}},
+  gvisible on/.style={alt={#1{}{transparency group,opacity=0}}},
+  nohyph/.style={execute at begin node={\hyphenpenalty=10000\exhyphenpenalty=10000}},
+  pillst/.style={rounded corners=4.5pt,inner xsep=4.5pt,inner ysep=1.6pt,font=\scriptsize\sffamily\bfseries},
+  lbl/.style={font=\scriptsize,text=ink},
+  mlbl/.style={font=\scriptsize,text=muted},
+}
+\definecolor{sl0}{HTML}{E2E8F0}\definecolor{sl1}{HTML}{CBD5E1}\definecolor{sl2}{HTML}{94A3B8}\definecolor{sl3}{HTML}{64748B}
+\newcommand{\pilltw}{\tikz[baseline=-0.62ex]\node[pillst,fill=primary!14,text=primary]{this work};}
+\newcommand{\cfg}[1]{\framesubtitle{#1}}
+\newcommand{\cfgp}[2]{\framesubtitle{#2\hfill#1}}
+\newcommand{\dt}{\enspace$\cdot$\enspace}
+\newcommand{\lyr}[2]{\node<#1>[anchor=north west,inner sep=0pt] at (0,0) {\includegraphics{figures/v20/#2}};}
+% phase dial: centre (#1,#2), radius #3; arrow at #4 degrees clockwise from 12 o'clock, colour #5
+\newcommand{\dialbase}[3]{\draw[rule,line width=0.6pt,fill=white] (#1,#2) circle (#3);
+  \draw[muted,line width=0.6pt] (#1,#2+#3) -- (#1,#2+0.78*#3);}
+\newcommand{\dialarc}[5]{\draw[#5,line width=0.8pt] ($(#1,#2)+(90:{0.58*#3})$) arc[start angle=90,end angle={90-(#4)},radius={0.58*#3}];}
+\newcommand{\dialarrow}[5]{\draw[-{Stealth[length=1.9mm,width=1.8mm]},line width=1.2pt,#5] (#1,#2) -- ++({90-(#4)}:{0.84*#3});}
+% slide 9: the scatterer on the iso-range arc of the Tx (angle #1 seen from the Tx), #2 > 0: label it
+\newcommand{\scat}[2]{%
+  \coordinate (P) at ($(Tx)+(#1:\rr)$);
+  \draw[primary,line width=0.9pt] (Tx) -- (P);
+  \draw[chB,line width=0.9pt] (Rx) -- (P);
+  \ifnum#2>1 \draw[cota] (P |- 0,\zg) -- node[right=-1pt]{$h$} (P); \fi
+  \ifnum#2>0 \node[anchor=west] at ($(P)+(0.25,0.1)$) {scatterer}; \fi
+  \fill[ink] (P) circle (2.3pt);}
+
+
+% ---------------------------------------------------------------------------------------------- v28 helpers
+% styles of the joint algorithm (overview, stage slides and closing)
+\tikzset{
+  pa/.style={rounded corners=2pt,line width=0.8pt,draw=ink!55,fill=white,align=center,text width=2.35cm,
+             inner sep=2.2pt,minimum height=1.55cm,nohyph},
+  lo/.style={rounded corners=2pt,line width=0.8pt,draw=primary,fill=panel,align=center,text width=2.1cm,
+             inner sep=2.2pt,minimum height=1.0cm,nohyph},
+  fi/.style={rounded corners=2pt,line width=0.8pt,draw=plum,fill=plum!10,align=center,text width=3.0cm,inner sep=2.2pt,
+             nohyph},
+  io/.style={rounded corners=2pt,line width=0.8pt,draw=muted,fill=muted!8,align=center,inner sep=2.2pt,nohyph},
+  bd/.style={circle,fill=amber,text=white,font=\scriptsize\bfseries\sffamily,inner sep=0pt,minimum size=5.0mm},
+  parr2/.style={-{Stealth[length=2.2mm]},line width=1.0pt,draw=primary},
+  lanelab/.style={anchor=west,align=left,text width=2.0cm,font=\footnotesize\bfseries,nohyph},
+}
+\newcommand{\jointstyles}{}
+% "you are here": a thumbnail of the overview (three lanes) in the top-right corner, below the title rule;
+% #1 = comma list of the lit cells: P1,P2,P3,P4,L (the loop),F1,F2
+\makeatletter
+\newcommand{\yhcell}[5]{% name, x, y, width, label
+  \edef\yh@do{\noexpand\in@{,#1,}{,\yhlist,}}\yh@do
+  \ifin@\node[draw=amber,fill=amber,text=white,minimum width=#4cm,minimum height=0.27cm,inner sep=0pt,rounded corners=1pt]
+     at (#2,#3) {#5};
+  \else\node[draw=rule,fill=white,text=muted,minimum width=#4cm,minimum height=0.27cm,inner sep=0pt,rounded corners=1pt]
+     at (#2,#3) {#5};\fi}
+\makeatother
+\newcommand{\youarehere}[1]{%
+  \def\yhlist{#1}%
+  \begin{tikzpicture}[remember picture,overlay]
+    \begin{scope}[shift={([xshift=-3.25cm,yshift=-2.75cm]current page.north east)},x=1cm,y=1cm,
+                  font=\fontsize{5}{5}\selectfont\sffamily\bfseries]
+      \fill[muted!5,rounded corners=1.5pt] (0,0.9) rectangle (2.65,1.3); \draw[ink!40,rounded corners=1.5pt,line width=0.4pt] (0,0.9) rectangle (2.65,1.3);
+      \fill[panel!60,rounded corners=1.5pt] (0,0.45) rectangle (2.65,0.85); \draw[primary,rounded corners=1.5pt,line width=0.4pt] (0,0.45) rectangle (2.65,0.85);
+      \fill[plum!6,rounded corners=1.5pt] (0,0) rectangle (2.65,0.4); \draw[plum,rounded corners=1.5pt,line width=0.4pt] (0,0) rectangle (2.65,0.4);
+      \yhcell{P1}{0.42}{1.1}{0.52}{P1}\yhcell{P2}{1.02}{1.1}{0.52}{P2}\yhcell{P3}{1.62}{1.1}{0.52}{P3}\yhcell{P4}{2.22}{1.1}{0.52}{P4}
+      \yhcell{L}{1.32}{0.65}{2.32}{S1--S3 loop}
+      \yhcell{F1}{0.72}{0.2}{1.12}{F1}\yhcell{F2}{1.92}{0.2}{1.12}{F2}
+    \end{scope}
+  \end{tikzpicture}}
+
+% ---- v28: the five factors of the model s_i = D H_i K Psi_i g, one colour each, the same on every joint slide
+%      (never red / green / purple: those mean standard / reference / joint reconstruction)
+\colorlet{fD}{amber!88!black}\colorlet{fH}{primary}\definecolor{fK}{HTML}{5B6B85}\colorlet{fP}{terrain}\colorlet{fG}{ink}
+\newcommand{\fD}{{\color{fD}D}}\newcommand{\fH}{{\color{fH}H_i}}\newcommand{\fK}{{\color{fK}K}}
+\newcommand{\fKi}{{\color{fK}K_i}}\newcommand{\fP}{{\color{fP}\Psi_i}}
+\newcommand{\modelA}{\mathbf A_i=\fD\cdot\fKi\cdot\fP}
+% ---- v28: the simulation parameters, the same grey block under the title of every result slide; #1 = what is
+%      specific to the slide
+\newcommand{\simline}{$N_{\mathrm{rx}}=4$ (Rx0 $=$ Tx)\dt 500\,Hz each (2000\,Hz together)\dt
+  $\bxt=300,\ 119.8,\ 100.5$\,m\dt $\lambda=0.25$\,m\dt $v=7689$\,m/s\dt $r_0=766$\,km}
+\newcommand{\simcfg}[1]{\framesubtitle{\simline\\ look angle $20^\circ$\dt $\Ba=1235$\,Hz\dt #1}}
+
+% standalone: every build step shown
+\tikzset{visible on/.style={},gvisible on/.style={}}
+\providecommand{\vstrip}[5]{\foreach \c in {1,...,#3}
+  \draw[#5,line width=0.5pt] ({#1+(\c-1)*#4},{#2-0.17}) rectangle ({#1+\c*#4},{#2+0.17});}
+
+% The regularised solve: power iterations for mu, one pass of the iterative solver, two passes
+\begin{document}
+\begin{tikzpicture}[x=1cm,y=1cm,font=\footnotesize,
+      nd/.style={rounded corners=2pt,line width=0.8pt,draw=ink!55,fill=white,align=center,inner sep=3pt,font=\footnotesize,nohyph},
+      fw/.style={rounded corners=2pt,line width=1.1pt,draw=primary,fill=primary!7,align=center,inner sep=3pt,font=\footnotesize,nohyph},
+      ar/.style={-{Stealth[length=2.0mm]},line width=0.9pt,draw=ink!70},
+      la/.style={font=\footnotesize,text=primary,inner sep=1pt}]
+    \path (-0.2,-1.0) rectangle (15.3,6.1);
+    % ================= step 1: what is solved, and why mu
+    \node[anchor=north west,font=\small,align=left,inner sep=0pt] at (0.0,5.95)
+      {$\vgh=\arg\min_{\vg}\ \|\mathbf A\vg-\sv\|^2+\textcolor{amber!85!black}{\mu^2\|\vg\|^2}$
+       \quad$\Longleftrightarrow$\quad $(\mathbf A^H\mathbf A+\mu^2\mathbf I)\,\vgh=\mathbf A^H\sv$};
+    \node[anchor=north west,font=\footnotesize,text=amber!85!black,align=left,inner sep=0pt] at (0.0,5.2)
+      {$\mu^2\|\vg\|^2$: keeps small what the channels do not see (outside the echo band)};
+    % ================= step 2: P4, the size of mu, before the loop
+    \begin{scope}[visible on=<2->]
+      \node[nd,text width=3.85cm,anchor=north west] (p4) at (0.0,4.35)
+        {\textbf{before the loop}: $\sigma_{\max}(\mathbf A)$\\ by power iterations:\\[0.3ex]
+         $\mathbf x\leftarrow\mathbf A^H(\mathbf A\,\mathbf x)/\|\cdot\|$,\enspace 12 times\\[0.3ex]
+         $\sigma_{\max}=\sqrt{\|\mathbf A^H\mathbf A\,\mathbf x\|}$\enspace$\to\ \mu=0.03\,\sigma_{\max}$};
+    \end{scope}
+    % ================= step 3: one pass of the loop: one A and one A^H per iteration
+    \begin{scope}[visible on=<3->]
+      \fill[panel!55,rounded corners=4pt] (4.55,-0.4) rectangle (15.25,4.4);
+      \draw[primary,rounded corners=4pt,line width=0.7pt] (4.55,-0.4) rectangle (15.25,4.4);
+      \node[anchor=north west,font=\small\bfseries,text=primary] at (4.65,4.35) {one pass: the iterative solver};
+      \node[nd] (st) at (7.0,3.5) {start: $\mathbf r=\sv$,\enspace $\mathbf d=\mathbf 0$};
+      \node[fw] (z0) at (11.6,3.5) {$\mathbf z=\mathbf A^H\mathbf r$,\enspace $\mathbf p=\mathbf z$};
+      \node[la,anchor=south] at (z0.north) {backward};
+      \draw[ar] (st) -- (z0);
+      \node[fw,minimum height=0.95cm] (n1) at (6.35,2.15) {$\mathbf q=\mathbf A\,\mathbf p$};
+      \node[la,anchor=east] at (n1.west) {forward};
+      \node[nd,minimum height=0.95cm] (n2) at (9.45,2.15) {$\alpha=\dfrac{\|\mathbf z\|^2}{\|\mathbf q\|^2+\mu^2\|\mathbf p\|^2}$\\[0.2ex]
+        $\mathbf d\mathrel{+}=\alpha\,\mathbf p$,\enspace $\mathbf r\mathrel{-}=\alpha\,\mathbf q$};
+      \node[fw,minimum height=0.95cm] (n3) at (13.25,2.15) {$\mathbf z=\mathbf A^H\mathbf r-\mu^2\,\mathbf d$};
+      \node[la,anchor=south] at (n3.north) {backward};
+      
+      \node[nd,draw=amber,line width=0.9pt] (n4) at (13.25,0.75) {$\|\mathbf z\|\le10^{-4}\,\|\mathbf z_0\|$\\ or 60 iterations?};
+      \node[nd] (n5) at (6.35,0.75) {$\mathbf p=\mathbf z+\beta\,\mathbf p$\\ {\color{muted}$\beta=\|\mathbf z\|^2/\|\mathbf z_{\mathrm{prev}}\|^2$}};
+      \draw[ar] (z0.south) |- ($(n1.north)+(0,0.35)$) -- (n1.north);
+      \draw[ar] (n1) -- (n2); \draw[ar] (n2) -- (n3); \draw[ar] (n3.south) -- ++(0,-0.38) -- (n4.north);
+      \draw[ar] (n4) -- node[above,font=\footnotesize]{no} (n5);
+      \draw[ar,draw=amber] (n5.north) -- node[left,font=\footnotesize,text=amber!85!black]{repeat} (n1.south);
+      \draw[ar] (n4.south) -- (13.25,-0.12) node[right,font=\footnotesize,inner sep=2pt]{yes: return $\mathbf d$};
+      \node[anchor=west,font=\footnotesize,text=ink!80,align=left] at (4.65,-0.12)
+        {each iteration: one $\mathbf A$ and one $\mathbf A^H$, plus sums of vectors};
+    \end{scope}
+    % ================= step 4: the second pass (iterated Tikhonov)
+    \begin{scope}[visible on=<4->]
+      \node[nd,text width=3.85cm,anchor=north west,draw=cjoint,line width=0.9pt] (p2) at (0.0,1.6)
+        {\textbf{2 passes}: pass 1 gives $\vgh_1$;\\ pass 2 solves the same\\ way for what is left,\\
+         $\mathbf r=\sv-\mathbf A\vgh_1$;\enspace $\vgh=\vgh_1+\mathbf d_2$};
+      \node[anchor=north,font=\footnotesize,text=muted,align=center] at (p2.south) {iterated Tikhonov: undoes most\\ of the damping $\mu$ adds};
+    \end{scope}
+  \end{tikzpicture}
+\end{document}

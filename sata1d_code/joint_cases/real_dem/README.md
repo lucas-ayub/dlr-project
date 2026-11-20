@@ -19,11 +19,11 @@ python run_real_dem.py all          # downloads the DEM (16 MB) into data/, runs
 
 Results (highest ambiguity, dB relative to the peak of the reference, metric of the report):
 
-| | no correction | joint | reference |
+| | standard reconstruction | joint | reference |
 |---|---|---|---|
 | 5 named lines, 5 targets | -8.2 to -5.7 | -41.6 to -41.0 | -41.6 |
 | 5 named lines, 20 targets | -5.7 to -5.1 | -31.5 to -28.1 | -32.0 |
 | 200 random lines (median) | -8.3 | -41.5 | -41.6 |
 
-Tables of the runs: `report/data/realdem_lines.dat`, `report/data/realdem_random200.dat`. Report: section "Real terrain:
-SRTM lines over the Sierra Nevada" of the Results chapter.
+Tables of the runs: `report/data/realdem_lines.dat`, `report/data/realdem_random200.dat`. Report: subsection "Five named lines with the targets clear of each other's ambiguities" of the section "Real terrain"
+in the Results chapter.

@@ -6,22 +6,24 @@
 
 ```bash
 cd report
-python scripts/make_data.py ~/DLR/dlr-project_resultados   # numbers and tables, when the sweep results change
-python scripts/make_figures.py all                         # result figures (figures/*.pdf), runs the sata1d package
-latexmk -pdf report.tex                                    # pdflatex + bibtex
+python scripts/make_figures.py all     # figures of chapters 2-4 (figures/*.pdf), runs the sata1d package
+latexmk -pdf report.tex                # pdflatex + bibtex
 ```
 
-The figures are TikZ/pgfplots in the `.tex` files; the plotted numbers come from `data/*.dat` and `numbers.tex`,
-written by `scripts/make_data.py` from the sweep outputs (`all_numbers.json` of `sweep_joint_all.py`,
-`run_sweep_joint2d_all.py` and `audit_dem.py`), which are not versioned. `figures/*.pdf` are made by
-`scripts/make_figures.py` with the code of this repository; the PNG pages are copied from the sweeps.
+The figures of the results chapter come from three places:
+
+- `figures/pres/`: result figures of the final presentation (cropped from the talk);
+- `figures/analysis/`: the analyses of `runs/analysis_v30/` (height of the mountain, scenes full of targets, baselines that
+  vary in time, close targets next to a cliff, other solvers). Run the scripts of those folders with `FIG_STYLE=report` to remake them in the fonts of the
+  report, then copy their `fig/*.pdf` here; every number of the text is in their `results.md`;
+- `figures/diagrams/`: diagrams of the talk, standalone (`pdflatex <name>.tex` in that folder).
+
+The remaining figures are TikZ/pgfplots in `tikz/` and in the `.tex` files.
 
 ```
 report.tex          main file (chapters in sections/)
 preamble.tex        packages, colours and notation macros
 references.bib      bibliography
-numbers.tex         numbers quoted in the text (generated)
-data/               pgfplots tables (generated)
-figures/            PNG pages from the sweeps
-scripts/            make_data.py, make_figures.py
+figures/            figures of make_figures.py; sub-folders as above
+scripts/            make_figures.py
 ```

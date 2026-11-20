@@ -1,10 +1,20 @@
 \chapter{Joint topography correction and reconstruction}\label{ch:joint}
 
-The phase that the terrain adds to each channel, $\varphi_i=2\pi\Delta C_{0,i}/\lambda$, is known from the DEM and the
-system geometry (\cref{sec:dc0}). The joint reconstruction uses it \emph{inside} the inversion: the channels are modelled
-with the phase of every ground position, and the model and the topography are inverted together. This chapter first shows
-how the DEM is turned into the phase of every channel, then the two formulations of the method, and finally how the system
-is built and solved.
+The correct phase of every ground position, the $\dC$ of \cref{sec:dc0}, can be read from the DEM. It cannot simply be
+removed from each channel before the reconstruction: every Doppler bin of an aliased channel adds parcels from positions
+$X\approx\SI{6.2}{km}$ apart, which have different heights and need different phases (\cref{fig:binconflict}). A correction
+applied to the channel gives the whole bin one phase. Correcting each parcel needs the parcels separated, and separating
+them needs the phases corrected; the two steps cannot be done one after the other. The joint reconstruction therefore
+moves the DEM phase inside the inversion and does both in a single system.
+
+\begin{figure}[htbp]
+\centering
+\input{tikz/binconflict}
+\caption[The conflict of one bin]{The conflict of one bin. Its parcels come from places $X$ apart, with different heights.
+A correction applied to the channel can give the whole bin only one phase; the joint reconstruction applies the phase of
+each place to its own parcel, inside the system of equations.}
+\label{fig:binconflict}
+\end{figure}
 
 \section{From the DEM to the phase of every channel}\label{sec:dem-phase}
 
@@ -32,8 +42,12 @@ with the phase of each parcel at its own ground position:
 The system is solved for the parcels $U_q$, which are then placed at their true Doppler, transformed back and overlap-added
 at the full PRF (\cref{fig:flowsubap}). With $\dC=0$ this is the standard reconstruction ($\sim10^{-7}$), and with one
 target it equals the oracle. Each parcel now receives the phase of its own position, which is the key step. In this
-formulation the DEM is read once per bin of a block, i.e.\ at a ground resolution of a few hundred metres; the second
-formulation applies it at every position of the line.
+formulation the DEM is read once per bin of a \SI{40}{ms} block, i.e.\ the terrain phase is taken as constant over about
+$\pm\SI{600}{m}$ of ground; the final formulation applies it at every position of the line. A slope $s$ with a cross-track baseline is
+equivalent to shifting the phase centre of the channel by $\bxt s/(2\tan\theta)$; when that shift is not small compared with
+the block, the per-bin model breaks. With $\Delta\varphi=\frac{2\pi}{\lambda}\,\frac{\bxt^{\max}\,s\,\delta x}{r_0\tan\theta}$
+the phase change inside one sub-aperture cell, the method stays within about \SI{10}{dB} of the reference for
+$\Delta\varphi\lesssim\SI{0.5}{rad}$ and fails by 10 to \SI{35}{dB} above \SI{1}{rad}.
 
 \begin{figure}[p]
 \centering
@@ -88,40 +102,6 @@ in the same form as the standard reconstruction.}
 \label{fig:flowline}
 \end{figure}
 
-\begin{figure}[htbp]
-\centering
-\begin{tikzpicture}[>=Latex, node distance=0.45cm and 0.45cm,
-  box/.style={draw,rounded corners=2pt,fill=white,align=center,font=\small,minimum height=0.95cm,text width=2.3cm},
-  dem/.style={draw,rounded corners=2pt,fill=terrainfill,align=center,font=\small,minimum height=0.85cm,text width=2.05cm}]
-  % (a) standard reconstruction
-  \node[font=\small\bfseries,anchor=west] at (-1.2,1.3) {(a) Standard reconstruction (reference geometry)};
-  \node[box] (a1) at (0,0) {channels\\ $s_i$ at $\PRFop$};
-  \node[box,right=of a1] (a2) {filters $H_i$ of the\\ reference point};
-  \node[box,right=of a2] (a3) {invert $\mathbf H$\\ bin by bin};
-  \node[box,right=of a3] (a4) {full-rate\\ line};
-  \draw[->] (a1) -- (a2); \draw[->] (a2) -- (a3); \draw[->] (a3) -- (a4);
-  \node[font=\scriptsize,align=center,below=0.15cm of a2] {one height, $h_0=0$};
-  % (b) joint
-  \begin{scope}[yshift=-4.4cm]
-  \node[font=\small\bfseries,anchor=west] at (-1.2,1.3) {(b) Joint reconstruction over the whole line (final version)};
-  \node[box,fill=cjoint!15] (g) at (0,0) {estimate\\ $\hat g(x)$};
-  \node[box,right=of g] (scr) {screen\\ $\hat g\,\e^{-\jj\varphi_i(x)}$};
-  \node[box,right=of scr] (conv) {$k_i*$\\ then decimate};
-  \node[box,right=of conv] (cmp) {residual\\ $\bm s_i-\mathbf A_i\hat{\bm g}$};
-  \node[dem,below=0.5cm of scr] (dem) {DEM $\to\varphi_i(x)$};
-  \node[box,below=0.5cm of cmp] (meas) {measured\\ channels $s_i$};
-  \node[box,below=1.75cm of conv,text width=4.5cm] (cg) {CGLS update with $\mathbf A\Hm$\\ ($\mu=0.03\,\sigma_{\max}$, 2 passes)};
-  \draw[->] (g) -- (scr); \draw[->] (scr) -- (conv); \draw[->] (conv) -- (cmp);
-  \draw[->] (dem) -- (scr); \draw[->] (meas) -- (cmp);
-  \draw[->] (cmp.east) -- ++(0.3,0) |- (cg.east);
-  \draw[->] (cg.west) -| (g.south);
-  \end{scope}
-\end{tikzpicture}
-\caption[Standard and joint reconstruction]{Where the DEM phase enters. (a) The standard reconstruction uses the filters of
-the reference geometry for every scatterer. (b) The joint reconstruction puts the phase of every ground position in the model
-of the channels and inverts model and topography together.}
-\label{fig:pipelines}
-\end{figure}
 
 \section{Building the model and solving the system}\label{sec:joint-system}
 
@@ -158,6 +138,15 @@ $\gs$ has one peak per target: it is the focused scene and the unknown of the jo
   K_i(f):=H_i(f)\,K(f),\qquad H_i(f)=\e^{-\jj2\pi\left[C_{0,i}/\lambda+(\Delta t_i-C_{1,i})f+C_{2,i}\lambda f^2\right]}
   \quad\text{\eqref{eq:Hi}}.
 \end{equation*}
+$K$ is not derived analytically: it is the DFT of the echo of one point at the reference point ($h=0$), simulated once by
+the monostatic radar at the full PRF, and $H_i$ only moves that echo to receiver $i$ (\cref{fig:kflow}).
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{figures/diagrams/k_flow.pdf}
+\caption[Where $H_i$ and the kernel $K$ come from]{Where $H_i$ and the kernel $K$ come from, both from the point at $h=0$ and before any data. Top: the range history of that point for channel $i$ ($r_{T_x}+r_{R_x,i}$) against one radar alone ($2r_{T_x}$) is offset ($C_0$), shifted ($\Delta t-C_1$) and bent ($C_2$); these give the unit-modulus filter $H_i(f)$ of \eqref{eq:Hi}. Bottom: the transmitter alone, at the full PRF, records the echo $k_0$ of the same point while it is in the beam ($L_{\mathrm{sa}}=\lambda r_0/L_a$; the faded icon is the same radar at the end of the aperture); near the centre it is a chirp. Its DFT $K(f)$ fills the band $\Ba$; its phase inside the band, after removing the straight line of the shift to the point, is a parabola in $f$. $K(f)H_i(f)$ is the same point as receiver $i$ records it, within \SIrange{-35}{-30}{dB} of its directly simulated echo.}
+\label{fig:kflow}
+\end{figure}
 
 \case{5} \caseref{3} $+$ \caseref{4}:
 \begin{equation*}
@@ -175,7 +164,7 @@ $\varphi_{i,p}=\frac{2\pi}{\lambda}\Delta C_{0,i}(\ell_p)$ of \eqref{eq:dc0},
 The phase depends on the \emph{position} $\ell$ (and on the channel), not on the frequency: it is therefore applied to $\gs$,
 as a pointwise \emph{screen} $\theta_i$, \emph{before} the DFT. This is the reason for choosing the focused line as the
 unknown: in $\gs$ the relief of every target is one multiplication, at its own position, whereas in the raw line the echo of a
-target spreads over its whole aperture and mixes with the echoes of the terrain $X$ apart.
+target spreads over its whole aperture and mixes with the echoes of the terrain $X$ apart, the conflict of \cref{fig:binconflict}.
 
 \case{7} \caseref{6} recorded by the channel. \caseref{6} is the full line (\SI{2000}{Hz}, $N=12288$); the channel records one
 sample in $\Nrx$ (\SI{500}{Hz}):
@@ -189,6 +178,31 @@ sample in $\Nrx$ (\SI{500}{Hz}):
 \end{equation}
 with $K_i=H_i\odot K$. Stacking the channels: $\sv=\mathbf A\vg$, with $\sv\in\mathbb C^{4\times3072}$ ($12288$ equations) and
 $\vg\in\mathbb C^{12288}$ ($12288$ unknowns). This is \eqref{eq:jointmodel} in matrix form.
+
+\Cref{fig:modelchain} names the effect of each factor of \eqref{eq:Ai}, written with $\Psi_i=\mathrm{diag}(\theta_i)$ for the DEM
+screen, and \cref{fig:aproduct} gives the size of every factor, the axis it takes as input and the axis it returns, and how the
+$\Nrx$ blocks $\mathbf A_i$ are stacked into the square matrix $\mathbf A$.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{figures/diagrams/model_chain.pdf}
+\caption[What each factor of the model does]{What channel $i$ records, $\bm s_i=\mathcal D\,H_i\,K\,\Psi_i\,\bm g$, read from right to left: the scene $\bm g$ (the same in all
+channels), the DEM phase of every place ($\Psi_i$, the effect of the topography), the echo of the $h=0$ point at the full PRF ($K$,
+the SAR imaging), the delay and rotation of receiver $i$ ($H_i$) and the selection of one sample in $\Nrx$ ($\mathcal D$, the low
+PRF). The DEM phase is applied to each place before $K$, so the model is exact for that phase.}
+\label{fig:modelchain}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{figures/diagrams/A_product.pdf}
+\caption[The model as a product of matrices]{Top: $\mathbf A_i=\mathcal D\,\mathbf F^{-1}\mathrm{diag}(KH_i)\,\mathbf F\,\Psi_i$, applied from right to left, with the size and the
+input and output axis of every factor; the result maps the $N_{\mathrm{az}}$ places to the $N_{\mathrm{az}}/\Nrx$ samples of channel $i$.
+Bottom: stacking the $\Nrx$ channels gives $\bm s=\mathbf A\bm g$ with $\mathbf A$ of size $N_{\mathrm{az}}\times N_{\mathrm{az}}$
+($N_{\mathrm{az}}=12288$ here). The element $[\mathbf A_i]_{n\ell}=\e^{-\jj\varphi_i[\ell]}\,k_i[\Nrx n-\ell]$, $k_i=\mathrm{IFFT}\{KH_i\}$, follows
+from the chain with circular indices.}
+\label{fig:aproduct}
+\end{figure}
 
 \subsection{What is stored and what is applied}
 
@@ -208,6 +222,39 @@ $\mathbf A$ is a $12288\times12288$ complex matrix: stored, it would take $12288
 each product would cost about $10^8$ operations. Every factor of \eqref{eq:Ai}, however, is either diagonal or a fast
 transform, so $\mathbf A$ and $\mathbf A\Hm$ are applied as sequences of operations and only the diagonals are kept
 (\cref{tab:operators}): about \SI{1.6}{MB} and eight FFTs per product with four channels.
+\Cref{fig:axeschain} follows one channel through these operations, each on its own axis and with its own index: places $\ell$,
+Doppler bins $k$ and channel samples $n$. \Cref{fig:afill} shows what $\mathbf A$ would contain if it were filled (column $\ell$ is the
+model applied to place $\ell$ alone), and \cref{fig:afunctions} how the model and its adjoint are used instead, as two functions.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{figures/diagrams/axes_chain.pdf}
+\caption[One channel of the model, step by step]{One channel of the model, step by step. Every vector is a list with its own axis: the scene and its DEM-screened version on the places
+$x_\ell=\ell\,\Delta x$; after the FFT the Doppler bins $f_k=k\,\PRF/N_{\mathrm{az}}$ (in FFT order); after the IFFT the fine azimuth
+grid, of which the channel keeps every $\Nrx$-th sample, $t_n=n\Nrx/\PRF$. Each matrix of \cref{fig:aproduct} is replaced by one
+multiplication per element, one FFT or one selection of samples.}
+\label{fig:axeschain}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{figures/diagrams/A_fill.pdf}
+\caption[What the matrix would contain]{What $\mathbf A$ would contain, on a toy line ($N_{\mathrm{az}}=16$, $\Nrx=4$). Column $\ell$ is the model applied
+to place $\ell$ alone (value 1 at $\ell$, 0 elsewhere): the steps of \cref{fig:axeschain} for every receiver. Filling every column in this
+way gives the whole $\mathbf A$. This only shows what $\mathbf A$ contains: for the real line it would hold $N_{\mathrm{az}}^2$
+values, and it is never filled (\cref{fig:afunctions}).}
+\label{fig:afill}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{figures/diagrams/A_functions.pdf}
+\caption[The model and its adjoint as two functions]{The model and its adjoint as two functions, without the matrix. Forward: $\bm g$ goes through the steps of every channel and the
+outputs are stacked into $\bm s=\mathbf A\bm g$. Backward: each part $\bm r_i$ of a vector of the size of $\bm s$ runs the same steps in
+reverse, with zeros inserted between the samples and every factor conjugated, and the channels are summed into $\mathbf A\Hm\bm r$
+(\eqref{eq:adjoint}). Only the vectors, the DEM phases and the products $K H_i$ are stored.}
+\label{fig:afunctions}
+\end{figure}
 
 \begin{table}[htbp]
 \centering
@@ -300,6 +347,18 @@ also square the condition number in finite precision). The loop is in \cref{fig:
         closer to $1/\sigma_k$ where the channels measure well and still zero where they do not;
   \item on the example of \cref{fig:example1d}: 120 iterations in total, with \SI{-40.3}{dB} of the channels left unexplained.
 \end{itemize}
+\Cref{fig:solveloop} puts the pieces together: the size of $\mu$ before the loop, one pass of the iterative solver and the two
+passes. Every quantity in it is a vector or a number, and $\mathbf A$ enters only through the two functions of \cref{fig:afunctions}.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth]{figures/diagrams/solve_loop.pdf}
+\caption[The regularised solve]{The regularised solve of \eqref{eq:tikhonov}. Before the loop, $\sigma_{\max}(\mathbf A)$ is estimated by power iterations,
+$\sigma_{\max}=\sqrt{\|\mathbf A\Hm\mathbf A\mathbf x\|}$ for the normalised iterate $\mathbf x$, and fixes $\mu=0.03\,\sigma_{\max}$. One pass of the iterative solver (conjugate gradients for least squares) costs one product with $\mathbf A$ and
+one with $\mathbf A\Hm$ per iteration, plus sums of vectors. The second pass solves the same problem for what the first one left
+(iterated Tikhonov), which undoes most of the damping that $\mu$ adds where the channels measure well.}
+\label{fig:solveloop}
+\end{figure}
 
 \subsection{The answer: \texorpdfstring{$U=K\odot\mathbf F\hat{\vg}$}{U = K F g}}\label{sec:joint-answer}
 
@@ -354,7 +413,7 @@ $\mathbf F^{-1}U$, in the same format as the standard reconstruction.
 
 \paragraph{Afterwards (the same for every method).} The focusing is
 $\text{image}=\mathbf F^{-1}\{K^*U\}=\mathbf F^{-1}\{|K|^2\hat G\}$, i.e.\ $\hat G$ with a smooth window inside the band: one
-peak per target ($\SI{-3}{dB}$ width $\approx\SI{5.8}{m}$). The metric of \cref{sec:metric} is then the highest ghost at the
+peak per target ($\SI{-3}{dB}$ width $\approx\SI{5.8}{m}$). The metric of \cref{sec:metric} is then the highest ambiguity at the
 folds relative to the peak of the reference. \Cref{fig:answer} summarises the chain.
 
 \begin{figure}[htbp]
@@ -394,7 +453,7 @@ compared with the reference simulated directly; the focusing is the same for eve
 \includegraphics[width=\linewidth]{figures/joint_convergence.pdf}
 \caption[Convergence of the joint reconstruction]{Joint reconstruction over the whole line on the example of
 \cref{fig:example1d} (five targets on a \SI{1000}{m} mountain, four channels). Left: highest ambiguity against the total number of
-conjugate-gradient iterations, with one pass and with two passes, against the reference and no correction. Right: part of the channels
+conjugate-gradient iterations, with one pass and with two passes, against the reference and the standard reconstruction. Right: part of the channels
 that the model does not explain, $\|\bm s-\mathbf A\hat{\bm g}\|/\|\bm s\|$, during the first pass.}
 \label{fig:convergence}
 \end{figure}
@@ -413,3 +472,30 @@ azimuth impulse responses of the reference with the standard reconstruction (lef
 whole line (right). The joint reconstruction reads only the DEM.}
 \label{fig:example1d}
 \end{figure}
+
+\section{Why the joint reconstruction is the final method}\label{sec:whyjoint}
+
+The reasons, collected from the previous chapters:
+\begin{enumerate}
+  \item \textbf{A correction before the reconstruction has the right phase in the wrong place.} The $\Delta C_0$ of the DEM is
+        the correct correction. But on an aliased channel each bin is the sum of parcels from positions $X\approx\SI{6.2}{km}$
+        apart, and a per-channel correction can give that sum only one phase (\cref{fig:binconflict}). The standard
+        reconstruction that follows assumes that every channel is now exact, so the error of the other parcels becomes leakage
+        between the parcels. Such a correction is exact only when the terrain has the same height at all the folded positions;
+        this is a property of the order of the operations, not of the implementation. A correction after the reconstruction
+        does not help either, since one phase cannot undo a sum that has already been formed.
+  \item \textbf{The joint reconstruction solves both problems together.} Separating the parcels needs the phases corrected, and
+        correcting each parcel needs the parcels separated. The joint reconstruction writes the phase of every ground position
+        \emph{inside} the model of the channels and inverts model and topography together. With a flat DEM it is the standard
+        reconstruction; on terrain whose height repeats every $X$ it equals a per-channel correction; everywhere else it keeps
+        working.
+  \item \textbf{The whole-line version removes the last approximation.} The joint reconstruction in the sub-apertures still reads
+        the DEM once per bin of a \SI{40}{ms} block, i.e.\ it takes the terrain phase as constant over about $\pm\SI{600}{m}$, and fails
+        on steep terrain with long baselines. Over the whole line the residual of every
+        scatterer is a pointwise phase on the focused line, with no cell at all.
+  \item \textbf{It uses only what a real case has.} The method receives the channels, the system geometry and the DEM; the
+        positions of the targets are never used, and the unexplained part of the channels gives a check of the DEM.
+  \item \textbf{It degrades gracefully.} Where the baselines do not separate the parcels the regularisation leaves the ambiguity
+        instead of amplifying noise, and the cost (a few seconds per line in the 1-D simulator) is that of a few tens of FFTs per
+        channel and iteration.
+\end{enumerate}

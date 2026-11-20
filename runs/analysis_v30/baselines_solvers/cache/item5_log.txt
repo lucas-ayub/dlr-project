@@ -1,0 +1,220 @@
+mountain|inf|0
+   current      amb  -40.8  floor  -37.3  ploss  -0.0  nmse  -30.2  mu/smax 3.00e-02  calls 132+134  0.5s
+   lcurve       amb  -39.6  floor  -37.2  ploss  -0.0  nmse  -29.7  mu/smax 1.35e-03  calls 1200+1222  3.8s
+   lcurve2      amb  -34.7  floor  -34.7  ploss  -0.0  nmse  -28.9  mu/smax 9.84e-04  calls 2406+2450  8.1s
+   bmr          amb  -39.6  floor  -37.2  ploss  -0.0  nmse  -29.7  mu/smax 0.00e+00  calls 88+73  0.3s
+   maria        amb  -41.5  floor  -37.7  ploss  -0.0  nmse  -36.4  mu/smax 4.64e-02  calls 285+296  0.9s
+   wise         amb  -41.6  floor  -37.2  ploss  -0.0  nmse  -32.2  mu/smax 2.79e-02  calls 612+623  2.1s
+mountain|30|0
+   current      amb  -36.4  floor  -36.4  ploss  -0.0  nmse  -26.2  mu/smax 3.00e-02  calls 132+134  0.4s
+   lcurve       amb  -33.1  floor  -33.1  ploss  -0.0  nmse  -25.2  mu/smax 1.37e-03  calls 1201+1223  3.9s
+   lcurve2      amb  -32.0  floor  -30.6  ploss  -0.0  nmse  -24.1  mu/smax 1.50e-03  calls 2408+2452  7.6s
+   discrepancy  amb  -23.2  floor  -23.2  ploss  -0.7  nmse  -21.5  mu/smax 7.21e-02  calls 555+569  2.0s
+   bmr          amb  -36.4  floor  -36.4  ploss  -0.1  nmse  -26.1  mu/smax 1.76e-02  calls 88+73  0.3s
+   maria        amb  -41.5  floor  -37.6  ploss  -0.0  nmse  -36.0  mu/smax 1.84e-02  calls 287+298  0.9s
+   wise         amb  -41.1  floor  -37.0  ploss  -0.0  nmse  -28.4  mu/smax 1.01e-02  calls 612+623  2.0s
+mountain|30|1
+   current      amb  -38.8  floor  -36.0  ploss  -0.1  nmse  -26.6  mu/smax 3.00e-02  calls 132+134  0.5s
+   lcurve       amb  -36.0  floor  -34.6  ploss  -0.1  nmse  -25.7  mu/smax 1.31e-03  calls 1201+1223  4.5s
+   lcurve2      amb  -30.0  floor  -30.0  ploss  -0.0  nmse  -24.3  mu/smax 1.50e-03  calls 2408+2452  8.0s
+   discrepancy  amb  -23.0  floor  -23.0  ploss  -0.8  nmse  -21.3  mu/smax 7.20e-02  calls 555+569  2.1s
+   bmr          amb  -39.4  floor  -36.0  ploss  -0.1  nmse  -26.4  mu/smax 1.76e-02  calls 88+73  0.2s
+   maria        amb  -41.5  floor  -37.7  ploss  -0.0  nmse  -36.4  mu/smax 1.84e-02  calls 284+295  0.9s
+   wise         amb  -40.8  floor  -36.4  ploss  -0.0  nmse  -28.3  mu/smax 9.69e-03  calls 612+623  2.0s
+mountain|20|0
+   current      amb  -30.0  floor  -27.6  ploss  -0.0  nmse  -18.1  mu/smax 3.00e-02  calls 132+134  0.5s
+   lcurve       amb  -24.7  floor  -22.8  ploss  -0.0  nmse  -16.1  mu/smax 3.37e-04  calls 1202+1224  3.9s
+   lcurve2      amb  -29.5  floor  -21.8  ploss  -0.0  nmse  -15.6  mu/smax 1.20e-03  calls 2411+2455  8.1s
+   discrepancy  amb  -15.0  floor  -15.0  ploss  -2.3  nmse  -12.5  mu/smax 1.76e-01  calls 375+389  1.4s
+   bmr          amb  -27.7  floor  -27.7  ploss  -0.4  nmse  -19.1  mu/smax 5.55e-02  calls 81+66  0.2s
+   maria        amb  -41.3  floor  -37.6  ploss  -0.0  nmse  -33.2  mu/smax 5.78e-02  calls 499+510  1.7s
+   wise         amb  -33.4  floor  -31.2  ploss  -0.0  nmse  -19.4  mu/smax 2.56e-02  calls 612+623  2.2s
+mountain|20|1
+   current      amb  -30.0  floor  -30.0  ploss  -0.1  nmse  -18.6  mu/smax 3.00e-02  calls 132+134  0.5s
+   lcurve       amb  -26.1  floor  -26.1  ploss  -0.1  nmse  -17.2  mu/smax 2.52e-04  calls 1202+1224  3.7s
+   lcurve2      amb  -23.9  floor  -23.9  ploss  -0.1  nmse  -16.1  mu/smax 1.20e-03  calls 2411+2455  7.7s
+   discrepancy  amb  -14.9  floor  -14.9  ploss  -2.3  nmse  -12.4  mu/smax 1.77e-01  calls 371+385  1.2s
+   bmr          amb  -26.1  floor  -26.1  ploss  -0.5  nmse  -18.9  mu/smax 5.55e-02  calls 81+66  0.2s
+   maria        amb  -41.1  floor  -37.0  ploss  -0.0  nmse  -32.1  mu/smax 5.82e-02  calls 493+504  1.9s
+   wise         amb  -36.4  floor  -33.7  ploss  -0.1  nmse  -19.5  mu/smax 2.48e-02  calls 612+623  2.3s
+mountain|10|0
+   current      amb  -21.6  floor  -17.8  ploss  -0.0  nmse   -8.4  mu/smax 3.00e-02  calls 132+134  0.4s
+   lcurve       amb  -15.5  floor  -12.2  ploss  -0.0  nmse   -6.0  mu/smax 1.63e-04  calls 1206+1228  4.0s
+   lcurve2      amb  -19.5  floor  -12.1  ploss  -0.0  nmse   -5.9  mu/smax 1.28e-03  calls 2416+2460  7.6s
+   discrepancy  amb  -13.0  floor  -13.0  ploss  -4.8  nmse   -6.7  mu/smax 4.03e-01  calls 269+283  0.9s
+   bmr          amb  -15.2  floor  -15.2  ploss  -2.2  nmse   -9.5  mu/smax 1.76e-01  calls 50+35  0.1s
+   maria        amb  -35.7  floor  -32.8  ploss  -0.0  nmse  -18.0  mu/smax 1.82e-01  calls 407+418  1.4s
+   wise         amb  -22.7  floor  -20.0  ploss  -0.0  nmse   -8.7  mu/smax 2.72e-02  calls 612+623  2.4s
+mountain|10|1
+   current      amb  -19.8  floor  -19.8  ploss  -0.2  nmse   -8.8  mu/smax 3.00e-02  calls 132+134  0.5s
+   lcurve       amb  -15.8  floor  -15.8  ploss  -0.3  nmse   -7.4  mu/smax 1.61e-04  calls 1206+1228  4.2s
+   lcurve2      amb  -15.1  floor  -15.1  ploss  -0.3  nmse   -6.4  mu/smax 1.22e-03  calls 2416+2460  8.9s
+   discrepancy  amb  -13.1  floor  -13.1  ploss  -4.9  nmse   -6.7  mu/smax 4.05e-01  calls 269+283  0.9s
+   bmr          amb  -14.9  floor  -14.9  ploss  -2.4  nmse   -9.4  mu/smax 1.76e-01  calls 50+35  0.2s
+   maria        amb  -35.4  floor  -33.7  ploss  -0.1  nmse  -17.9  mu/smax 1.85e-01  calls 389+400  1.6s
+   wise         amb  -17.3  floor  -17.3  ploss  -0.2  nmse   -8.5  mu/smax 2.62e-02  calls 612+623  2.3s
+dense40|inf|0
+   current      amb  -32.4  floor  -32.2  ploss  -0.1  nmse  -30.1  mu/smax 3.00e-02  calls 132+134  0.8s
+   lcurve       amb  -31.0  floor  -31.0  ploss  -0.1  nmse  -29.5  mu/smax 8.22e-04  calls 1199+1221  6.9s
+   lcurve2      amb  -28.5  floor  -26.5  ploss  -0.1  nmse  -28.4  mu/smax 3.60e-04  calls 2402+2446  14.4s
+   bmr          amb  -30.9  floor  -30.9  ploss  -0.1  nmse  -29.5  mu/smax 0.00e+00  calls 88+73  0.5s
+   maria        amb  -34.5  floor  -34.4  ploss  -0.1  nmse  -34.0  mu/smax 4.29e-02  calls 612+623  3.7s
+   wise         amb  -34.4  floor  -34.4  ploss  -0.1  nmse  -33.1  mu/smax 3.08e-02  calls 612+623  3.5s
+dense40|30|0
+   current      amb  -28.9  floor  -28.9  ploss  -0.1  nmse  -26.8  mu/smax 3.00e-02  calls 132+134  0.8s
+   lcurve       amb  -27.7  floor  -27.7  ploss  -0.1  nmse  -26.2  mu/smax 1.32e-03  calls 1200+1222  7.0s
+   lcurve2      amb  -25.2  floor  -24.2  ploss  -0.1  nmse  -24.9  mu/smax 4.45e-04  calls 2404+2448  13.9s
+   discrepancy  amb  -30.4  floor  -30.4  ploss  -0.4  nmse  -26.4  mu/smax 7.99e-02  calls 533+547  3.3s
+   bmr          amb  -29.1  floor  -29.1  ploss  -0.1  nmse  -26.8  mu/smax 1.75e-02  calls 88+73  0.4s
+   maria        amb  -34.5  floor  -34.4  ploss  -0.1  nmse  -33.8  mu/smax 1.87e-02  calls 612+623  3.6s
+   wise         amb  -33.9  floor  -33.9  ploss  -0.1  nmse  -29.0  mu/smax 1.25e-02  calls 612+623  3.6s
+dense40|30|1
+   current      amb  -30.0  floor  -29.6  ploss  -0.1  nmse  -26.9  mu/smax 3.00e-02  calls 132+134  0.7s
+   lcurve       amb  -27.8  floor  -27.8  ploss  -0.1  nmse  -26.0  mu/smax 1.37e-03  calls 1200+1222  7.5s
+   lcurve2      amb  -24.7  floor  -21.5  ploss  -0.1  nmse  -24.5  mu/smax 4.57e-04  calls 2404+2448  14.4s
+   discrepancy  amb  -30.0  floor  -30.0  ploss  -0.4  nmse  -26.4  mu/smax 7.96e-02  calls 533+547  3.1s
+   bmr          amb  -29.8  floor  -29.8  ploss  -0.1  nmse  -26.9  mu/smax 1.75e-02  calls 88+73  0.5s
+   maria        amb  -34.5  floor  -34.5  ploss  -0.1  nmse  -33.8  mu/smax 1.86e-02  calls 612+623  4.3s
+   wise         amb  -33.8  floor  -33.8  ploss  -0.1  nmse  -29.1  mu/smax 1.25e-02  calls 612+623  3.8s
+dense40|20|0
+   current      amb  -22.3  floor  -22.3  ploss  -0.1  nmse  -19.2  mu/smax 3.00e-02  calls 132+134  0.7s
+   lcurve       amb  -20.7  floor  -20.0  ploss  -0.1  nmse  -18.3  mu/smax 4.57e-04  calls 1202+1224  6.7s
+   lcurve2      amb  -16.2  floor  -15.9  ploss  -0.1  nmse  -17.0  mu/smax 6.70e-04  calls 2407+2451  13.9s
+   discrepancy  amb  -20.5  floor  -20.5  ploss  -1.5  nmse  -17.3  mu/smax 1.88e-01  calls 361+375  2.3s
+   bmr          amb  -27.8  floor  -27.8  ploss  -0.3  nmse  -20.3  mu/smax 5.53e-02  calls 80+65  0.5s
+   maria        amb  -34.5  floor  -34.4  ploss  -0.1  nmse  -32.9  mu/smax 5.88e-02  calls 612+623  3.8s
+   wise         amb  -30.0  floor  -30.0  ploss  -0.2  nmse  -20.6  mu/smax 3.34e-02  calls 612+623  3.3s
+dense40|20|1
+   current      amb  -24.0  floor  -24.0  ploss  -0.2  nmse  -19.3  mu/smax 3.00e-02  calls 132+134  0.7s
+   lcurve       amb  -20.0  floor  -19.7  ploss  -0.2  nmse  -18.1  mu/smax 3.32e-04  calls 1202+1224  7.6s
+   lcurve2      amb  -16.3  floor  -16.0  ploss  -0.2  nmse  -16.9  mu/smax 7.16e-04  calls 2407+2451  14.0s
+   discrepancy  amb  -20.0  floor  -20.0  ploss  -1.5  nmse  -17.2  mu/smax 1.87e-01  calls 361+375  2.2s
+   bmr          amb  -27.3  floor  -27.3  ploss  -0.3  nmse  -20.3  mu/smax 5.52e-02  calls 80+65  0.4s
+   maria        amb  -34.5  floor  -34.5  ploss  -0.2  nmse  -32.7  mu/smax 5.86e-02  calls 612+623  3.6s
+   wise         amb  -27.8  floor  -27.8  ploss  -0.2  nmse  -20.6  mu/smax 3.33e-02  calls 612+623  3.7s
+dense40|10|0
+   current      amb  -13.6  floor  -13.6  ploss  -0.3  nmse   -9.6  mu/smax 3.00e-02  calls 132+134  0.7s
+   lcurve       amb  -10.8  floor   -9.2  ploss  -0.2  nmse   -8.4  mu/smax 3.51e-04  calls 1205+1227  7.5s
+   lcurve2      amb   -6.5  floor   -6.4  ploss  -0.3  nmse   -7.4  mu/smax 1.07e-03  calls 2294+2336  15.3s
+   discrepancy  amb  -16.1  floor  -16.1  ploss  -3.9  nmse   -9.0  mu/smax 3.92e-01  calls 268+282  1.7s
+   bmr          amb  -21.1  floor  -21.1  ploss  -1.4  nmse  -11.4  mu/smax 1.75e-01  calls 50+35  0.3s
+   maria        amb  -27.1  floor  -27.1  ploss  -0.4  nmse  -18.2  mu/smax 1.85e-01  calls 612+623  3.7s
+   wise         amb  -12.1  floor  -12.1  ploss  -0.3  nmse   -9.6  mu/smax 3.60e-02  calls 612+623  3.7s
+dense40|10|1
+   current      amb  -14.1  floor  -14.1  ploss  -0.4  nmse   -9.7  mu/smax 3.00e-02  calls 132+134  0.9s
+   lcurve       amb  -10.5  floor   -9.9  ploss  -0.4  nmse   -8.4  mu/smax 2.56e-04  calls 1205+1227  7.5s
+   lcurve2      amb   -6.5  floor   -6.5  ploss  -0.4  nmse   -7.4  mu/smax 1.21e-03  calls 2294+2336  13.8s
+   discrepancy  amb  -15.4  floor  -15.4  ploss  -4.0  nmse   -9.0  mu/smax 3.92e-01  calls 268+282  1.5s
+   bmr          amb  -19.6  floor  -19.6  ploss  -1.5  nmse  -11.4  mu/smax 1.75e-01  calls 50+35  0.2s
+   maria        amb  -28.0  floor  -28.0  ploss  -0.3  nmse  -18.2  mu/smax 1.84e-01  calls 612+623  3.6s
+   wise         amb  -13.5  floor  -13.5  ploss  -0.4  nmse   -9.7  mu/smax 3.64e-02  calls 612+623  3.9s
+foothills20|inf|0
+   current      amb  -34.0  floor  -34.0  ploss  -0.1  nmse  -31.5  mu/smax 3.00e-02  calls 132+134  0.4s
+   lcurve       amb  -34.0  floor  -34.0  ploss  -0.1  nmse  -31.5  mu/smax 9.52e-04  calls 1199+1221  4.1s
+   lcurve2      amb  -34.1  floor  -34.1  ploss  -0.1  nmse  -31.1  mu/smax 2.91e-04  calls 2401+2445  8.5s
+   bmr          amb  -34.0  floor  -34.0  ploss  -0.1  nmse  -31.5  mu/smax 0.00e+00  calls 88+73  0.3s
+   maria        amb  -34.7  floor  -34.7  ploss  -0.0  nmse  -35.5  mu/smax 4.27e-02  calls 612+623  2.0s
+   wise         amb  -34.1  floor  -34.1  ploss  -0.1  nmse  -32.2  mu/smax 3.06e-02  calls 612+623  1.9s
+foothills20|30|0
+   current      amb  -33.9  floor  -33.7  ploss  -0.1  nmse  -26.9  mu/smax 3.00e-02  calls 132+134  0.4s
+   lcurve       amb  -33.8  floor  -31.3  ploss  -0.1  nmse  -26.3  mu/smax 1.32e-03  calls 1199+1221  4.5s
+   lcurve2      amb  -33.8  floor  -25.1  ploss  -0.1  nmse  -24.4  mu/smax 5.08e-04  calls 2522+2568  8.9s
+   discrepancy  amb  -32.4  floor  -32.4  ploss  -0.3  nmse  -26.5  mu/smax 7.44e-02  calls 542+556  1.6s
+   bmr          amb  -33.9  floor  -33.9  ploss  -0.1  nmse  -26.9  mu/smax 1.63e-02  calls 88+73  0.2s
+   maria        amb  -34.7  floor  -34.7  ploss  -0.0  nmse  -35.4  mu/smax 1.72e-02  calls 612+623  2.1s
+   wise         amb  -34.1  floor  -34.1  ploss  -0.0  nmse  -28.4  mu/smax 1.17e-02  calls 612+623  2.1s
+foothills20|30|1
+   current      amb  -33.5  floor  -33.5  ploss  -0.1  nmse  -26.6  mu/smax 3.00e-02  calls 132+134  0.5s
+   lcurve       amb  -33.3  floor  -31.8  ploss  -0.1  nmse  -26.0  mu/smax 1.32e-03  calls 1199+1221  4.1s
+   lcurve2      amb  -33.5  floor  -23.7  ploss  -0.1  nmse  -23.9  mu/smax 6.54e-04  calls 2402+2446  7.5s
+   discrepancy  amb  -31.4  floor  -31.4  ploss  -0.3  nmse  -26.3  mu/smax 7.47e-02  calls 540+554  2.0s
+   bmr          amb  -33.5  floor  -33.5  ploss  -0.1  nmse  -26.6  mu/smax 1.63e-02  calls 88+73  0.2s
+   maria        amb  -34.7  floor  -34.7  ploss  -0.0  nmse  -35.4  mu/smax 1.71e-02  calls 612+623  2.0s
+   wise         amb  -33.5  floor  -33.5  ploss  -0.1  nmse  -28.3  mu/smax 1.17e-02  calls 612+623  2.1s
+foothills20|20|0
+   current      amb  -31.3  floor  -24.0  ploss  -0.1  nmse  -18.5  mu/smax 3.00e-02  calls 132+134  0.4s
+   lcurve       amb  -31.2  floor  -19.4  ploss  -0.1  nmse  -16.8  mu/smax 2.56e-04  calls 1202+1224  4.1s
+   lcurve2      amb  -31.0  floor  -16.9  ploss  -0.1  nmse  -16.1  mu/smax 3.32e-04  calls 2526+2572  8.4s
+   discrepancy  amb  -24.4  floor  -24.4  ploss  -1.2  nmse  -17.5  mu/smax 1.74e-01  calls 372+386  1.4s
+   bmr          amb  -31.5  floor  -31.5  ploss  -0.2  nmse  -19.8  mu/smax 5.16e-02  calls 83+68  0.4s
+   maria        amb  -34.6  floor  -34.6  ploss  -0.1  nmse  -34.6  mu/smax 5.41e-02  calls 612+623  2.0s
+   wise         amb  -31.3  floor  -31.3  ploss  -0.1  nmse  -19.9  mu/smax 3.05e-02  calls 612+623  2.1s
+foothills20|20|1
+   current      amb  -29.8  floor  -24.0  ploss  -0.1  nmse  -18.1  mu/smax 3.00e-02  calls 132+134  0.4s
+   lcurve       amb  -29.7  floor  -19.1  ploss  -0.1  nmse  -16.4  mu/smax 2.80e-04  calls 1262+1285  4.1s
+   lcurve2      amb  -30.3  floor  -14.7  ploss  -0.1  nmse  -15.3  mu/smax 5.29e-04  calls 2406+2450  8.1s
+   discrepancy  amb  -24.2  floor  -24.2  ploss  -1.2  nmse  -17.5  mu/smax 1.74e-01  calls 371+385  1.3s
+   bmr          amb  -30.2  floor  -30.2  ploss  -0.2  nmse  -19.6  mu/smax 5.16e-02  calls 83+68  0.3s
+   maria        amb  -34.7  floor  -34.7  ploss  -0.1  nmse  -35.0  mu/smax 5.41e-02  calls 612+623  2.0s
+   wise         amb  -29.8  floor  -29.4  ploss  -0.1  nmse  -19.6  mu/smax 2.95e-02  calls 612+623  2.3s
+foothills20|10|0
+   current      amb  -24.5  floor  -14.0  ploss  -0.2  nmse   -8.7  mu/smax 3.00e-02  calls 132+134  0.7s
+   lcurve       amb  -21.9  floor   -8.3  ploss  -0.2  nmse   -6.5  mu/smax 1.99e-04  calls 1205+1227  4.2s
+   lcurve2      amb  -23.0  floor   -8.0  ploss  -0.3  nmse   -6.7  mu/smax 3.37e-04  calls 2293+2335  7.8s
+   discrepancy  amb  -18.7  floor  -18.7  ploss  -3.4  nmse   -9.2  mu/smax 3.59e-01  calls 275+289  1.1s
+   bmr          amb  -23.9  floor  -23.9  ploss  -1.1  nmse  -11.1  mu/smax 1.63e-01  calls 51+36  0.2s
+   maria        amb  -28.7  floor  -28.7  ploss  -0.1  nmse  -18.1  mu/smax 1.72e-01  calls 612+623  2.1s
+   wise         amb  -23.2  floor  -13.3  ploss  -0.2  nmse   -8.8  mu/smax 3.18e-02  calls 612+623  2.2s
+foothills20|10|1
+   current      amb  -23.2  floor  -13.9  ploss  -0.3  nmse   -8.3  mu/smax 3.00e-02  calls 132+134  0.4s
+   lcurve       amb  -23.1  floor   -7.7  ploss  -0.3  nmse   -6.1  mu/smax 1.43e-04  calls 1205+1227  4.2s
+   lcurve2      amb  -22.8  floor   -5.3  ploss  -0.4  nmse   -5.8  mu/smax 4.40e-04  calls 2533+2579  8.6s
+   discrepancy  amb  -18.6  floor  -18.6  ploss  -3.5  nmse   -9.2  mu/smax 3.60e-01  calls 275+289  0.9s
+   bmr          amb  -23.2  floor  -23.2  ploss  -1.2  nmse  -11.1  mu/smax 1.63e-01  calls 51+36  0.1s
+   maria        amb  -27.4  floor  -27.4  ploss  -0.1  nmse  -18.1  mu/smax 1.74e-01  calls 612+623  2.2s
+   wise         amb  -21.3  floor  -12.4  ploss  -0.2  nmse   -8.3  mu/smax 3.00e-02  calls 612+623  2.2s
+clutter1500|inf|0
+   current      amb    nan  floor    nan  ploss   nan  nmse  -29.8  mu/smax 3.00e-02  calls 132+134  0.8s
+   lcurve       amb    nan  floor    nan  ploss   nan  nmse  -29.6  mu/smax 6.95e-04  calls 1200+1222  7.0s
+   lcurve2      amb    nan  floor    nan  ploss   nan  nmse  -28.9  mu/smax 2.97e-04  calls 2163+2203  12.6s
+   bmr          amb    nan  floor    nan  ploss   nan  nmse  -29.6  mu/smax 0.00e+00  calls 88+73  0.6s
+   maria        amb    nan  floor    nan  ploss   nan  nmse  -25.9  mu/smax 4.33e-02  calls 612+623  3.6s
+   wise         amb    nan  floor    nan  ploss   nan  nmse  -31.8  mu/smax 3.09e-02  calls 612+623  4.1s
+clutter1500|30|0
+   current      amb    nan  floor    nan  ploss   nan  nmse  -26.8  mu/smax 3.00e-02  calls 132+134  0.7s
+   lcurve       amb    nan  floor    nan  ploss   nan  nmse  -26.4  mu/smax 1.31e-03  calls 1201+1223  6.9s
+   lcurve2      amb    nan  floor    nan  ploss   nan  nmse  -25.0  mu/smax 3.69e-04  calls 2405+2449  14.7s
+   discrepancy  amb    nan  floor    nan  ploss   nan  nmse  -24.3  mu/smax 7.83e-02  calls 541+555  3.0s
+   bmr          amb    nan  floor    nan  ploss   nan  nmse  -26.8  mu/smax 1.75e-02  calls 88+73  0.5s
+   maria        amb    nan  floor    nan  ploss   nan  nmse  -25.7  mu/smax 1.88e-02  calls 612+623  4.3s
+   wise         amb    nan  floor    nan  ploss   nan  nmse  -28.3  mu/smax 1.31e-02  calls 612+623  3.5s
+clutter1500|30|1
+   current      amb    nan  floor    nan  ploss   nan  nmse  -26.9  mu/smax 3.00e-02  calls 132+134  0.7s
+   lcurve       amb    nan  floor    nan  ploss   nan  nmse  -26.5  mu/smax 1.32e-03  calls 1201+1223  7.0s
+   lcurve2      amb    nan  floor    nan  ploss   nan  nmse  -25.4  mu/smax 3.69e-04  calls 2405+2449  16.3s
+   discrepancy  amb    nan  floor    nan  ploss   nan  nmse  -24.2  mu/smax 7.85e-02  calls 541+555  3.6s
+   bmr          amb    nan  floor    nan  ploss   nan  nmse  -26.8  mu/smax 1.75e-02  calls 88+73  0.4s
+   maria        amb    nan  floor    nan  ploss   nan  nmse  -25.7  mu/smax 1.88e-02  calls 612+623  3.6s
+   wise         amb    nan  floor    nan  ploss   nan  nmse  -28.5  mu/smax 1.31e-02  calls 612+623  3.9s
+clutter1500|20|0
+   current      amb    nan  floor    nan  ploss   nan  nmse  -19.3  mu/smax 3.00e-02  calls 132+134  0.8s
+   lcurve       amb    nan  floor    nan  ploss   nan  nmse  -18.3  mu/smax 4.68e-04  calls 1202+1224  7.5s
+   lcurve2      amb    nan  floor    nan  ploss   nan  nmse  -17.0  mu/smax 5.65e-04  calls 2407+2451  14.4s
+   discrepancy  amb    nan  floor    nan  ploss   nan  nmse  -16.4  mu/smax 1.87e-01  calls 366+380  2.4s
+   bmr          amb    nan  floor    nan  ploss   nan  nmse  -19.9  mu/smax 5.53e-02  calls 81+66  0.5s
+   maria        amb    nan  floor    nan  ploss   nan  nmse  -23.8  mu/smax 5.95e-02  calls 612+623  3.3s
+   wise         amb    nan  floor    nan  ploss   nan  nmse  -20.2  mu/smax 3.63e-02  calls 612+623  3.7s
+clutter1500|20|1
+   current      amb    nan  floor    nan  ploss   nan  nmse  -19.4  mu/smax 3.00e-02  calls 132+134  0.8s
+   lcurve       amb    nan  floor    nan  ploss   nan  nmse  -18.4  mu/smax 2.96e-04  calls 1202+1224  7.7s
+   lcurve2      amb    nan  floor    nan  ploss   nan  nmse  -17.2  mu/smax 5.79e-04  calls 2407+2451  15.4s
+   discrepancy  amb    nan  floor    nan  ploss   nan  nmse  -16.4  mu/smax 1.88e-01  calls 364+378  2.1s
+   bmr          amb    nan  floor    nan  ploss   nan  nmse  -20.0  mu/smax 5.53e-02  calls 81+66  0.4s
+   maria        amb    nan  floor    nan  ploss   nan  nmse  -23.7  mu/smax 5.93e-02  calls 612+623  4.3s
+   wise         amb    nan  floor    nan  ploss   nan  nmse  -20.3  mu/smax 3.65e-02  calls 612+623  3.8s
+clutter1500|10|0
+   current      amb    nan  floor    nan  ploss   nan  nmse   -9.6  mu/smax 3.00e-02  calls 132+134  0.7s
+   lcurve       amb    nan  floor    nan  ploss   nan  nmse   -8.4  mu/smax 3.69e-04  calls 1205+1227  6.3s
+   lcurve2      amb    nan  floor    nan  ploss   nan  nmse   -7.4  mu/smax 9.03e-04  calls 2295+2337  13.9s
+   discrepancy  amb    nan  floor    nan  ploss   nan  nmse   -8.8  mu/smax 3.93e-01  calls 268+282  1.5s
+   bmr          amb    nan  floor    nan  ploss   nan  nmse  -11.1  mu/smax 1.75e-01  calls 50+35  0.2s
+   maria        amb    nan  floor    nan  ploss   nan  nmse  -15.0  mu/smax 1.86e-01  calls 612+623  3.4s
+   wise         amb    nan  floor    nan  ploss   nan  nmse   -9.6  mu/smax 3.82e-02  calls 612+623  3.3s
+clutter1500|10|1
+   current      amb    nan  floor    nan  ploss   nan  nmse   -9.7  mu/smax 3.00e-02  calls 132+134  0.7s
+   lcurve       amb    nan  floor    nan  ploss   nan  nmse   -8.5  mu/smax 1.70e-04  calls 1205+1227  7.0s
+   lcurve2      amb    nan  floor    nan  ploss   nan  nmse   -7.5  mu/smax 9.74e-04  calls 2294+2336  13.7s
+   discrepancy  amb    nan  floor    nan  ploss   nan  nmse   -8.8  mu/smax 3.93e-01  calls 268+282  1.6s
+   bmr          amb    nan  floor    nan  ploss   nan  nmse  -11.2  mu/smax 1.75e-01  calls 50+35  0.2s
+   maria        amb    nan  floor    nan  ploss   nan  nmse  -15.1  mu/smax 1.85e-01  calls 612+623  3.6s
+   wise         amb    nan  floor    nan  ploss   nan  nmse   -9.5  mu/smax 3.67e-02  calls 612+623  4.0s
