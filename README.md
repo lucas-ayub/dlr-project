@@ -21,6 +21,10 @@ Signal model and C<sub>0</sub>, C<sub>1</sub>, C<sub>2</sub>; how topography cre
 <a href="report/report.pdf"><img src="report/figures/readme_result.png" alt="Standard reconstruction, joint reconstruction and reference over a 1000 m mountain" width="85%"></a><br>
 <sub>Five targets on a 1000 m mountain: standard reconstruction &minus;4.4 dB, joint reconstruction (DEM only)
 &minus;40.8 dB, reference &minus;41.4 dB; right: against the mountain height.</sub><br><br>
+<img src="report/figures/readme_animation.gif" alt="Animation: four receivers fly over the mountain and record the channels, then the focused line of the reference, the standard reconstruction, the first estimate and the joint reconstruction" width="95%"><br>
+<sub>The same scene, animated: the formation flies over the mountain and each receiver records its aliased channel at
+500 Hz; then the focused line of the reference, the standard reconstruction, the joint's first estimate A<sup>H</sup>s and
+the joint reconstruction after the iterations. Regenerate with <code>python sata1d_code/joint_cases/animation/make_gif.py</code> (~30 s).</sub><br><br>
 <a href="report/report.pdf"><img src="report/figures/readme_realterrain.png" alt="Seven 47 km cuts through the SRTM elevation of the Sierra Nevada" width="95%"></a><br>
 <sub>47 km lines from the SRTM 3'' DEM of the Sierra Nevada: the joint reconstruction is within 3 dB of the reference on six
 of seven cuts (150 random lines: see the table below).</sub>
@@ -90,7 +94,8 @@ dlr-project/
 ├── sata1d_code/                1-D study (azimuth only) — main code
 │   ├── sata1d/                 package: config, geometry, signal model, reconstruction,
 │   │                           per-channel correction (earlier approach), joint, joint_line
-│   ├── joint_cases/            joint reconstruction: case runs, sweeps, audits, real terrain (real_dem/)
+│   ├── joint_cases/            joint reconstruction: case runs, sweeps, audits, real terrain (real_dem/),
+│   │                           the README animation (animation/)
 │   ├── joint_standalone/       self-contained copy of the whole-line joint (package joint1d)
 │   ├── legacy/                 previous per-sub-band fit (used by the verification scripts)
 │   └── *.py                    single runs, sweeps, figures and verification (T1–T19)
@@ -137,6 +142,12 @@ The 1-D package `sata1d` is not installed: run its scripts from `sata1d_code/`.
 ```bash
 python run_one_case.py --scene dense_ramp --mode none joint oracle
 python run_one_case.py --targets 0:500 --mode none joint      # custom targets x:h [m]
+```
+
+**1-D — animation of the README** (from the repository root; writes `report/figures/readme_animation.gif`):
+
+```bash
+python sata1d_code/joint_cases/animation/make_gif.py          # add --mp4 for a video next to it (needs ffmpeg)
 ```
 
 **1-D — final joint reconstruction, minimal example** (from `sata1d_code/joint_standalone/`):

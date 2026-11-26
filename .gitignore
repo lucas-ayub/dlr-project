@@ -58,6 +58,7 @@ _backup/
 !report/report.pdf
 !report/figures/*.png
 !report/figures/*.pdf
+!report/figures/readme_animation.gif
 
 # Report figures in sub-folders (diagrams, result crops, new analyses) are versioned too
 !report/figures/**/*.pdf
