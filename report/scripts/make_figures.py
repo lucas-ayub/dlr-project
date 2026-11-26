@@ -109,13 +109,13 @@ def fig_coeffs():
                 ref[i - 1, k] = coeffs(cfg, tr, cfg.scene.ptg, i)
         hs = np.arange(0.0, 3001.0, 150.0)
         res = {}
-        for b in (100.0, 300.0, 500.0):
+        for b in (300.0, 119.8, 100.5):                                 # default formation
             cfg, tr = config([(0.0, 0.0)], [0.0, b])
             c0 = np.array(coeffs(cfg, tr, cfg.scene.ptg, 1))
             res[b] = np.array([np.array(coeffs(cfg, tr, point(cfg, 0.0, h), 1)) - c0 for h in hs])
         Tap = S.config.integration_time(cfg.system, cfg.scene)
         return dict(bx=bx, ref=ref, hs=hs, res=res, bat=cfg.array.bat, r0=cfg.scene.r0, tt=tan_theta(cfg), T=Tap)
-    d = cached("coeffs", run)
+    d = cached("coeffs_default", run)
     # reference point
     fig, ax = plt.subplots(1, 4, figsize=(W_FULL, 2.15))
     lab = [r"Rx$_1$ ($b_{at}$ = 7.7 m)", r"Rx$_2$ ($b_{at}$ = 15.4 m)", r"Rx$_3$ ($b_{at}$ = 23.1 m)"]
@@ -131,7 +131,7 @@ def fig_coeffs():
     save(fig, "coeffs_reference_point")
     # residual against height
     fig, ax = plt.subplots(1, 2, figsize=(W_FULL, 2.4))
-    for b, c in zip((100.0, 300.0, 500.0), ("#1f77b4", "#ff7f0e", "#d62728")):
+    for b, c in zip((300.0, 119.8, 100.5), ("#ff7f0e", "#8c564b", "#1f77b4")):
         r = d["res"][b]
         ax[0].plot(d["hs"], r[:, 0], "o", ms=3, color=c, label=fr"exact, $b_{{xt}}$ = {b:g} m")
         ax[0].plot(d["hs"], -b * d["hs"] / (d["r0"] * d["tt"]), "-", color=c, lw=0.9)

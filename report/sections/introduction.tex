@@ -2,44 +2,33 @@
 
 \section{Context}
 
-A conventional SAR cannot have both a fine azimuth resolution, which needs a wide Doppler bandwidth and a high PRF, and a
-wide swath, which needs a long interval between pulses. Multichannel systems break this trade-off by receiving each pulse
+A conventional SAR cannot have both a fine azimuth resolution (high PRF) and a wide swath (long interval between pulses). Multichannel systems break this trade-off by receiving each pulse
 with several apertures displaced along track \cite{Krieger2004,Gebert2009}. Each channel is aliased, but together they
 sample the azimuth signal at the full rate, and an \emph{azimuth reconstruction} (a filter bank) recovers the unambiguous
 spectrum.
 
-Multistatic formations spread the receivers over several platforms, so the baselines are no longer small
-\cite{Sakar2020tgrs,Sakar2022thesis}. A \emph{cross-track} baseline makes the bistatic range history depend on the
-scatterer height. The reconstruction filters assume the reference height $h_0=0$; any other height leaves a
-channel-dependent residual phase, the aliased parts no longer cancel, and azimuth ambiguities appear.
+In multistatic formations the receivers sit on several platforms and the baselines are large
+\cite{Sakar2020tgrs,Sakar2022thesis}. With a \emph{cross-track} baseline the bistatic range history depends on the
+scatterer height; the filters assume $h_0=0$, so any other height leaves a channel-dependent phase and the aliased parts
+no longer cancel.
 
-A similar height-dependent phase is removed position by position from an external DEM in airborne motion compensation
-\cite{Prats2005topo,Prats2005thesis,Prats2007moco}. This work uses the same idea: the phase the terrain adds to each channel
-is known from the DEM and the geometry; the question is how to use it in the reconstruction.
+Airborne motion compensation removes a similar height-dependent phase position by position from an external DEM
+\cite{Prats2005topo,Prats2005thesis,Prats2007moco}. Here too the phase of each channel is known from the DEM and the
+geometry; the question is how to use it in the reconstruction.
 
 \section{Objective}
 
-Remove the azimuth ambiguities caused by topography and cross-track baselines using \emph{only the system parameters and a
-DEM}, without knowing where the scatterers are. Two questions:
+Remove the ambiguities caused by topography using \emph{only the system parameters and a DEM}, without knowing where the
+scatterers are:
 \begin{enumerate}
   \item How large are the ambiguities caused by unaccounted topography?
   \item How can the DEM be used inside the reconstruction so that the image reaches the quality of an unaliased reference?
 \end{enumerate}
 
-\section{Contributions}
+\section{Contributions and outline}
 
-\begin{itemize}
-  \item A simulator of the multistatic acquisition and of the multichannel reconstruction along one azimuth line, with
-        along- and cross-track baselines and arbitrary terrain (\cref{ch:model,ch:recon}).
-  \item A joint reconstruction that puts the DEM phase of every position inside a matrix-free regularised least-squares
-        inversion (\cref{ch:joint}).
-  \item Results on simulated and real (SRTM) terrain: relief height, target density, close targets beside cliffs, blind
-        heights, DEM accuracy, time-varying baselines and other regularisation methods (\cref{ch:results}).
-\end{itemize}
-
-\section{Outline}
-
-\Cref{ch:model} introduces the geometry and the topographic residual $\dC$; \cref{ch:recon} the multichannel
-reconstruction and how topography creates ambiguities; \cref{ch:joint} the joint reconstruction; \cref{ch:results} the
-results; \cref{ch:conclusions} the conclusions. Code and figure scripts:
+\Cref{ch:model} builds the simulator geometry and the topographic residual $\dC$; \cref{ch:recon} the multichannel
+reconstruction and how topography creates ambiguities; \cref{ch:joint} the joint reconstruction, which puts the DEM phase of
+every position inside a matrix-free regularised least-squares inversion; \cref{ch:results} the results on simulated and real
+(SRTM) terrain; \cref{ch:conclusions} the conclusions. Code and figure scripts:
 \href{https://github.com/lucas-ayub/dlr-project}{github.com/lucas-ayub/dlr-project}.

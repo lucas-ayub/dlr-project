@@ -35,10 +35,10 @@
 % ---------------------------------------------------------------- colours
 \definecolor{dlrblue}{RGB}{0,101,189}
 \definecolor{cref}{RGB}{44,160,44}      % reference
-\definecolor{cnone}{RGB}{214,39,40}     % no SATA
-\definecolor{cwhole}{RGB}{255,127,14}   % SATA whole band
-\definecolor{csub}{RGB}{140,86,75}      % SATA per sub-band
-\definecolor{cocc}{RGB}{31,119,180}     % joint sub-apertures
+\definecolor{cnone}{RGB}{214,39,40}     % standard reconstruction
+\definecolor{cwhole}{RGB}{255,127,14}   % accent (orange)
+\definecolor{csub}{RGB}{140,86,75}      % accent (brown)
+\definecolor{cocc}{RGB}{31,119,180}     % accent (blue)
 \definecolor{cjoint}{RGB}{148,103,189}  % joint whole line
 \definecolor{terrain}{RGB}{120,90,60}
 \definecolor{terrainfill}{RGB}{235,228,214}
@@ -115,3 +115,17 @@
 
 % a visible note for items that still need the author's input
 \newcommand{\todo}[1]{\par\noindent\colorbox{orange!15}{\parbox{\dimexpr\linewidth-2\fboxsep}{\small\textbf{To do:} #1}}\par}
+
+% Float placement: let figures share pages with text, and start float-only pages at the top
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\bottomfraction}{0.8}
+\renewcommand{\textfraction}{0.07}
+\renewcommand{\floatpagefraction}{0.75}
+\setcounter{topnumber}{3}
+\setcounter{bottomnumber}{2}
+\setcounter{totalnumber}{4}
+\makeatletter
+\setlength{\@fptop}{0pt}
+\setlength{\@fpsep}{14pt plus 4pt}
+\setlength{\@fpbot}{0pt plus 1fil}
+\makeatother

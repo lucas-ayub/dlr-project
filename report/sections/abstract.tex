@@ -1,16 +1,16 @@
 \chapter*{Abstract}
 \addcontentsline{toc}{chapter}{Abstract}
 
-Multichannel and multistatic synthetic aperture radar (SAR) systems for high-resolution wide-swath (HRWS) imaging sample
-each receiver below the Doppler bandwidth and recover the spectrum by an azimuth reconstruction whose filters assume a
-reference geometry. With cross-track baselines, a scatterer above the reference height carries a channel-dependent phase,
-the aliased parts no longer cancel, and azimuth ambiguities appear.
+Multichannel synthetic aperture radar (SAR) systems for high-resolution wide-swath (HRWS) imaging sample each receiver
+below the Doppler bandwidth and recover the spectrum by an azimuth reconstruction whose filters assume a reference geometry.
+With cross-track baselines, a scatterer above the reference height carries a channel-dependent phase and azimuth ambiguities
+appear.
 
 This report simulates a spaceborne formation ($\lambda=\SI{0.25}{m}$, $r_0=\SI{766}{km}$, four receivers, cross-track
 baselines up to \SI{300}{m}) and corrects the ambiguities using \emph{only the system parameters and a digital elevation
 model (DEM)}. A per-channel correction cannot work, because every Doppler bin mixes ground positions $X\approx\SI{6.2}{km}$
-apart that need different phases. A \emph{joint} reconstruction puts the DEM phase of every position inside a
-Tikhonov-regularised least-squares inversion, solved by conjugate gradients without forming the model matrix.
+apart that need different phases; a \emph{joint} reconstruction puts the DEM phase of every position inside a matrix-free
+Tikhonov-regularised least-squares inversion.
 
 On a \SI{1000}{m} mountain it lowers the highest ambiguity from \SI{-4.4}{dB} (standard reconstruction) to \SI{-40.8}{dB}
 (reference \SI{-41.4}{dB}); on 150 random SRTM lines of the Sierra Nevada the medians are \SI{-6.2}{dB}, \SI{-39.8}{dB} and

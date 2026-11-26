@@ -2,11 +2,10 @@
 
 \section{Formation and parameters}
 
-One platform transmits and receives (channel~0); the other $\Nrx-1$ receivers fly behind it, displaced by $\bat_{,i}$
-along track and $\bxt_{,i}$ across track (horizontally, towards the scene) (\cref{fig:geometry}). The along-track baselines
-satisfy the displaced phase centre (DPCA) condition (\cref{fig:dpca}), so the channels together sample uniformly at the full
-PRF; the study is about the cross-track baselines. All results use four channels with $\bxt=[0,300,119.8,100.5]$\,\si{m}
-(a random draw scaled to a maximum of \SI{300}{m}); channel~0 is the transmitter ($\bat=\bxt=0$). Parameters:
+One platform transmits and receives (channel~0, $\bat=\bxt=0$); the other $\Nrx-1$ receivers trail it by $\bat_{,i}$
+along track and are offset by $\bxt_{,i}$ across track, towards the scene (\cref{fig:geometry}). The along-track baselines
+satisfy the displaced phase centre (DPCA) condition (\cref{fig:dpca}), so together the channels sample at the full PRF. All
+results use four channels with $\bxt=[0,300,119.8,100.5]$\,\si{m} (a random draw scaled to \SI{300}{m}); parameters in
 \cref{tab:params}.
 
 \begin{table}[htbp]
@@ -50,49 +49,43 @@ sample every $d$, like one channel at the full PRF.}
 
 \section{Signal model}
 
-Point targets lie on a terrain profile $h(x)$ along azimuth, on the iso-range surface of the reference point ($x=0$, $h=0$,
-slant range $r_0$), so only their height changes the bistatic geometry. The azimuth signal of channel $i$ is
+Point targets lie on a terrain profile $h(x)$, on the iso-range surface of the reference point ($x=0$, $h=0$, slant range
+$r_0$), so only their height changes the bistatic geometry. Channel $i$ records
 \begin{equation}
   s_i(t) = \sum_{p} a_p\, w(t-t_p)\, \exp\!\left(-\jj\frac{2\pi}{\lambda} \bigl[r_{\mathrm T,p}(t)+r_{\mathrm R,i,p}(t)\bigr]\right),
 \end{equation}
-with $a_p$ the complex amplitude of scatterer $p$, $w$ the antenna pattern and $r_{\mathrm T}+r_{\mathrm R,i}$ the bistatic
-path (\cref{fig:geometry}).
+with $a_p$ the complex amplitude of scatterer $p$ and $w$ the antenna pattern.
 
 \section{Channel transfer functions and the coefficients \texorpdfstring{$C_0$, $C_1$, $C_2$, $\Delta t$}{C0, C1, C2, Delta t}}\label{sec:coeffs}
 
-The reconstruction (\cref{ch:recon}) needs the transfer function $H_i(f)$ of each channel: the ratio between its Doppler
-spectrum and the monostatic one for the same scatterer. We derive it from the range histories of the reference point,
-following \cite{Sakar2020tgrs,Sakar2022thesis}.
+The reconstruction needs the transfer function $H_i(f)$ of each channel, the ratio of its Doppler spectrum to the monostatic
+one for the same scatterer, derived from the range histories of the reference point \cite{Sakar2020tgrs,Sakar2022thesis}.
 
 \paragraph{Step 1: two parabolas (time domain).} Let $M(t)=2r_{\mathrm T}(t)$ be the monostatic path and
 $B_i(t)=r_{\mathrm T}(t)+r_{\mathrm R,i}(t)$ the bistatic path, both for the reference point. Over the aperture each is a
-parabola around its own minimum:
+parabola:
 \begin{equation}
   M(t)\approx M_{\min}+m_2\,(t-t_M)^2, \qquad B_i(t)\approx B_{i,\min}+b_{2,i}\,(t-t_{B,i})^2 ,
   \label{eq:parabolas}
 \end{equation}
-where $M_{\min}$, $B_{i,\min}$ are the smallest path lengths [m], $t_M$, $t_{B,i}$ the times at which they occur [s] and
-$m_2$, $b_{2,i}$ the curvatures [m/s$^2$]. The corresponding azimuth signals are
-$s_M(t)=w(t)\exp[-\jj 2\pi M(t)/\lambda]$ and $s_i(t)=w(t)\exp[-\jj 2\pi B_i(t)/\lambda]$.
+with minimum path lengths $M_{\min}$, $B_{i,\min}$ [m] at times $t_M$, $t_{B,i}$ [s] and curvatures $m_2$, $b_{2,i}$
+[m/s$^2$].
 
-\paragraph{Step 2: from time to Doppler (stationary phase).} For a signal $\exp[-\jj2\pi P(t)/\lambda]$ with a parabolic path
+\paragraph{Step 2: from time to Doppler (stationary phase).} For $\exp[-\jj2\pi P(t)/\lambda]$ with
 $P(t)=P_{\min}+p_2(t-t_P)^2$, the instantaneous frequency is
 \begin{equation}
   f(t)=-\frac{1}{\lambda}\frac{\mathrm dP}{\mathrm dt}=-\frac{2p_2}{\lambda}(t-t_P)
   \quad\Longrightarrow\quad t_f=t_P-\frac{\lambda f}{2p_2},
 \end{equation}
-so each Doppler frequency $f$ comes from one time $t_f$ (the ruler \eqref{eq:ruler} of \cref{ch:recon}). By stationary
-phase the spectral phase at $f$ is the signal phase at $t_f$ minus $2\pi f t_f$. With
+so each Doppler frequency comes from one time $t_f$ (the ruler \eqref{eq:ruler}). By stationary phase, with
 $P(t_f)=P_{\min}+\lambda^2f^2/(4p_2)$,
 \begin{equation}
   \Psi_P(f) = -\frac{2\pi}{\lambda}P(t_f)-2\pi f t_f
   = -2\pi\Bigl[\frac{P_{\min}}{\lambda}+t_P\,f-\frac{\lambda f^2}{4p_2}\Bigr].
   \label{eq:posp}
 \end{equation}
-The spectral amplitude (antenna pattern) is the same for both paths.
-
-\paragraph{Step 3: the ratio of the two spectra (Doppler domain).} Applying \eqref{eq:posp} to $B_i$ and $M$ and
-subtracting the phases:
+\paragraph{Step 3: the ratio of the two spectra (Doppler domain).} The amplitudes cancel; subtracting the phases
+\eqref{eq:posp} of $B_i$ and $M$,
 \begin{equation}
   H_i(f)=\e^{\jj[\Psi_{B_i}(f)-\Psi_M(f)]}
   =\exp\!\Bigl(-\jj2\pi\Bigl[\frac{C_{0,i}}{\lambda}+(\Delta t_i-C_{1,i})\,f+C_{2,i}\,\lambda f^2\Bigr]\Bigr),
@@ -105,24 +98,15 @@ with
   C_{2,i}=\frac{1}{4m_2}-\frac{1}{4b_{2,i}} .
   \label{eq:coeffs}
 \end{equation}
-In the simulator $\Delta t_i$ is the time between the samples where $M$ and $B_i$ are smallest and $C_{1,i}$ the sub-sample
-correction from the fitted parabolas, so $\Delta t_i-C_{1,i}$ is the time between the two minima.
+In the simulator $\Delta t_i$ is the time between the sampled minima and $C_{1,i}$ the sub-sample correction from the fits.
 
-\paragraph{Physical meaning.}
-\begin{itemize}
-  \item $C_{0,i}$ [m], the difference of the shortest paths: a \emph{constant phase} $2\pi C_{0,i}/\lambda$, set by the
-        cross-track baseline; the coefficient that changes with height (\cref{sec:dc0}).
-  \item $\Delta t_i-C_{1,i}$ [s], the delay between the minima: a \emph{linear phase} (time shift), set by the along-track
-        baseline ($\approx\bat_{,i}/(2v)$); it gives the DPCA sampling.
-  \item $C_{2,i}$ [s$^2$/m], the difference of inverse curvatures: a \emph{quadratic phase}, a small residual chirp.
-\end{itemize}
-For another scatterer the same derivation holds with its own paths; to first order only $C_{0,i}$ changes (\cref{sec:dc0}).
-
-For the reference point (\cref{fig:coeffsref}): $C_0\approx-\bxt\sin\theta$ ($\SI{-171}{m}$ for $\bxt=\SI{500}{m}$),
-independent of $\bat$; $\Delta t=\bat/(2v)$ (\SIlist{0.5;1.0;1.5}{ms}), independent of $\bxt$; $C_1<\SI{0.2}{\micro s}$
-and $C_2<\SI{4e-7}{s^2/m}$, i.e.\ phases $2\pi C_1 f<\SI{1e-3}{rad}$ and $2\pi C_2\lambda f^2\approx\SI{0.2}{rad}$ at
-$f=\Ba/2$. The parabola \eqref{eq:parabolas} fits the bistatic minus monostatic path, which varies by \SI{5.6}{mm} over the
-aperture for $\bxt=\SI{300}{m}$, within $10^{-4}$\,\si{mm} (\cref{fig:rangefit}).
+$C_{0,i}$ [m] is a \emph{constant phase}, set by the cross-track baseline and the only coefficient that changes with
+height (\cref{sec:dc0}); $\Delta t_i-C_{1,i}$ [s] a \emph{linear phase} (time shift, $\approx\bat_{,i}/(2v)$, the DPCA
+sampling); $C_{2,i}$ [s$^2$/m] a small \emph{quadratic phase}. For the reference point (\cref{fig:coeffsref}):
+$C_0\approx-\bxt\sin\theta$ ($\SI{-103}{m}$ for $\bxt=\SI{300}{m}$), independent of $\bat$; $\Delta t=\bat/(2v)$
+(\SIlist{0.5;1.0;1.5}{ms}); $C_1<\SI{0.2}{\micro s}$ and $C_2<\SI{4e-7}{s^2/m}$, i.e.\ phases $2\pi C_1 f<\SI{1e-3}{rad}$
+and $2\pi C_2\lambda f^2\approx\SI{0.2}{rad}$ at $f=\Ba/2$. The parabola fits the bistatic minus monostatic path (which
+varies by \SI{5.6}{mm} over the aperture for $\bxt=\SI{300}{m}$) within $10^{-4}$\,\si{mm} (\cref{fig:rangefit}).
 
 \begin{figure}[htbp]
 \centering
@@ -150,37 +134,34 @@ For a scatterer at height $h$, $C_0$ differs from that of the reference point by
   \varphi_i(h) = \frac{2\pi}{\lambda}\Delta C_{0,i}(h),
   \label{eq:dc0}
 \end{equation}
-the interferometric phase of the cross-track baseline (zero for the transmitter channel, $\bxt=0$). The simulator computes
-$\Delta C_{0,i}$ exactly; \eqref{eq:dc0} agrees within \SI{1.8}{\percent} up to \SI{3}{km} (\cref{sec:dc0-proof}). At
-\SI{500}{m} the residuals are $[0,-536,-214,-180]$\,\si{mm}, two to four half-wavelengths. The other coefficients barely
-change (\cref{fig:coeffsres}): at $f=\Ba/2$ and \SI{3}{km} with $\bxt=\SI{300}{m}$, $\Delta C_0$ gives about \SI{80}{rad},
-$\Delta C_2$ \SI{4e-3}{rad} and $\Delta C_1$ \SI{4e-6}{rad}; $\Delta t$ does not change. Topography therefore acts as a
-channel-dependent \emph{constant} phase per scatterer, which the joint reconstruction uses (\cref{ch:joint}). This holds for
-straight tracks; a baseline that changes during the aperture adds a phase $\Delta C_0$ does not describe (\cref{sec:timevar}).
+the interferometric phase of the cross-track baseline. The simulator computes $\Delta C_{0,i}$ exactly; \eqref{eq:dc0}
+agrees within \SI{1.8}{\percent} up to \SI{3}{km} (\cref{sec:dc0-proof}). At \SI{500}{m} the residuals are
+\SIlist{0;-536;-214;-180}{mm}, two to four half-wavelengths. The other coefficients barely change (\cref{fig:coeffsres}): at
+$f=\Ba/2$ and \SI{3}{km} with $\bxt=\SI{300}{m}$, $\Delta C_0$ gives about \SI{80}{rad}, $\Delta C_2$ \SI{4e-3}{rad},
+$\Delta C_1$ \SI{4e-6}{rad}. On straight tracks topography is therefore a channel-dependent \emph{constant} phase per
+scatterer; a baseline that changes during the aperture adds more (\cref{sec:timevar}).
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/coeffs_residual_height.pdf}
 \caption[Change of the coefficients with the height of the scatterer]{Receiver~1, scatterer at height $h$. Left:
-$\Delta C_0$ (dots: exact; lines: \eqref{eq:dc0}) for three baselines. Right ($\bxt=\SI{300}{m}$): phase of each term of
+$\Delta C_0$ (dots: exact; lines: \eqref{eq:dc0}) for the default baselines. Right ($\bxt=\SI{300}{m}$): phase of each term of
 \eqref{eq:Hi} at $f=\Ba/2$.}
 \label{fig:coeffsres}
 \end{figure}
 
 \subsection{Derivation of the topographic residual}\label{sec:dc0-proof}
 
-Flat earth, azimuth $x$, ground range $y$ (towards the scene), height $z$. The transmitter flies at
-$(vt,0,H)$ and receiver $i$ at $(vt-\bat_{,i},\bxt_{,i},H)$. A place of height $h$ on the iso-range surface of the reference
-point is at $(x,y_h,h)$ with
+Flat earth; transmitter at $(vt,0,H)$, receiver $i$ at $(vt-\bat_{,i},\bxt_{,i},H)$ (azimuth, ground range, height). A
+place of height $h$ on the iso-range surface is at $(x,y_h,h)$ with
 \begin{equation}
   y_h^2+(H-h)^2=r_0^2 ,\qquad \cos\theta_h=\frac{H-h}{r_0},\qquad \sin\theta_h=\frac{y_h}{r_0},
   \label{eq:isorange}
 \end{equation}
-with $\theta_h$ the transmitter look angle ($\theta_0=\theta=\SI{20}{\degree}$).
+($\theta_0=\theta=\SI{20}{\degree}$).
 
 \paragraph{Step 1: $C_0$ is a difference of closest-approach distances.} By \eqref{eq:coeffs},
-$C_{0,i}=B_{i,\min}-M_{\min}$. The along-track offset only shifts the time of closest approach ($\Delta t_i$), not the
-distance, so to first order
+$C_{0,i}=B_{i,\min}-M_{\min}$; the along-track offset only shifts the time of closest approach, so
 \begin{equation}
   C_{0,i}\approx\bigl(r_{\mathrm T,\min}+r_{\mathrm R,i,\min}\bigr)-2r_{\mathrm T,\min}=r_{\mathrm R,i,\min}-r_{\mathrm T,\min},
 \end{equation}
@@ -192,12 +173,10 @@ a one-way difference, with $r_{\mathrm T,\min}=r_0$ at every height on the iso-r
   =r_0\sqrt{1-\frac{2\bxt_{,i}\sin\theta_h}{r_0}+\frac{\bxt_{,i}^2}{r_0^2}}\notag\\
   &\approx r_0-\bxt_{,i}\sin\theta_h+\frac{\bxt_{,i}^2\cos^2\theta_h}{2r_0},
 \end{align}
-using \eqref{eq:isorange} and $\sqrt{1+\delta}\approx1+\delta/2-\delta^2/8$. The first-order term is the baseline
-projected on the line of sight, $\partial r_{\mathrm R}/\partial\bxt\approx-\sin\theta_h$. Hence
+the first-order term being the baseline projected on the line of sight. Hence
 \begin{equation}
   C_{0,i}(h)\approx-\bxt_{,i}\sin\theta_h+\frac{\bxt_{,i}^2\cos^2\theta_h}{2r_0}.
 \end{equation}
-(at $h=0$, the $C_0\approx-\bxt\sin\theta$ of \cref{fig:coeffsref}).
 
 \paragraph{Step 3: the look angle of a raised place.} From
 \eqref{eq:isorange}, $\mathrm d(\cos\theta_h)=-\mathrm dh/r_0$, and
@@ -210,21 +189,18 @@ $\mathrm d(\sin\theta_h)=-\frac{\cos\theta_h}{\sin\theta_h}\,\mathrm d(\cos\thet
 \begin{equation}
   \Delta C_{0,i}(h)=C_{0,i}(h)-C_{0,i}(0)\approx-\bxt_{,i}\bigl(\sin\theta_h-\sin\theta_0\bigr)\approx-\frac{\bxt_{,i}\,h}{r_0\tan\theta},
 \end{equation}
-with $\varphi_i(h)=2\pi\Delta C_{0,i}(h)/\lambda$, i.e.\ \eqref{eq:dc0}. The factor is $2\pi$, not $4\pi$ as in a
-monostatic interferometer, because only the receiver path changes. Geometrically (\cref{fig:crosstrack}), the raised place
-moves by $s=h/\sin\theta$ perpendicular to the transmitter line of sight, while the receiver line of sight is rotated by
-$\Delta\theta=\bxt_{,i}\cos\theta/r_0$, so its path changes by $s\,\Delta\theta=\bxt_{,i}h/(r_0\tan\theta)$.
+i.e.\ \eqref{eq:dc0}, with $2\pi$ rather than $4\pi$ because only the receiver path changes. Geometrically
+(\cref{fig:crosstrack}), the raised place moves by $s=h/\sin\theta$ perpendicular to the transmitter line of sight, and the
+receiver line of sight is rotated by $\Delta\theta=\bxt_{,i}\cos\theta/r_0$, so its path changes by
+$s\,\Delta\theta=\bxt_{,i}h/(r_0\tan\theta)$.
 
 \paragraph{Validity.} Step~3 neglects
 $\frac{1}{2}\,\mathrm d^2(\sin\theta)/\mathrm dh^2\,h^2$, a relative error of about $h/(2r_0\cos\theta\sin^2\theta)$:
 \SI{0.6}{\percent} at \SI{1}{km} and \SI{1.8}{\percent} at \SI{3}{km}, with \eqref{eq:dc0} slightly too large. The term in
-$\bxt^2$ is a fraction $\bxt\sin\theta/r_0\approx\num{1.3e-4}$ for \SI{300}{m}. On a curved Earth the look angle becomes
-the local incidence angle. The same steps, with $\bxt$ replaced by its change $\varepsilon(t)$, give the phase of a
-time-varying baseline (\cref{sec:timevar}).
-
-\Cref{tab:dc0check} checks \eqref{eq:dc0} and the step-4 form against the exact $\Delta C_0$ (parabola fits of
-\cref{sec:coeffs}; script \texttt{verify\_dC0.py} in
-\texttt{runs/\allowbreak analysis\_v30/\allowbreak baselines\_solvers}).
+$\bxt^2$ is a fraction $\bxt\sin\theta/r_0\approx\num{1.3e-4}$ for \SI{300}{m}; on a curved Earth $\theta$ becomes the
+local incidence angle. \Cref{tab:dc0check} compares both forms with the exact fits (\texttt{verify\_dC0.py} in
+\texttt{runs/\allowbreak analysis\_v30/\allowbreak baselines\_solvers}). With $\bxt$ replaced by its change
+$\varepsilon(t)$, the same steps give the phase of a time-varying baseline (\cref{sec:timevar}).
 
 \begin{table}[htbp]
 \centering
@@ -259,22 +235,23 @@ shorter (orange).}
 \centering
 \begin{tikzpicture}
 \begin{axis}[
-  width=0.55\linewidth, height=5.6cm,
+  width=0.5\linewidth, height=4.6cm,
   xlabel={height above the reference $h$ [m]}, ylabel={$|\varphi_i|$ [deg]},
-  xmin=0, xmax=1000, ymin=0, ymax=900, grid=major, grid style={gray!25},
+  xmin=0, xmax=1000, ymin=0, ymax=1600, grid=major, grid style={gray!25},
   legend pos=outer north east, legend style={font=\small,draw=none},
   domain=0:1000, samples=2]
-  \addplot[cnone,thick] {360*500*x/(0.25*766200*tan(20))};
   \addplot[cwhole,thick] {360*300*x/(0.25*766200*tan(20))};
-  \addplot[cocc,thick] {360*100*x/(0.25*766200*tan(20))};
+  \addplot[csub,thick] {360*119.8*x/(0.25*766200*tan(20))};
+  \addplot[cocc,thick] {360*100.5*x/(0.25*766200*tan(20))};
   \addplot[gray,dashed] {360};
-  \legend{$\bxt=\SI{500}{m}$, $\bxt=\SI{300}{m}$, $\bxt=\SI{100}{m}$, one cycle}
+  \legend{$\bxt=\SI{300}{m}$, $\bxt=\SI{119.8}{m}$, $\bxt=\SI{100.5}{m}$, one cycle}
 \end{axis}
 \end{tikzpicture}
-\caption[Phase of the topographic residual]{Phase of \eqref{eq:dc0} against height. With $\bxt=\SI{300}{m}$:
-\SI{1.55}{\degree} per metre, a full cycle for a \SI{230}{m} hill.}
+\caption[Phase of the topographic residual]{Phase of \eqref{eq:dc0} against height for the default baselines:
+\SI{1.55}{\degree}, \SI{0.62}{\degree} and \SI{0.52}{\degree} per metre, a full cycle every \SI{230}{m},
+\SI{580}{m} and \SI{690}{m}.}
 \label{fig:dc0}
 \end{figure}
 
-The sensitivity is $\partial\varphi_i/\partial h = 2\pi\bxt_{,i}/(\lambda r_0\tan\theta)\approx\num{9.0e-5}\,\bxt_{,i}$
-rad/m; it also sets the tolerance to DEM errors (\cref{sec:limits}).
+The sensitivity $\partial\varphi_i/\partial h = 2\pi\bxt_{,i}/(\lambda r_0\tan\theta)\approx\num{9.0e-5}\,\bxt_{,i}$
+rad/m also sets the tolerance to DEM errors (\cref{sec:limits}).
