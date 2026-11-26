@@ -30,82 +30,9 @@ $\Delta C_{0,i}(h)$ for any height, and evaluating it at the DEM height of every
 The map is zero for the transmitter channel and, with a flat DEM, constant for every channel. It is the only information
 about the terrain that the reconstruction receives.
 
-\section{First formulation: in the sub-apertures}
+\section{The model and its solution}\label{sec:joint-system}
 
-Through the ruler \eqref{eq:ruler}, the parcel $q$ of a channel bin comes from the ground position
-$x_q = x_c + \frac{\lambda r_0}{2v} f_q$ (\cref{fig:folding}). The first formulation cuts the line into sub-apertures of
-\SI{40}{ms} and, for every sub-aperture and every bin $\phi$ of the $\Nrx$ channel spectra, writes the model \eqref{eq:fold}
-with the phase of each parcel at its own ground position:
-\begin{equation}
-  S_i(\phi) = \sum_q H_i(f_q)\,\exp\!\Bigl(-\jj\frac{2\pi}{\lambda}\Delta C_{0,i}(x_q)\Bigr)\,U_q .
-\end{equation}
-The system is solved for the parcels $U_q$, which are then placed at their true Doppler, transformed back and overlap-added
-at the full PRF (\cref{fig:flowsubap}). With $\dC=0$ this is the standard reconstruction ($\sim10^{-7}$), and with one
-target it equals the oracle. Each parcel now receives the phase of its own position, which is the key step. In this
-formulation the DEM is read once per bin of a \SI{40}{ms} block, i.e.\ the terrain phase is taken as constant over about
-$\pm\SI{600}{m}$ of ground; the final formulation applies it at every position of the line. A slope $s$ with a cross-track baseline is
-equivalent to shifting the phase centre of the channel by $\bxt s/(2\tan\theta)$; when that shift is not small compared with
-the block, the per-bin model breaks. With $\Delta\varphi=\frac{2\pi}{\lambda}\,\frac{\bxt^{\max}\,s\,\delta x}{r_0\tan\theta}$
-the phase change inside one sub-aperture cell, the method stays within about \SI{10}{dB} of the reference for
-$\Delta\varphi\lesssim\SI{0.5}{rad}$ and fails by 10 to \SI{35}{dB} above \SI{1}{rad}.
-
-\begin{figure}[p]
-\centering
-\input{tikz/flow_subap}
-\caption[Flowchart of the joint reconstruction in the sub-apertures]{The joint reconstruction in the sub-apertures. Green: preparation, done once. Blue: the loop over the blocks of 20 samples; inside each block a small
-least-squares system is solved for every bin. Violet: finishing. The DEM is read once per bin, at the position the ruler gives to
-each parcel.}
-\label{fig:flowsubap}
-\end{figure}
-
-\section{Final formulation: over the whole line}
-
-The final formulation removes the sub-apertures. The topographic residual of a scatterer is a constant phase over its whole
-aperture (\cref{ch:model}); in the \emph{focused} full-rate line $g(x)$ it is therefore a pointwise multiplication. The
-channels are modelled as
-\begin{equation}
-  \bm s_i = \mathcal D\Bigl\{ k_i * \bigl[\, g(x)\, \e^{-\jj\varphi_i(x)} \bigr] \Bigr\},
-  \qquad \varphi_i(x)=\frac{2\pi}{\lambda}\Delta C_{0,i}\bigl(h(x)\bigr),
-  \label{eq:jointmodel}
-\end{equation}
-where $\varphi_i(x)$ is the phase map \eqref{eq:phasemap}, from the DEM only, $k_i$ is the response of channel $i$ to the reference
-point (the azimuth chirp filtered by the reference-point filter $H_i$ of the standard reconstruction) and $\mathcal D$ is
-the decimation to $\PRFop$ (\cref{fig:chainline}). Writing \eqref{eq:jointmodel} as $\bm s=\mathbf A\bm g$, the line is estimated by Tikhonov-regularised
-least squares,
-\begin{equation}
-  \hat{\bm g} = \arg\min_{\bm g}\ \sum_{i}\bigl\|\bm s_i-\mathbf A_i\bm g\bigr\|^2 + \mu^2\|\bm g\|^2 ,
-\end{equation}
-solved with conjugate gradients for least squares (CGLS) \cite{Hestenes1952,Trefethen1997}. Every iteration costs one
-application of $\mathbf A$ and of its adjoint $\mathbf A\Hm$ (two FFTs per channel each). The regularisation is
-$\mu=0.03\,\sigma_{\max}$, with $\sigma_{\max}$ estimated by a few power iterations, and the problem is solved in two passes
-(iterated Tikhonov: the second pass solves for what the first one left), which turns the filter factor
-$\sigma^2/(\sigma^2+\mu^2)$ into $1-(1-\sigma^2/(\sigma^2+\mu^2))^2$. Each pass runs up to 60 iterations. The output is
-re-chirped with the reference response, $U=k*\hat g$, so that it has the same form as the standard reconstruction. The
-complete algorithm is in \cref{fig:flowline}.
-
-\begin{figure}[htbp]
-\centering
-\input{tikz/chain_line}
-\caption[The model of the whole-line joint reconstruction]{The model $\mathbf A$ and its adjoint. Each operation is done in the
-domain where it is simple: the relief phase is a multiplication in \emph{position}, the chirp and the channel filter a
-multiplication in \emph{Doppler frequency}, the sampling a selection of samples in \emph{time}; the FFTs only move between the
-domains. The adjoint is the usual SAR processor: it focuses each channel, removes its relief phase and sums the channels.}
-\label{fig:chainline}
-\end{figure}
-
-\begin{figure}[p]
-\centering
-\input{tikz/flow_line}
-\caption[Flowchart of the joint reconstruction over the whole line]{The joint reconstruction over the whole line. Green: preparation, done once. Blue: the CGLS iterations, in two passes (iterated Tikhonov);
-each iteration applies $\mathbf A$ and $\mathbf A\Hm$ once (two FFTs per channel each). Violet: back to the raw full-rate line,
-in the same form as the standard reconstruction.}
-\label{fig:flowline}
-\end{figure}
-
-
-\section{Building the model and solving the system}\label{sec:joint-system}
-
-This section builds the model \eqref{eq:jointmodel} from the echo of a single point, one ingredient at a time, writes it as
+This section builds the model of the channels from the echo of a single point, one ingredient at a time, writes it as
 a linear system, shows how that system is solved without ever forming its matrix and explains why the result is the
 full-rate line $U=K\odot\mathbf F\hat{\vg}$. Unknowns are drawn in red and data in blue.
 
@@ -177,7 +104,7 @@ sample in $\Nrx$ (\SI{500}{Hz}):
   \label{eq:Ai}
 \end{equation}
 with $K_i=H_i\odot K$. Stacking the channels: $\sv=\mathbf A\vg$, with $\sv\in\mathbb C^{4\times3072}$ ($12288$ equations) and
-$\vg\in\mathbb C^{12288}$ ($12288$ unknowns). This is \eqref{eq:jointmodel} in matrix form.
+$\vg\in\mathbb C^{12288}$ ($12288$ unknowns).
 
 \Cref{fig:modelchain} names the effect of each factor of \eqref{eq:Ai}, written with $\Psi_i=\mathrm{diag}(\theta_i)$ for the DEM
 screen, and \cref{fig:aproduct} gives the size of every factor, the axis it takes as input and the axis it returns, and how the
@@ -215,7 +142,7 @@ The model and its adjoint are
 \end{equation}
 with $\mathbf F\Hm=N\mathbf F^{-1}$, $(\mathbf F^{-1})\Hm=\mathbf F/N$ and $\mathcal D\Hm$ the insertion of $\Nrx-1$ zeros
 between samples. The adjoint runs the same chain backwards with every factor conjugated, and the channels are summed at the
-end (\cref{fig:chainline}): it focuses each channel with its own filter, removes its relief phase and adds the channels, i.e.\
+end (\cref{fig:afunctions}): it focuses each channel with its own filter, removes its relief phase and adds the channels, i.e.\
 it is the usual SAR processor.
 
 $\mathbf A$ is a $12288\times12288$ complex matrix: stored, it would take $12288^2\times\SI{16}{B}\approx\SI{2.4}{GB}$ and
@@ -277,27 +204,10 @@ $\mu^2$ & regularisation & scalar & a number \\
 \end{tabular}
 \end{table}
 
-\paragraph{Without relief} the screens are constant, $\mathbf F\,\mathrm{diag}(\theta_i)\,\mathbf F^{-1}$ is a multiple of
-the identity and the only coupling between Doppler bins is the folding of $\mathcal D$, which links a bin $f$ only to
-$f\pm\PRFop$, $f\pm2\PRFop,\dots$ Ordered by bin, $\mathbf A$ splits into $3072$ independent $4\times4$ blocks (one per
-bin; rows: channels, columns: parcels). This is exactly the standard reconstruction \eqref{eq:fold}, and the only place in the
-project where a matrix is actually assembled and inverted.
 
-\paragraph{With relief} $\mathbf F\,\mathrm{diag}(\theta_i)\,\mathbf F^{-1}$ is a convolution in Doppler with the spectrum of
-the screen: it is full and mixes the bins, so the system no longer separates and the whole line is solved at once,
-iteratively. \Cref{fig:coupling} shows one column of $\mathbf A\Hm\mathbf A$ for the example of \cref{fig:example1d}: on flat
-terrain a Doppler bin is coupled only with its aliases, more than \SI{40}{dB} below the bin itself; with the mountain the
-coupling with the aliases rises to about \SI{-22}{dB} and spreads over $\pm\SI{7}{Hz}$ (some 80 bins).
-
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=\linewidth]{figures/system_coupling.pdf}
-\caption[Coupling between Doppler bins in the joint model]{One column of $\mathbf A\Hm\mathbf A$ in the Doppler domain: the
-response to a single Doppler bin of $g$ at \SI{137}{Hz}, for the formation of \cref{fig:example1d}, on flat terrain and with the
-\SI{1000}{m} mountain. Dotted lines: the aliases of the bin, $\PRFop=\SI{500}{Hz}$ apart; grey: the processed band $\Ba$.
-Right: zoom on the first alias.}
-\label{fig:coupling}
-\end{figure}
+Without relief the screens are constant and $\mathbf A$, ordered by Doppler bin, splits into $3072$ independent $4\times4$
+blocks: the standard reconstruction \eqref{eq:fold}, the only place where a matrix is assembled and inverted. With relief the
+screen is a convolution in Doppler that mixes the bins, so the whole line is solved at once, iteratively.
 
 \subsection{The problem that is solved}
 
@@ -335,7 +245,7 @@ what $\mu$ removed where the measurement is good.
 
 $\mathbf A\Hm\mathbf A+\mu^2\mathbf I$ is Hermitian and positive definite, so \eqref{eq:tikhonov} can be solved by conjugate
 gradients. CGLS does it with products by $\mathbf A$ and $\mathbf A\Hm$ only, never forming the normal matrix (which would
-also square the condition number in finite precision). The loop is in \cref{fig:flowline}:
+also square the condition number in finite precision) \cite{Hestenes1952,Trefethen1997}. The loop is in \cref{fig:solveloop}:
 \begin{itemize}
   \item each iteration costs one model ($\bm q=\mathbf A\bm p$) and one adjoint ($\bm z=\mathbf A\Hm\bm r-\mu^2\bm\delta$);
         $\alpha=\|\bm z\|^2/(\|\bm q\|^2+\mu^2\|\bm p\|^2)$ is the optimal step along the direction $\bm p$, and
@@ -345,7 +255,6 @@ also square the condition number in finite precision). The loop is in \cref{fig:
   \item two passes: the second solves the same problem for the residual left by the first and adds its solution to
         $\hat{\vg}$ (iterated Tikhonov). The weight becomes $\bigl[1-\bigl(\mu^2/(\sigma_k^2+\mu^2)\bigr)^2\bigr]/\sigma_k$,
         closer to $1/\sigma_k$ where the channels measure well and still zero where they do not;
-  \item on the example of \cref{fig:example1d}: 120 iterations in total, with \SI{-40.3}{dB} of the channels left unexplained.
 \end{itemize}
 \Cref{fig:solveloop} puts the pieces together: the size of $\mu$ before the loop, one pass of the iterative solver and the two
 passes. Every quantity in it is a vector or a number, and $\mathbf A$ enters only through the two functions of \cref{fig:afunctions}.
@@ -377,27 +286,11 @@ i.e.\ one chirp at each position of the scene, weighted by $\hat{\gs}$ and summe
 
 \paragraph{Why without the screen.} The screen is the phase of channel $i$ \emph{relative to the monostatic} path; for the
 monostatic radar itself it is one ($\bat=\bxt=0\Rightarrow C_0=0\Rightarrow\Delta C_0=0\Rightarrow\theta\equiv1$). The
-effects of the topography are therefore split as in \cref{tab:topo}: the monostatic phase of each target is common to all
+effects of the topography are therefore split: the monostatic phase of each target is common to all
 channels and is part of its amplitude $a_p$, so it is estimated inside $\hat{\vg}$ and reaches $U$, exactly as in the
 reference; the channel-dependent phase lives in the model $\mathbf A$ and is used only to explain the channels. $U$ thus
 contains what the reference contains, the scene with its monostatic phases, and none of the phases that differ between
 channels, which are the ones that create the ambiguities.
-
-\begin{table}[htbp]
-\centering
-\caption[How the topography enters the joint model]{How each effect of the topography enters the joint model and the answer $U$.}
-\label{tab:topo}
-\footnotesize\setlength{\tabcolsep}{4pt}
-\begin{tabular}{@{}>{\raggedright\arraybackslash}p{43mm}>{\raggedright\arraybackslash}p{38mm}>{\raggedright\arraybackslash}p{30mm}>{\raggedright\arraybackslash}p{20mm}@{}}
-\toprule
-effect of the topography & type & in the model & in $U$? \\
-\midrule
-monostatic range phase, $\e^{-\jj4\pi r_p/\lambda}$ & constant per target, same in every channel & in $a_p$ (inside $\vg$) & yes, through $\hat{\vg}$ \\
-extra phase of channel $i$, $\varphi_i=2\pi\Delta C_{0,i}/\lambda$ & constant per target, differs per channel & screen $\theta_i$ (inside $\mathbf A$) & no ($\theta\equiv1$) \\
-echo shape ($K_a\propto1/r$; $C_1$, $C_2$ with $h$) & not constant & ignored ($\Delta r/r\approx\SI{0.1}{\percent}$) & --- \\
-\bottomrule
-\end{tabular}
-\end{table}
 
 \paragraph{Why back to the raw line, and not stop at $\hat{\vg}$.}
 \begin{itemize}
@@ -421,8 +314,8 @@ folds relative to the peak of the reference. \Cref{fig:answer} summarises the ch
 \input{tikz/answer_chain}
 \caption[From the channels to the image]{From the aliased channels to the image. The joint reconstruction inverts the model to
 find the scene $\hat{\vg}$, records it again with the ideal monostatic radar ($\times K$ and band cut) to obtain $U$, which is
-compared with the reference simulated directly; the focusing is the same for every method. Values: example of
-\cref{fig:example1d}.}
+compared with the reference simulated directly; the focusing is the same for every method. Values: the \SI{1000}{m} mountain of
+\cref{fig:resmountain}.}
 \label{fig:answer}
 \end{figure}
 
@@ -437,65 +330,10 @@ compared with the reference simulated directly; the focusing is the same for eve
         alarm for DEM errors.
   \item \textbf{Cost.} About \SI{3.3}{s} per line with four channels in the 1-D simulator (median over 680 runs): a few tens
         of FFTs per channel and iteration.
-  \item \textbf{Convergence.} \Cref{fig:convergence} follows the iterations on the example of \cref{fig:example1d}. The
-        first iteration is the adjoint, i.e.\ the channels focused, corrected and summed (\SI{-10.2}{dB});
-        about ten iterations bring the ambiguities below \SI{-39}{dB}, and the second pass gains another \SI{1}{dB}
-        (\SI{-43.5}{dB} after $2\times60$ iterations). The unexplained part of the channels falls to \SI{-38}{dB} in the same
-        way.
   \item \textbf{Stability.} The regularisation keeps the solution stable in every configuration: the directions that the
         channels measure well are recovered, and the few that they hardly measure are damped instead of amplifying noise.
         Three or more channels with cross-track baselines that are not equally spaced make almost every direction well
         measured (\cref{sec:mismatch}).
 \end{itemize}
 
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=\linewidth]{figures/joint_convergence.pdf}
-\caption[Convergence of the joint reconstruction]{Joint reconstruction over the whole line on the example of
-\cref{fig:example1d} (five targets on a \SI{1000}{m} mountain, four channels). Left: highest ambiguity against the total number of
-conjugate-gradient iterations, with one pass and with two passes, against the reference and the standard reconstruction. Right: part of the channels
-that the model does not explain, $\|\bm s-\mathbf A\hat{\bm g}\|/\|\bm s\|$, during the first pass.}
-\label{fig:convergence}
-\end{figure}
 
-\Cref{fig:example1d} shows the example used throughout the development: five targets on a \SI{1000}{m} Gaussian mountain
-with $\bxt=[0,134.9,20.5,8.3]$\,\si{m}. The highest ambiguity goes from \SI{-8.7}{dB} without correction to \SI{-43.5}{dB}
-with the joint reconstruction; the reference is \SI{-48.7}{dB}, and \SI{-43.9}{dB} once it is limited to the processed band
-$\Ba$, as every reconstruction is.
-
-\begin{figure}[htbp]
-\centering
-\includegraphics[width=\linewidth]{figures/joint_example_1d.pdf}
-\caption[Example: five targets on a mountain]{Five targets on a \SI{1000}{m} Gaussian mountain, four channels,
-$\bxt=[0,134.9,20.5,8.3]$\,\si{m}. Top: the targets on the terrain (left) and the whole azimuth line in 3-D (right). Bottom:
-azimuth impulse responses of the reference with the standard reconstruction (left) and with the joint reconstruction over the
-whole line (right). The joint reconstruction reads only the DEM.}
-\label{fig:example1d}
-\end{figure}
-
-\section{Why the joint reconstruction is the final method}\label{sec:whyjoint}
-
-The reasons, collected from the previous chapters:
-\begin{enumerate}
-  \item \textbf{A correction before the reconstruction has the right phase in the wrong place.} The $\Delta C_0$ of the DEM is
-        the correct correction. But on an aliased channel each bin is the sum of parcels from positions $X\approx\SI{6.2}{km}$
-        apart, and a per-channel correction can give that sum only one phase (\cref{fig:binconflict}). The standard
-        reconstruction that follows assumes that every channel is now exact, so the error of the other parcels becomes leakage
-        between the parcels. Such a correction is exact only when the terrain has the same height at all the folded positions;
-        this is a property of the order of the operations, not of the implementation. A correction after the reconstruction
-        does not help either, since one phase cannot undo a sum that has already been formed.
-  \item \textbf{The joint reconstruction solves both problems together.} Separating the parcels needs the phases corrected, and
-        correcting each parcel needs the parcels separated. The joint reconstruction writes the phase of every ground position
-        \emph{inside} the model of the channels and inverts model and topography together. With a flat DEM it is the standard
-        reconstruction; on terrain whose height repeats every $X$ it equals a per-channel correction; everywhere else it keeps
-        working.
-  \item \textbf{The whole-line version removes the last approximation.} The joint reconstruction in the sub-apertures still reads
-        the DEM once per bin of a \SI{40}{ms} block, i.e.\ it takes the terrain phase as constant over about $\pm\SI{600}{m}$, and fails
-        on steep terrain with long baselines. Over the whole line the residual of every
-        scatterer is a pointwise phase on the focused line, with no cell at all.
-  \item \textbf{It uses only what a real case has.} The method receives the channels, the system geometry and the DEM; the
-        positions of the targets are never used, and the unexplained part of the channels gives a check of the DEM.
-  \item \textbf{It degrades gracefully.} Where the baselines do not separate the parcels the regularisation leaves the ambiguity
-        instead of amplifying noise, and the cost (a few seconds per line in the 1-D simulator) is that of a few tens of FFTs per
-        channel and iteration.
-\end{enumerate}

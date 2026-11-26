@@ -11,6 +11,7 @@ Findings and numbers are in `results.md`.
 | `item2_baseline_variation.py` | ΔC0/ΔC1/ΔC2 versus height for b_xt(t) = b_xt,0 + ε(t), plus time-domain residuals. Writes `fig/item2_panels_*` and `fig/item2_summary`. |
 | `item2_joint.py` | Joint reconstruction of the slide-8 scene with a moving receiver, with and without MoCo. Writes `fig/item2_joint`. |
 | `verify_phi_eps.py` | Derivation check of the residual phase φ_ε = (2π/λ) ε(t) h/(r0 tan θ0) against exact distances, every shape, spaceborne and airborne. Writes `cache/phi_eps_check.md`. |
+| `verify_dC0.py` | Check of the topographic residual ΔC0 ≈ −b_xt h/(r0 tan θ) (report §2.4.1) against the exact parabola fits, b_xt = 300, 119.8, 100.5 m, h up to 3000 m. Writes `cache/dC0_check.md` (under a second). |
 | `solvers.py` | Matrix-free solvers: current, L-curve (RelSea + Menger), discrepancy, BMR, MARIA, WISE. |
 | `item5_regularisation.py` (`check` argument) | Comparison on 4 scenes × 4 SNRs. Check mode verifies that the current solver equals `reconstruct_joint_line`. |
 | `plot_item5.py` | Writes `fig/item5_summary`, `fig/item5_lcurve`, `fig/item5_lines` and `cache/item5_table.md`. |

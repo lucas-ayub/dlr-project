@@ -11,3 +11,7 @@
 *.toc
 *.synctex.gz
 *.brf
+
+# outputs of sata1d_code/joint_cases/real_dem/real_dem_figures.py, not used by the report
+figures/realdem_*.pdf
+figures/readme_realdem.png

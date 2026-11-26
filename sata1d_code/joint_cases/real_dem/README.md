@@ -25,5 +25,7 @@ Results (highest ambiguity, dB relative to the peak of the reference, metric of 
 | 5 named lines, 20 targets | -5.7 to -5.1 | -31.5 to -28.1 | -32.0 |
 | 200 random lines (median) | -8.3 | -41.5 | -41.6 |
 
-Tables of the runs: `report/data/realdem_lines.dat`, `report/data/realdem_random200.dat`. Report: subsection "Five named lines with the targets clear of each other's ambiguities" of the section "Real terrain"
-in the Results chapter.
+Tables of the runs: `report/data/realdem_lines.dat`, `report/data/realdem_random200.dat`. These runs are not part of the
+report: its real-terrain section uses the seven cuts and the 150 random lines of the final presentation, which answer the same
+question with the default formation on every line. The figures written by `real_dem_figures.py` (`report/figures/realdem_*.pdf`,
+`readme_realdem.png`) are therefore not versioned.

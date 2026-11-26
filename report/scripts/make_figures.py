@@ -2,11 +2,10 @@
 Result figures of the report (vector PDFs in ../figures), computed with the sata1d package of this repository.
 
     python make_figures.py all            # every figure (a few minutes on four cores)
-    python make_figures.py coeffs rangehist spectra irf_height amb_height joint_example joint_convergence \
-                           system_coupling readme_result
+    python make_figures.py coeffs rangehist spectra irf_height amb_height readme_result
 
-readme_result writes ../figures/readme_result.png, the figure of the README of the repository (a raster copy of the
-mountain result of the report, figures/pres/res_mountain.pdf). The figures of the analyses of runs/analysis_v30 are made by the scripts of that folder.
+readme_result writes ../figures/readme_result.png and ../figures/readme_realterrain.png, the figures of the README of the
+repository (raster copies of figures/pres/res_mountain.pdf and figures/pres/res_srtm_map.pdf). The figures of the analyses of runs/analysis_v30 are made by the scripts of that folder.
 Intermediate results are cached in ~/DLR/dlr-project_resultados/report_figures_cache (delete it to recompute).
 Every method receives only the system parameters and the DEM; the targets are used only to simulate the echoes.
 """
@@ -275,59 +274,6 @@ def fig_amb_height():
 
 
 # --------------------------------------------------------------------------------------------- scene helpers
-def run_audit(sc, tag):
-    def run():
-        res, d = A.compute(sc, tag)
-        c = d["c"]
-        db = {k: 20 * np.log10(v / d["pk"] + 1e-12) for k, v in d["env"].items()}
-        dt = d["cfg"].PRF_op * d["cfg"].system.wl * d["cfg"].scene.r0 / (2.0 * d["cfg"].system.vs ** 2)
-        return dict(res=res, db=db, t=d["t"], xs=c["xs"], hs=c["hs"], terrain=None, label=c["label"],
-                    bxt=d["cfg"].array.bxt, dt=dt, tgrid=np.linspace(-23500, 23500, 4701),
-                    hgrid=c["terrain"](np.linspace(-23500, 23500, 4701)))
-    return cached(f"audit_{sc}__{tag}", run)
-
-
-def geometry_panels(ax2, ax3, r, zoom_pad=1500.0, folds=None):
-    xs, hs, tg, hg = r["xs"], r["hs"], r["tgrid"], r["hgrid"]
-    lo, hi = min(xs.min(), 0.0) - zoom_pad, max(xs.max(), 0.0) + zoom_pad
-    k = (tg >= lo) & (tg <= hi)
-    ax2.fill_between(tg[k] / 1e3, min(0.0, hg.min()) - 30, hg[k], color=FILL_C, alpha=0.55, lw=0)
-    ax2.plot(tg[k] / 1e3, hg[k], color=TERRAIN_C, lw=1.2)
-    ax2.scatter(xs / 1e3, hs, s=14, color="#1F4E79", edgecolor="k", lw=0.4, zorder=3, label="point targets")
-    ax2.plot([0], [0], "*", ms=8, color="gold", mec="k", mew=0.5, zorder=4, label="reference point")
-    if folds is not None:
-        for x0 in folds:
-            ax2.axvline(x0 / 1e3, color="0.5", ls=":", lw=0.7)
-    ax2.set_xlim(lo / 1e3, hi / 1e3); ax2.set_xlabel("azimuth position $x$ [km]"); ax2.set_ylabel("height [m]")
-    legend_above(ax2, ncol=2)
-    dy = iso_range_dy(hg)
-    ax3.plot(tg / 1e3, dy / 1e3, hg, color=TERRAIN_C, lw=0.9)
-    ax3.scatter(xs / 1e3, iso_range_dy(hs) / 1e3, hs, s=8, color="#1F4E79", depthshade=False)
-    for x, y, h in zip(xs / 1e3, iso_range_dy(hs) / 1e3, hs):
-        ax3.plot([x, x], [y, y], [0, h], color="0.6", lw=0.5)
-    ax3.scatter([0], [0], [0], marker="*", s=40, color="gold", edgecolor="k", depthshade=False)
-    ax3.set_xlabel("azimuth $x$ [km]", labelpad=-6, fontsize=6.5); ax3.set_ylabel(r"ground range $\Delta y$ [km]", labelpad=-6, fontsize=6.5)
-    ax3.set_zlabel("height [m]", labelpad=-6, fontsize=6.5)
-    ax3.tick_params(labelsize=5.5, pad=-2)
-    ax3.view_init(elev=24, azim=-60)
-    ax3.set_box_aspect((2.4, 1.0, 0.8), zoom=1.3)
-
-
-def irf_panel(a, r, keys, xlim=None, title=None):
-    for k in [k for k in keys if k != "ref"] + (["ref"] if "ref" in keys else []):
-        a.plot(r["t"], r["db"][k], color=COL[k], lw=0.9 if k == "ref" else 0.7,
-               label=f"{LAB[k]}: highest ambiguity {r['res'][k]:.1f} dB")
-    a.set_ylim(-80, 3); a.set_yticks([-75, -50, -25, 0])
-    if xlim:
-        a.set_xlim(*xlim)
-    a.set_xlabel("azimuth time [s]"); a.set_ylabel("[dB]")
-    legend_above(a, title=title)
-
-
-def bxt_str(b):
-    return "[" + ", ".join(f"{x:g}" for x in b) + "] m"
-
-
 # --------------------------------------------------------------------------------------------- README figure
 def fig_readme_result():
     """Figure of the README of the repository: the 1000 m mountain of the results chapter (figures/pres/res_mountain.pdf,
@@ -335,127 +281,13 @@ def fig_readme_result():
     import subprocess
     src = os.path.join(OUT, "pres", "res_mountain.pdf")
     subprocess.run(["pdftoppm", "-png", "-r", "220", "-singlefile", src, os.path.join(OUT, "readme_result")], check=True)
+    src = os.path.join(OUT, "pres", "res_srtm_map.pdf")                  # real terrain: the seven SRTM cuts
+    subprocess.run(["pdftoppm", "-png", "-r", "200", "-singlefile", src, os.path.join(OUT, "readme_realterrain")], check=True)
 
-
-
-# --------------------------------------------------------------------------------------------- joint figures
-def mountain_example():
-    """The example of the guides: 5 targets on a 1000 m Gaussian mountain, b_xt = [0, 134.9, 20.5, 8.3] m."""
-    terrain = lambda x: 1000.0 * np.exp(-0.5 * (np.asarray(x, float) / 1500.0) ** 2)
-    xs = np.array([-5200.0, -2600.0, 0.0, 2600.0, 5200.0])
-    cfg, tr = config(list(zip(xs, terrain(xs))), [0.0, 134.9, 20.5, 8.3])
-    return cfg, tr, terrain, xs
-
-
-def fig_joint_convergence():
-    def run():
-        cfg, tr, terrain, xs = mountain_example()
-        ch = S.generate_channels(cfg, tr)
-        half = 0.5 * cfg.Na / cfg.prf * cfg.system.vs
-        hg = terrain(np.linspace(-half - 100.0, half + 100.0, 8001))
-        tab = height_table(cfg, tr, hg.min(), hg.max())
-        M = line_maps(cfg, tr, terrain, tab)
-        ref = _irf(cfg, tr, S.generate_reference(cfg, tr)); pk = ref.max()
-        t = (np.arange(cfg.Na) - cfg.Na // 2) / cfg.prf
-        dt = cfg.PRF_op * cfg.system.wl * cfg.scene.r0 / (2.0 * cfg.system.vs ** 2)
-        lev = lambda env: A.ambiguity_level(t, env, pk, xs, cfg.system.vs, dt)
-        its = [1, 2, 3, 5, 8, 12, 20, 30, 45, 60]
-        one, une = [], []
-        for n in its:
-            y, info = reconstruct_joint_line(cfg, tr, ch, M, passes=1, iterations=n, tol=0.0, return_info=True)
-            one.append(lev(_irf(cfg, tr, y))); une.append(20 * np.log10(info["unexplained"]))
-        two = []
-        for n in its:
-            y, info = reconstruct_joint_line(cfg, tr, ch, M, passes=2, iterations=n, tol=0.0, return_info=True)
-            two.append(lev(_irf(cfg, tr, y)))
-        none = lev(_irf(cfg, tr, S.reconstruct(cfg, tr, ch)))
-        return dict(its=its, one=one, two=two, une=une, none=none, ref=lev(ref))
-    d = cached("joint_convergence", run)
-    fig, ax = plt.subplots(1, 2, figsize=(W_FULL, 2.3))
-    ax[0].semilogx(d["its"], d["one"], "o-", ms=3, color=COL["joint_line"], label="joint (whole line), 1 pass")
-    ax[0].semilogx(2 * np.array(d["its"]), d["two"], "s--", ms=3, color="k", lw=0.9, label="joint (whole line), 2 passes")
-    ax[0].axhline(d["ref"], color=COL["ref"], lw=1.4, label=f"reference ({d['ref']:.1f} dB)")
-    ax[0].axhline(d["none"], color=COL["none"], lw=1.0, ls="--", label=f"standard reconstruction ({d['none']:.1f} dB)")
-    ax[0].set_xlabel("conjugate-gradient iterations (all passes)"); ax[0].set_ylabel("highest ambiguity [dB]")
-    ax[0].legend(fontsize=6.2, loc="center right")
-    ax[1].semilogx(d["its"], d["une"], "o-", ms=3, color="k")
-    ax[1].set_xlabel("conjugate-gradient iterations (1 pass)"); ax[1].set_ylabel("unexplained part [dB]")
-    fig.tight_layout(w_pad=1.2)
-    save(fig, "joint_convergence")
-
-
-def fig_system_coupling():
-    """One column of A^H A in the Doppler domain: the bins that a single Doppler bin of g is coupled with."""
-    def run():
-        cfg, tr, terrain, xs = mountain_example()
-        half = 0.5 * cfg.Na / cfg.prf * cfg.system.vs
-        hg = terrain(np.linspace(-half - 100.0, half + 100.0, 8001))
-        relief = line_maps(cfg, tr, terrain, height_table(cfg, tr, hg.min(), hg.max()))
-        f = np.fft.fftfreq(cfg.Na, 1.0 / cfg.prf)
-        k0 = int(np.argmin(np.abs(f - 137.0)))
-        e = np.zeros(cfg.Na, complex); e[k0] = 1.0
-        out = {}
-        for tag, dC0 in (("flat", np.zeros_like(relief)), ("relief", relief)):
-            M = LineModel(cfg, tr, dC0)
-            out[tag] = np.abs(np.fft.fft(M.adjoint(M.forward(np.fft.ifft(e)))))
-        return dict(f=np.fft.fftshift(f), f0=float(f[k0]), prf_op=float(cfg.PRF_op), ba=float(cfg.system.abw),
-                    **{k: np.fft.fftshift(v) for k, v in out.items()})
-    d = cached("system_coupling", run)
-    pk = max(d["flat"].max(), d["relief"].max())
-    db = {k: 20 * np.log10(np.maximum(d[k] / pk, 1e-8)) for k in ("flat", "relief")}
-    fig, ax = plt.subplots(1, 2, figsize=(W_FULL, 2.35), gridspec_kw=dict(width_ratios=[1.6, 1.0]))
-    for a in ax:
-        a.plot(d["f"], db["flat"], color="k", lw=1.0, label="flat terrain")
-        a.plot(d["f"], db["relief"], color=COL["joint_line"], lw=0.9, alpha=0.9, label="with relief (1000 m mountain)")
-        a.set_ylim(-80, 4); a.set_xlabel("Doppler frequency [Hz]")
-    for q in range(-3, 4):
-        fq = d["f0"] + q * d["prf_op"]
-        if -1000.0 <= fq < 1000.0:
-            ax[0].axvline(fq, color="0.55", lw=0.6, ls=":")
-    ax[0].axvspan(-d["ba"] / 2, d["ba"] / 2, color="0.93", zorder=0, lw=0)
-    ax[0].set_xlim(-1000, 1000); ax[0].set_ylabel(r"$|$column of $\mathbf{A}^H\mathbf{A}|$ [dB]")
-    fa = d["f0"] - d["prf_op"]
-    ax[1].set_xlim(fa - 40, fa + 40); ax[1].set_ylim(-80, -10)
-    ax[1].set_title(f"zoom on the first alias ({fa:.0f} Hz)", fontsize=7.2)
-    legend_above(ax[0], ncol=2)
-    fig.tight_layout(w_pad=1.0)
-    save(fig, "system_coupling")
-
-
-JOINT2D_CASES = [("ramp_obl6_grid49", "N4b300", "(a) oblique ramp, 6$^\\circ$, 0 to 1261 m"),
-                 ("valley_grid49", "N4b300", "(b) U-shaped valley, walls up to 900 m"),
-                 ("mountain_grid49", "N6b500", "(c) isolated 1000 m mountain")]
-
-
-
-
-def fig_joint_example():
-    """The example of the guides (5 targets on a 1000 m mountain): reference, no correction and the joint reconstruction."""
-    def run():
-        cfg, tr, terrain, xs = mountain_example()
-        ch = S.generate_channels(cfg, tr)
-        ref = _irf(cfg, tr, S.generate_reference(cfg, tr)); pk = ref.max()
-        t = (np.arange(cfg.Na) - cfg.Na // 2) / cfg.prf
-        dt = cfg.PRF_op * cfg.system.wl * cfg.scene.r0 / (2.0 * cfg.system.vs ** 2)
-        env = dict(ref=ref, none=_irf(cfg, tr, S.reconstruct(cfg, tr, ch)),
-                   joint_line=_irf(cfg, tr, reconstruct_joint_line(cfg, tr, ch, line_maps(cfg, tr, terrain))))
-        res = {k: A.ambiguity_level(t, v, pk, xs, cfg.system.vs, dt) for k, v in env.items()}
-        tg = np.linspace(-23500, 23500, 4701)
-        return dict(res=res, db={k: 20 * np.log10(v / pk + 1e-12) for k, v in env.items()}, t=t, xs=xs,
-                    hs=terrain(xs), tgrid=tg, hgrid=terrain(tg), bxt=cfg.array.bxt, dt=dt)
-    r = cached("joint_example", run)
-    fig = plt.figure(figsize=(W_FULL, 4.9))
-    gs = GridSpec(2, 2, height_ratios=[1.1, 1.0], hspace=0.75, wspace=0.28, figure=fig)
-    geometry_panels(fig.add_subplot(gs[0, 0]), fig.add_subplot(gs[0, 1], projection="3d"), r, zoom_pad=1500.0)
-    irf_panel(fig.add_subplot(gs[1, 0]), r, ["ref", "none"])
-    irf_panel(fig.add_subplot(gs[1, 1]), r, ["ref", "joint_line"])
-    print("joint_example", {k: round(v, 1) for k, v in r["res"].items()})
-    save(fig, "joint_example_1d")
 
 
 FIGS = dict(coeffs=fig_coeffs, rangehist=fig_rangehist, spectra=fig_spectra, irf_height=fig_irf_height,
-            amb_height=fig_amb_height, joint_example=fig_joint_example, joint_convergence=fig_joint_convergence,
-            system_coupling=fig_system_coupling, readme_result=fig_readme_result)
+            amb_height=fig_amb_height, readme_result=fig_readme_result)
 
 if __name__ == "__main__":
     names = sys.argv[1:] or ["all"]

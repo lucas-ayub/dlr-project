@@ -39,8 +39,8 @@ questions:
 \begin{itemize}
   \item A numerical simulator of the multistatic acquisition and of the multichannel reconstruction along one azimuth line,
         with along- and cross-track baselines and arbitrary terrain (\cref{ch:model,ch:recon}).
-  \item A joint reconstruction that places the DEM phase inside the inversion, first per sub-aperture and finally over
-        the whole line, solved by regularised least squares with conjugate gradients (\cref{ch:joint}).
+  \item A joint reconstruction that places the DEM phase of every position of the line inside the inversion, solved by
+        regularised least squares with conjugate gradients without forming its matrix (\cref{ch:joint}).
   \item Results with a DEM only on simulated terrains and on real terrain (SRTM), against the height of the relief and the
         number of targets and for close targets next to an abrupt height change, an analysis of the failures (blind heights), of the DEM accuracy and of baselines that vary during the
         aperture, and a comparison with other regularisation methods (\cref{ch:results}).

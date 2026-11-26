@@ -6,9 +6,9 @@ One platform transmits and receives (channel~0); the other $\Nrx-1$ receivers fl
 $\bat_{,i}$ along track and by $\bxt_{,i}$ across track (horizontally, towards the scene) relative to the transmitter
 (\cref{fig:geometry}). The along-track baselines satisfy the displaced phase centre (DPCA) condition (\cref{fig:dpca}), so that the
 effective phase centres of the $\Nrx$ channels are uniformly spaced and the multichannel sampling is uniform at the full
-PRF; the study is about the cross-track baselines, which are drawn at random in $[0,\bxt^{\max}]$ (with the largest equal
-to $\bxt^{\max}$) or taken from fixed sets. Channel~0 is always the transmitter ($\bat=\bxt=0$). The parameters are listed
-in \cref{tab:params}.
+PRF; the study is about the cross-track baselines. All results use the default formation of the simulator, four channels
+with $\bxt=[0,300,119.8,100.5]$\,\si{m} (a random draw scaled so that the largest is \SI{300}{m}); channel~0 is the transmitter
+($\bat=\bxt=0$). The parameters are listed in \cref{tab:params}.
 
 \begin{table}[htbp]
 \centering
@@ -23,9 +23,10 @@ Platform velocity / effective velocity & \SI{7688.5}{m/s} / \SI{7408.5}{m/s} \\
 Antenna length & \SI{12}{m} \\
 Processed Doppler bandwidth $\Ba$ & \SI{1235}{Hz} \\
 Full PRF & \SI{2000}{Hz} \\
-Channel PRF $\PRFop=\PRF/\Nrx$ & \SI{1000}{Hz} to \SI{250}{Hz} ($\Nrx=2$ to $8$) \\
+Number of channels $\Nrx$ & 4 (channel~0 on the transmitter) \\
+Channel PRF $\PRFop=\PRF/\Nrx$ & \SI{500}{Hz} \\
 DPCA along-track spacing $2v/\PRF$ & \SI{7.69}{m} \\
-Cross-track baselines $\bxt^{\max}$ & \SIlist{100;300;500}{m}, and fixed sets \\
+Cross-track baselines $\bxt$ & \SIlist{0;300;119.8;100.5}{m} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -164,8 +165,8 @@ difference is the \emph{topographic residual}
 \end{equation}
 i.e.\ the interferometric phase of the cross-track baseline; it vanishes for the transmitter channel ($\bxt=0$),
 since the targets are on the iso-range surface. The simulator computes $\Delta C_{0,i}$ exactly from the range
-histories; the approximation \eqref{eq:dc0} agrees within about \SI{2}{\percent}. For a scatterer at \SI{500}{m} and $\bxt=[63.7, 27.0, 4.1, 1.7]$\,\si{m} the residuals are
-$[-113.9,-48.2,-7.3,-3.0]$\,\si{mm}, i.e.\ up to half a wavelength. The other coefficients change much less with height:
+histories; the approximation \eqref{eq:dc0} agrees within \SI{1.8}{\percent} up to \SI{3}{km} (\cref{sec:dc0-proof}). For a scatterer at
+\SI{500}{m} and the default formation the residuals are $[0,-536,-214,-180]$\,\si{mm}, i.e.\ two to four half-wavelengths. The other coefficients change much less with height:
 the topography acts as a channel-dependent \emph{constant} phase over the aperture of each scatterer, a fact used by the
 joint reconstruction (\cref{ch:joint}). \Cref{fig:coeffsres} quantifies this: up to \SI{3}{km} of height and
 $\bxt=\SI{500}{m}$, $\Delta C_0$ follows \eqref{eq:dc0} within a few per cent, and at the edge of the processed band the phase
@@ -184,10 +185,87 @@ edge of the processed band, $f=\Ba/2$, on a logarithmic scale.}
 \label{fig:coeffsres}
 \end{figure}
 
-\Cref{fig:crosstrack} shows where \eqref{eq:dc0} comes from. Moving from the reference point to a scatterer at height $h$ on
-the same range arc of the transmitter is a displacement $s=h/\sin\theta$ perpendicular to the line of sight of the transmitter,
-which does not change its path. The line of sight of receiver $i$ is rotated by $\Delta\theta=\bxt_{,i}\cos\theta/r_0$, so its
-path changes by $s\,\Delta\theta=\bxt_{,i}h/(r_0\tan\theta)$.
+\subsection{Derivation of the topographic residual}\label{sec:dc0-proof}
+
+The simulator uses a flat earth with azimuth $x$, ground range $y$ (towards the scene) and height $z$. The transmitter flies at
+$(vt,0,H)$ and receiver $i$ at $(vt-\bat_{,i},\bxt_{,i},H)$. A place of height $h$ on the iso-range surface of the reference
+point is at $(x,y_h,h)$ with
+\begin{equation}
+  y_h^2+(H-h)^2=r_0^2 ,\qquad \cos\theta_h=\frac{H-h}{r_0},\qquad \sin\theta_h=\frac{y_h}{r_0},
+  \label{eq:isorange}
+\end{equation}
+where $\theta_h$ is the look angle of the transmitter towards that place ($\theta_0=\theta=\SI{20}{\degree}$ at $h=0$).
+
+\paragraph{Step 1: $C_0$ is a difference of closest-approach distances.} By \eqref{eq:coeffs},
+$C_{0,i}=B_{i,\min}-M_{\min}$, the shortest bistatic path minus the shortest monostatic path. The along-track offset $\bat_{,i}$
+only shifts the time of closest approach of the receiver ($\Delta t_i$), not its distance, and the two paths are smallest at
+(almost) the same instant, so to first order
+\begin{equation}
+  C_{0,i}\approx\bigl(r_{\mathrm T,\min}+r_{\mathrm R,i,\min}\bigr)-2r_{\mathrm T,\min}=r_{\mathrm R,i,\min}-r_{\mathrm T,\min},
+\end{equation}
+a one-way difference: only the receiver differs from the monostatic case. For a place on the iso-range,
+$r_{\mathrm T,\min}=r_0$ at every height.
+
+\paragraph{Step 2: the receiver distance to first order in the baseline.} At closest approach,
+\begin{align}
+  r_{\mathrm R,i,\min}&=\sqrt{(y_h-\bxt_{,i})^2+(H-h)^2}
+  =r_0\sqrt{1-\frac{2\bxt_{,i}\sin\theta_h}{r_0}+\frac{\bxt_{,i}^2}{r_0^2}}\notag\\
+  &\approx r_0-\bxt_{,i}\sin\theta_h+\frac{\bxt_{,i}^2\cos^2\theta_h}{2r_0},
+\end{align}
+using \eqref{eq:isorange} and $\sqrt{1+\delta}\approx1+\delta/2-\delta^2/8$. The first-order term is the projection of the
+baseline on the line of sight: $\partial r_{\mathrm R}/\partial\bxt=(\bxt-y_h)/r_{\mathrm R}\approx-\sin\theta_h$. Hence
+\begin{equation}
+  C_{0,i}(h)\approx-\bxt_{,i}\sin\theta_h+\frac{\bxt_{,i}^2\cos^2\theta_h}{2r_0}.
+\end{equation}
+For the reference point this is the $C_0\approx-\bxt\sin\theta$ of \cref{fig:coeffsref}.
+
+\paragraph{Step 3: the look angle of a raised place.} Raising the place by $h$ along the iso-range changes its look angle. From
+\eqref{eq:isorange}, $\mathrm d(\cos\theta_h)=-\mathrm dh/r_0$, and
+$\mathrm d(\sin\theta_h)=-\frac{\cos\theta_h}{\sin\theta_h}\,\mathrm d(\cos\theta_h)=\frac{\mathrm dh}{r_0\tan\theta_h}$, so
+\begin{equation}
+  \sin\theta_h-\sin\theta_0\approx\frac{h}{r_0\tan\theta_0}.
+\end{equation}
+
+\paragraph{Step 4: the residual.} Subtracting the reference point,
+\begin{equation}
+  \Delta C_{0,i}(h)=C_{0,i}(h)-C_{0,i}(0)\approx-\bxt_{,i}\bigl(\sin\theta_h-\sin\theta_0\bigr)\approx-\frac{\bxt_{,i}\,h}{r_0\tan\theta},
+\end{equation}
+and the phase of channel $i$ is $\varphi_i(h)=2\pi\Delta C_{0,i}(h)/\lambda$; together they are \eqref{eq:dc0}.
+The phase has $2\pi$, not $4\pi$ as in a monostatic interferometer, because only the receiver path
+changes. Geometrically (\cref{fig:crosstrack}), the raised place is displaced by $s=h/\sin\theta$ perpendicular to the line of
+sight of the transmitter, which leaves its path unchanged, while the line of sight of receiver $i$ is rotated by
+$\Delta\theta=\bxt_{,i}\cos\theta/r_0$, so its path changes by $s\,\Delta\theta=\bxt_{,i}h/(r_0\tan\theta)$.
+
+\paragraph{Validity.} Two approximations are made. The linear step~3 neglects
+$\frac{1}{2}\,\mathrm d^2(\sin\theta)/\mathrm dh^2\,h^2$, a relative error of about $h/(2r_0\cos\theta\sin^2\theta)$:
+\SI{0.6}{\percent} at \SI{1}{km} and \SI{1.8}{\percent} at \SI{3}{km}, with \eqref{eq:dc0} slightly too large. The term in
+$\bxt^2$ changes the residual by a fraction $\bxt\sin\theta/r_0\approx\num{1.3e-4}$ for \SI{300}{m}. On a curved Earth the look
+angle in the denominator becomes the local incidence angle; the simulator uses a flat earth. The same steps give the phase of a
+cross-track baseline that changes during the aperture (\cref{sec:timevar}), with $\bxt$ replaced by its change $\varepsilon(t)$.
+
+\Cref{tab:dc0check} compares \eqref{eq:dc0} and the step-4 form $-\bxt(\sin\theta_h-\sin\theta_0)$ with the exact $\Delta C_0$
+of the simulator (difference of the parabola fits of \cref{sec:coeffs}; script \texttt{verify\_dC0.py} in
+\texttt{runs/\allowbreak analysis\_v30/\allowbreak baselines\_solvers}).
+
+\begin{table}[htbp]
+\centering
+\caption[Check of the topographic residual]{$\Delta C_0$ of receiver 1 ($\bxt=\SI{300}{m}$): exact, from the parabola fits of
+the simulator, against the derivation. The relative errors are the same for the receivers at \SI{119.8}{m} and
+\SI{100.5}{m}.}
+\label{tab:dc0check}
+\small
+\begin{tabular}{@{}r r r r r r@{}}
+\toprule
+$h$ [m] & exact [m] & $-\bxt h/(r_0\tan\theta)$ [m] & error & $-\bxt(\sin\theta_h-\sin\theta_0)$ [m] & error \\
+\midrule
+100  & $-0.1075$ & $-0.1076$ & $+0.05\,\%$ & $-0.1075$ & $-0.01\,\%$ \\
+500  & $-0.5364$ & $-0.5379$ & $+0.28\,\%$ & $-0.5363$ & $-0.01\,\%$ \\
+1000 & $-1.0696$ & $-1.0758$ & $+0.58\,\%$ & $-1.0695$ & $-0.01\,\%$ \\
+2000 & $-2.1268$ & $-2.1515$ & $+1.16\,\%$ & $-2.1265$ & $-0.01\,\%$ \\
+3000 & $-3.1720$ & $-3.2273$ & $+1.74\,\%$ & $-3.1716$ & $-0.01\,\%$ \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \begin{figure}[htbp]
 \centering

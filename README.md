@@ -25,11 +25,11 @@ methods.<br><br>
 <sub>Five targets on a 1000 m Gaussian mountain, four channels: the standard reconstruction leaves ambiguities up to
 &minus;4.4 dB, the joint reconstruction (DEM only) reaches &minus;40.8 dB against &minus;41.4 dB for the reference; right: the
 same against the height of the mountain.</sub><br><br>
-<a href="report/report.pdf"><img src="report/figures/readme_realdem.png" alt="Joint reconstruction on real terrain (SRTM, Sierra Nevada)" width="95%"></a><br>
-<sub>Real terrain: 47 km azimuth lines cut from the SRTM 3'' DEM of the Sierra Nevada. Yosemite Valley (line 1, five
-targets, four channels): highest ambiguity &minus;5.7 dB with the standard reconstruction and &minus;41.5 dB with the joint
-reconstruction, at the level of the reference (&minus;41.6 dB); over 200 random lines (fixed target positions) the median goes
-from &minus;8.3 dB to &minus;41.5 dB, with the geometry and the DEM only. Code: <a href="sata1d_code/joint_cases/real_dem/">sata1d_code/joint_cases/real_dem</a>.</sub>
+<a href="report/report.pdf"><img src="report/figures/readme_realterrain.png" alt="Seven 47 km cuts through the SRTM elevation of the Sierra Nevada" width="95%"></a><br>
+<sub>Real terrain: 47 km azimuth lines cut from the SRTM 3'' DEM of the Sierra Nevada, heights relative to the mean of each
+line. On six of the seven cuts the joint reconstruction is within 3 dB of the reference; over 150 random lines the median
+highest ambiguity is &minus;6.2 dB with the standard reconstruction, &minus;39.8 dB with the joint reconstruction and
+&minus;40.7 dB for the reference, with the geometry and the DEM only.</sub>
 </p>
 
 <p align="center"><b>🎬 How the joint reconstruction works</b> (animation, 4 min)</p>
@@ -88,11 +88,12 @@ channels have cross-track baselines, every scatterer carries a channel-dependent
 | --- | --- | --- |
 | Reference | monostatic signal of the scene, no ambiguities | `sata1d.generate_reference` |
 | Standard reconstruction | multichannel reconstruction with the flat-earth filters | `sata1d.reconstruct` |
-| **Joint (whole line)** | final method, used in the report: the channels are modelled from the focused line and the DEM and solved by regularised least squares (conjugate gradients) | `sata1d.reconstruct_joint_line` |
-| Per-channel correction (whole band / per sub-band) | earlier approach, not used in the report: topography correction of each channel in sub-apertures before the reconstruction | `sata1d.sata_channels`, `sata1d.reconstruct_subband` |
-| Joint (sub-apertures) | earlier version of the joint: the &Delta;C<sub>0</sub> of every folded parcel enters the matrix | `sata1d.reconstruct_joint` |
-| Joint 2-D | exploratory extension to 3-D scenes (azimuth × range), not part of the report (future work) | `sata2d/joint2d.py` |
-| Oracle | targets simulated already corrected (lower bound, not realisable) | — |
+| **Joint reconstruction** | the method of the report: the channels are modelled from the focused line and the DEM and solved by regularised least squares (conjugate gradients), without forming the matrix | `sata1d.reconstruct_joint_line` |
+
+Earlier and exploratory code, not used in the report, is kept in the repository: a per-channel correction before the
+reconstruction (`sata1d.sata_channels`, `sata1d.reconstruct_subband`), a first version of the joint reconstruction in
+sub-apertures (`sata1d.reconstruct_joint`), an oracle with the targets simulated already corrected, and a 2-D extension
+(`sar_reconstruction/sata2d`).
 
 ## Repository layout
 
@@ -193,13 +194,14 @@ DEM_DIR=/path/to/dem python3 -I item3_dense.py && python3 -I plot_item3.py   # s
 cd ../baselines_solvers
 python3 -I item2_baseline_variation.py && python3 -I item2_joint.py           # baselines that vary in time (~5 min)
 python3 -I verify_phi_eps.py                                                  # check of the phi_eps law against exact distances
+python3 -I verify_dC0.py                                                      # check of the Delta C0 formula against the exact fits
 DEM_DIR=/path/to/dem python3 -I item5_regularisation.py && python3 -I plot_item5.py   # other solvers (~12 min)
 cd ../close_targets_height_step
 python3 -I item_close.py && python3 -I plot_close.py           # close targets next to a cliff or a bump (~3 min)
 ```
 
-**1-D — real terrain** (from `sata1d_code/joint_cases/real_dem/`, see its README): `run_real_dem.py` then
-`real_dem_figures.py` (SRTM lines of the Sierra Nevada).
+**1-D — further real-terrain runs, not in the report** (from `sata1d_code/joint_cases/real_dem/`, see its README):
+`run_real_dem.py` then `real_dem_figures.py` (five named SRTM lines and 200 random lines with fixed target positions).
 
 The scripts find the repository root by walking up to `sata1d_code/` (or from `DLR_REPO`). The SRTM lines need the
 GeoTIFF `main_srtm90.tif` in `DEM_DIR` (default `data/dem/`, not versioned). Each folder has a `results.md` with every
