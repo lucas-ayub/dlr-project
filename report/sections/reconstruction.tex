@@ -2,13 +2,12 @@
 
 \section{Aliased channels and folded parcels}
 
-Each channel is sampled at $\PRFop=\PRF/\Nrx$, below the Doppler bandwidth $\Ba=\SI{1235}{Hz}$. In the Doppler domain
-of the channel, every frequency $\phi\in[-\PRFop/2,\PRFop/2)$ is the sum of $\Nrx$ \emph{parcels} of the full-rate
-spectrum $U$, taken at
+Each channel is sampled at $\PRFop=\PRF/\Nrx$, below $\Ba=\SI{1235}{Hz}$, so every channel frequency
+$\phi\in[-\PRFop/2,\PRFop/2)$ is the sum of $\Nrx$ \emph{parcels} of the full-rate spectrum $U$ at
 \begin{equation}
   f_q = \phi + q\,\PRFop - \tfrac{\Nrx-1}{2}\PRFop, \qquad q=0,\dots,\Nrx-1 ,
 \end{equation}
-each weighted by the transfer function $H_i$ of the channel relative to the monostatic reference:
+each weighted by the channel transfer function $H_i$:
 \begin{equation}
   S_i(\phi) = \sum_{q} H_i(f_q)\, U(f_q)
   \quad\Longleftrightarrow\quad
@@ -17,21 +16,20 @@ each weighted by the transfer function $H_i$ of the channel relative to the mono
 \end{equation}
 with $\bm{s}$ the $\Nrx$ channel spectra and $\bm{u}$ the $\Nrx$ parcels. The standard reconstruction
 \cite{Krieger2004,Gebert2009} inverts this square system at every $\phi$, $\hat{\bm u}=\mathbf{P}(\phi)\bm s(\phi)$ with
-$\mathbf P=\mathbf H^{-1}$, and places the parcels at their true Doppler frequency to obtain the full-rate signal.
-The entries of $\mathbf H$ are the transfer functions \eqref{eq:Hi} of the reference point, $H_{iq}(\phi)=H_i(f_q)$.
+$\mathbf P=\mathbf H^{-1}$ and $H_{iq}(\phi)=H_i(f_q)$ from \eqref{eq:Hi} for the reference point, and puts each parcel back
+at its Doppler frequency.
 
-Through the Doppler--angle relation, a Doppler frequency $f$ seen from the platform at azimuth position $x_c$ corresponds
-to the ground position
+A Doppler frequency $f$ seen from azimuth position $x_c$ corresponds to the ground position
 \begin{equation}
   x(f) = x_c + r_0 \tan\!\bigl(\arcsin(\lambda f/2v)\bigr) \approx x_c + \frac{\lambda r_0}{2v}\, f ,
   \label{eq:ruler}
 \end{equation}
-which we call the \emph{ruler}. Parcels one $\PRFop$ apart therefore come from ground positions
+(the \emph{ruler}). Parcels one $\PRFop$ apart therefore come from ground positions
 \begin{equation}
   X \approx \frac{\lambda r_0\,\PRFop}{2v} \qquad (\SI{6.23}{km}\text{ for } \PRFop=\SI{500}{Hz}),
 \end{equation}
-apart, i.e.\ \SI{0.81}{s} of azimuth time. This distance is the key length of the problem: one bin of an aliased channel
-mixes the echoes of the terrain at $x$, $x\pm X$, $x\pm 2X,\dots$ (\cref{fig:folding}).
+apart (\SI{0.81}{s}). This is the key length of the problem: one bin of an aliased channel mixes the terrain at $x$,
+$x\pm X$, $x\pm 2X,\dots$ (\cref{fig:folding}).
 
 \begin{figure}[htbp]
 \centering
@@ -63,81 +61,70 @@ mixes the echoes of the terrain at $x$, $x\pm X$, $x\pm 2X,\dots$ (\cref{fig:fol
     \node[font=\scriptsize,anchor=east] at (-4.35,0.1) {terrain $h(x)$};
   \end{scope}
 \end{tikzpicture}
-\caption[Folding of the Doppler spectrum]{Folding of the azimuth spectrum in an aliased channel ($\Nrx=4$). The four
-parcels of one channel bin come, through the ruler \eqref{eq:ruler}, from ground positions $X$ apart, which in general have
-different heights.}
+\caption[Folding of the Doppler spectrum]{Folding in an aliased channel ($\Nrx=4$): the parcels of one bin come, through
+\eqref{eq:ruler}, from ground positions $X$ apart, in general at different heights.}
 \label{fig:folding}
 \end{figure}
 
-\Cref{fig:spectra} shows the two sides of this for one target on flat terrain and four channels. A single channel at
-$\PRFop=\SI{500}{Hz}$ sees the processed band $\Ba=\SI{1235}{Hz}$ folded two to three times onto its own band; the standard
-reconstruction combines the four channels and recovers the full-rate spectrum of the reference.
+On flat terrain (\cref{fig:spectra}) one channel at \SI{500}{Hz} sees $\Ba$ folded two to three times; the standard
+reconstruction recovers the full-rate spectrum of the reference.
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/spectra_reconstruction.pdf}
-\caption[Aliased channel and reconstructed spectrum]{One target at $h=0$, four channels ($\bxt=[0,300,119.8,100.5]$\,\si{m}).
-Left: power spectrum of one channel at $\PRFop=\SI{500}{Hz}$ (averaged over 25 bins): the folded parcels overlap. Right: spectrum of
-the reference and of the standard reconstruction at the full PRF; the grey band is the processed band $\Ba$ and the dotted lines
-are the borders of the four parcels, $\PRFop$ apart.}
+\caption[Aliased channel and reconstructed spectrum]{One target at $h=0$, default formation. Left: one channel at
+\SI{500}{Hz} (averaged over 25 bins), parcels overlapping. Right: reference and standard reconstruction at the full PRF; grey:
+$\Ba$; dotted: parcel borders, $\PRFop$ apart.}
 \label{fig:spectra}
 \end{figure}
 
 \section{How topography creates ambiguities}\label{sec:mismatch}
 
-For a scatterer at height $h$, channel $i$ carries the extra constant phase $\e^{-\jj\varphi_i}$ of \eqref{eq:dc0}, so the
-data are $\bm s=\mathbf D\mathbf H\bm u$ with $\mathbf D=\mathrm{diag}(\e^{-\jj\varphi_i})$, and the standard
-reconstruction returns
+A scatterer at height $h$ adds the phase $\e^{-\jj\varphi_i}$ of \eqref{eq:dc0}: $\bm s=\mathbf D\mathbf H\bm u$ with
+$\mathbf D=\mathrm{diag}(\e^{-\jj\varphi_i})$, and the standard reconstruction returns
 \begin{equation}
   \hat{\bm u} = \mathbf H^{-1}\mathbf D\,\mathbf H\,\bm u = \mathbf L\,\bm u .
 \end{equation}
-In the DPCA configuration $\mathbf H$ is, up to diagonal factors, a discrete Fourier matrix over the channels, and the
-leakage matrix becomes Toeplitz,
+With DPCA, $\mathbf H$ is a discrete Fourier matrix up to diagonal factors, so the leakage matrix is Toeplitz,
 \begin{equation}
   L_{q'q} = c_{q'-q}, \qquad
   c_m = \frac{1}{\Nrx}\sum_{i=0}^{\Nrx-1} \exp\!\Bigl[\jj\Bigl(\frac{2\pi i m}{\Nrx} - \varphi_i\Bigr)\Bigr].
   \label{eq:cm}
 \end{equation}
-$c_0$ is the gain of the true parcel and $c_m$, $m\neq 0$, the amplitude that parcel $q$ leaks into parcel $q+m$, which
-appears in the image as an ambiguity displaced by $mX$ (\SI{0.81}{s}$\cdot m$). If all channels have the same phase,
-$c_m=0$ for $m\ne0$ and the reconstruction is exact; with cross-track baselines the phases differ and the ambiguity level
-grows with the spread of $\bxt_{,i}h$. Weighted by the fraction of the target bandwidth that falls in the leaking parcels,
-$|c_m|$ predicts the ambiguity of the uncorrected reconstruction within \SI{0.15}{dB} for heights above \SI{50}{m}.
+$c_0$ is the gain of the true parcel; $c_m$ ($m\neq0$) leaks parcel $q$ into $q+m$, an ambiguity displaced by $mX$
+(\SI{0.81}{s}$\cdot m$). Equal phases give $c_m=0$ and an exact reconstruction; different phases give ambiguities that grow
+with the spread of $\bxt_{,i}h$. Weighted by the bandwidth fraction in the leaking parcels, $|c_m|$ predicts the uncorrected
+ambiguity within \SI{0.15}{dB} above \SI{50}{m}.
 
-\Cref{fig:irfheight} shows the effect on one target. At $h=0$ the channels carry no residual and the standard reconstruction is
-the reference (up to the band limitation to $\Ba$); at \SI{500}{m} ambiguities of the target appear at multiples of the ambiguity time, \SI{0.81}{s}. \Cref{fig:ambheight}
-gives the highest ambiguity against the height of the target for three sets of baselines: it grows by \SI{20}{dB} per decade of
-height (for small phases $|c_m|$ is proportional to $\varphi_i$, hence to $\bxt h$) and saturates between \SI{-15}{dB} and
-\SI{-5}{dB} once the phases of the channels are of the order of a radian, i.e.\ above about \SI{100}{m} with
-$\bxt^{\max}=\SI{300}{m}$.
+For one target (\cref{fig:irfheight}), at $h=0$ the standard reconstruction equals the reference (up to the band limit);
+at \SI{500}{m} ambiguities appear at multiples of \SI{0.81}{s}. The highest ambiguity (\cref{fig:ambheight}) grows by
+\SI{20}{dB} per decade of height ($|c_m|\propto\varphi_i\propto\bxt h$ for small phases) and saturates between \SI{-15}{dB}
+and \SI{-5}{dB} once the phases reach about a radian, above about \SI{100}{m} with $\bxt^{\max}=\SI{300}{m}$.
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/irf_flat_vs_height.pdf}
-\caption[Standard reconstruction of a target at the reference height and above it]{Azimuth impulse response of one target
-($\bxt=[0,300,119.8,100.5]$\,\si{m}) after the standard reconstruction and of the reference. Dotted lines: the ambiguity
-positions, $\pm1$ and $\pm2$ times \SI{0.81}{s}. Left: target at the reference height, the two responses coincide. Right: target at
-\SI{500}{m}.}
+\caption[Standard reconstruction of a target at the reference height and above it]{Impulse response of one target,
+standard reconstruction and reference; dotted: ambiguity positions ($\pm1$, $\pm2$ times \SI{0.81}{s}). Left: $h=0$, the
+responses coincide. Right: $h=\SI{500}{m}$.}
 \label{fig:irfheight}
 \end{figure}
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.62\linewidth]{figures/ambiguity_vs_height.pdf}
-\caption[Highest ambiguity of the standard reconstruction against height]{Highest ambiguity of the standard reconstruction for one target at height $h$, four channels, three sets of cross-track baselines. At $h=0$ the three sets give
-\SI{-63.6}{dB}, the level of the reference limited to the processed band $\Ba$.}
+\caption[Highest ambiguity of the standard reconstruction against height]{Standard reconstruction, one target at height
+$h$, three sets of baselines. At $h=0$ all give \SI{-63.6}{dB}, the band-limited reference level.}
 \label{fig:ambheight}
 \end{figure}
 
-The amplitudes $c_m$ are the discrete Fourier transform of the channel phases. This also says what a formation needs for
-the parcels to be separated once the phases are known: the channels must see them with \emph{different} phases. Cross-track
-baselines that are not equally spaced, and three or more channels, give this diversity; it is the property that the joint
-reconstruction of \cref{ch:joint} relies on.
+Since $c_m$ is the discrete Fourier transform of the channel phases, separating the parcels once the phases are known needs
+channels that see them with \emph{different} phases: unequally spaced cross-track baselines and three or more channels. The
+joint reconstruction (\cref{ch:joint}) relies on this.
 
 \section{Ambiguity metric}\label{sec:metric}
 
-All results are reported as the \emph{highest ambiguity}: the largest value of the azimuth impulse response, in dB relative
-to the peak of the reference, inside $\pm\SI{20}{ms}$ of the ambiguity positions of every target ($\pm1$ and $\pm2$ times the
-ambiguity distance of the channel PRF). The reference is the monostatic full-rate signal of the same scene, processed with the
-same band limitation; its own value (sidelobes of neighbouring targets, band edge) is the floor that any reconstruction can
-reach.
+The \emph{highest ambiguity} is the largest value of the impulse response, in dB relative to the reference peak, within
+$\pm\SI{20}{ms}$ of the ambiguity positions ($\pm1$, $\pm2$ ambiguity distances) of every target. The reference is the
+monostatic full-rate signal of the same scene with the same band limit; its own value (neighbouring sidelobes, band edge) is
+the floor any reconstruction can reach.

@@ -2,34 +2,20 @@
 \addcontentsline{toc}{chapter}{Abstract}
 
 Multichannel and multistatic synthetic aperture radar (SAR) systems for high-resolution wide-swath (HRWS) imaging sample
-the azimuth signal of each receiver at a pulse repetition frequency (PRF) below the Doppler bandwidth and recover the
-unambiguous spectrum by combining the channels in an azimuth reconstruction. The reconstruction filters are derived for
-a reference geometry. When the receivers are separated by cross-track baselines, a scatterer at a height different from
-the reference height carries a channel-dependent phase, the aliased parts of the spectrum no longer cancel, and azimuth
-ambiguities appear.
+each receiver below the Doppler bandwidth and recover the spectrum by an azimuth reconstruction whose filters assume a
+reference geometry. With cross-track baselines, a scatterer above the reference height carries a channel-dependent phase,
+the aliased parts no longer cancel, and azimuth ambiguities appear.
 
-This report studies that topography-dependent mismatch with a numerical simulator of a spaceborne formation
-($\lambda=\SI{0.25}{m}$, $r_0=\SI{766}{km}$, four receivers, cross-track baselines up to \SI{300}{m}) and
-corrects it using \emph{only the system parameters and a digital elevation model (DEM)}, never the positions of the
-targets. A correction applied to each aliased channel before the reconstruction cannot work in general, because every
-Doppler bin adds parcels from ground positions $X\approx\SI{6.2}{km}$ apart that need different phases. A \emph{joint}
-reconstruction places the DEM phase of every ground position inside the inversion: it models the channels from the focused
-line and the DEM and solves a Tikhonov-regularised least-squares problem with conjugate gradients, without ever forming the
-matrix of the model.
+This report simulates a spaceborne formation ($\lambda=\SI{0.25}{m}$, $r_0=\SI{766}{km}$, four receivers, cross-track
+baselines up to \SI{300}{m}) and corrects the ambiguities using \emph{only the system parameters and a digital elevation
+model (DEM)}. A per-channel correction cannot work, because every Doppler bin mixes ground positions $X\approx\SI{6.2}{km}$
+apart that need different phases. A \emph{joint} reconstruction puts the DEM phase of every position inside a
+Tikhonov-regularised least-squares inversion, solved by conjugate gradients without forming the model matrix.
 
-In the default formation (four channels, cross-track baselines of \SIlist{300;119.8;100.5}{m}, true DEM) the joint
-reconstruction brings the highest ambiguity on a \SI{1000}{m} mountain from \SI{-4.4}{dB} with the standard reconstruction to
-\SI{-40.8}{dB} (reference \SI{-41.4}{dB}). It is within \SI{3}{dB} of the reference on seven of nine simulated terrains and,
-on real terrain of the Sierra Nevada (SRTM), on six of seven \SI{47}{km} cuts and on 130 of 150 random lines (medians
-\SI{-6.2}{dB} standard, \SI{-39.8}{dB} joint, \SI{-40.7}{dB} reference). Every simulated failure and four of the ten failing
-real lines are \emph{blind heights}: a place and the place one ambiguity distance away get the same phase difference in every
-receiver, so the data cannot separate them. A sweep of the mountain height every \SI{100}{m} up to \SI{3}{km} confirms this: the
-joint reconstruction is within \SI{3}{dB} of the reference at 22 of 31 heights and is clearly hurt only at three heights near a blind
-height, and it never widens the impulse response (\SI{3}{dB} width \SI{5.77}{m}, as the reference). With up to 200 targets on a
-line its image error stays at about \SI{-30}{dB}, the accuracy of the model, independently of the number of targets. Two close targets on either side of a cliff up to \SI{1000}{m} high stay at \SIrange{-59}{-43}{dB}; the joint reconstruction degrades only for a target on the cliff face itself, where the height changes by more than about \SI{100}{m} between two DEM samples. The method
-needs an accurate DEM, about \SI{2}{m} rms for \SI{-30}{dB} with a \SI{300}{m} baseline, and straight tracks: a cross-track baseline
-that changes by more than about \SI{0.2}{m} within the aperture (spaceborne, \SI{1000}{m} of relief), or by millimetres to centimetres
-in airborne systems, raises the ambiguities unless it is compensated with the topography. Among the regularisation methods tested,
-none of the parameter-choice rules (L-curve, discrepancy principle, Bayes minimum risk) improves on the current choice without
-noise; the re-weighting methods MARIA and WISE gain up to \SI{2}{dB} without noise, and with noise MARIA gains up to \SI{15}{dB} on
-scenes of point targets.
+On a \SI{1000}{m} mountain it lowers the highest ambiguity from \SI{-4.4}{dB} (standard reconstruction) to \SI{-40.8}{dB}
+(reference \SI{-41.4}{dB}); on 150 random SRTM lines of the Sierra Nevada the medians are \SI{-6.2}{dB}, \SI{-39.8}{dB} and
+\SI{-40.7}{dB}. Failures occur at \emph{blind heights}, where a place and its ambiguity get the same phase difference in
+every receiver. The method keeps the reference resolution (\SI{5.77}{m}), holds up to 200 targets per line and close targets
+beside cliffs, and needs a DEM accurate to about \SI{2}{m} rms and baselines stable to about \SI{0.2}{m} (spaceborne) or
+millimetres to centimetres (airborne). Without noise the current regularisation is as good as the tested parameter-choice
+rules; with noise the re-weighting method MARIA gains up to \SI{15}{dB} on point-target scenes.

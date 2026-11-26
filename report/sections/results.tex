@@ -2,253 +2,215 @@
 
 \section{Setting}\label{sec:setting}
 
-All the results of this chapter are obtained with the joint reconstruction over the whole line of \cref{ch:joint}, compared
-with the standard reconstruction of \cref{ch:recon} and with the reference, a monostatic radar at the full PRF that sees the
-same scene in the same band. They use one formation, the default of the simulator: $\Nrx=4$ channels (channel~0 on the
-transmitter), $\PRFop=\SI{500}{Hz}$ per channel (\SI{2000}{Hz} together) and cross-track baselines
-$\bxt=[0,300,119.8,100.5]$\,\si{m}, a random draw scaled so that the largest is \SI{300}{m}; the other parameters are those of
-\cref{tab:params}. Every result is one azimuth line (1-D) of $12288$ samples at the full PRF (\SI{47.2}{km}) with five point
-targets unless stated otherwise. The channels are simulated with the exact bistatic distances of every target, not with the
-model of the joint reconstruction, and without noise (noise is added only in \cref{sec:solvers}). The joint reconstruction receives only the channels, the system
-geometry and the DEM, which is the true terrain except in \cref{sec:demacc}. Unless stated otherwise the numbers are the highest
-ambiguity of \cref{sec:metric}, in dB relative to the peak of the reference; \cref{sec:dense,sec:close,sec:solvers} also use an image error.
+The joint reconstruction (\cref{ch:joint}) is compared with the standard reconstruction (\cref{ch:recon}) and the reference, a
+monostatic radar at the full PRF seeing the same scene in the same band. Formation: $\Nrx=4$ (channel~0 on the transmitter),
+\SI{500}{Hz} per channel (\SI{2000}{Hz} together), $\bxt=[0,300,119.8,100.5]$\,\si{m}; other parameters in \cref{tab:params}.
+Each result is one azimuth line of $12288$ samples (\SI{47.2}{km}), five targets unless stated. The channels use exact bistatic
+distances, not the joint model, and no noise (except \cref{sec:solvers}). The joint reconstruction gets only the channels, the
+geometry and the DEM, which is the true terrain except in \cref{sec:demacc}. Numbers are the highest ambiguity
+(\cref{sec:metric}) relative to the reference peak; \cref{sec:dense,sec:close,sec:solvers} also use an image error.
 
-On flat terrain the standard reconstruction is already at the reference level (\SI{-41.1}{dB} against \SI{-41.4}{dB}); the
-topography is what separates the methods. Runs in which the joint reconstruction falls below the reference (by at most
-\SI{1.7}{dB}) are not drawn in the figures of \cref{sec:simterrain,sec:realterrain}: two of the eleven simulated terrains (ramp
-and canyon), one of eight real-terrain cuts (Yosemite Valley) and 50 of 200 random real-terrain lines. None of them is a failure.
-\Cref{sec:height,sec:dense,sec:close,sec:solvers} show every run.
+On flat terrain the standard reconstruction already reaches the reference (\SI{-41.1}{dB} vs \SI{-41.4}{dB}); topography
+separates the methods. Runs where the joint reconstruction falls below the reference (by at most \SI{1.7}{dB}) are omitted from
+the figures of \cref{sec:simterrain,sec:realterrain}: two of eleven simulated terrains (ramp, canyon), one of eight cuts
+(Yosemite Valley) and 50 of 200 random lines; none is a failure. \Cref{sec:height,sec:dense,sec:close,sec:solvers} show every run.
 
 \section{Simulated terrain}\label{sec:simterrain}
 
-\Cref{fig:resmountain} shows the isolated \SI{1000}{m} mountain. The standard reconstruction leaves an ambiguity of
-\SI{-4.4}{dB}, almost the level of the targets themselves; the joint reconstruction reaches \SI{-40.8}{dB}, within
-\SI{1}{dB} of the reference (\SI{-41.4}{dB}). Sweeping the height of the mountain over seven heights from \SI{0}{m} to \SI{3}{km}, the standard
-reconstruction jumps to about \SI{-9}{dB} already at \SI{100}{m} and stays between \SI{-9}{dB} and \SI{-4}{dB} above, while the
-joint reconstruction stays between \SI{-41}{dB} and \SI{-39}{dB}. A denser sweep, every \SI{100}{m}, is analysed in
-\cref{sec:height}; it finds three heights where the joint reconstruction is hurt by blind heights.
+On the isolated \SI{1000}{m} mountain (\cref{fig:resmountain}) the standard reconstruction leaves \SI{-4.4}{dB}, almost the
+target level; the joint reconstruction reaches \SI{-40.8}{dB}, within \SI{1}{dB} of the reference (\SI{-41.4}{dB}). Over seven
+heights from \SI{0}{m} to \SI{3}{km}, the standard reconstruction jumps to about \SI{-9}{dB} at \SI{100}{m} and stays between
+\SI{-9}{dB} and \SI{-4}{dB}; the joint stays between \SI{-41}{dB} and \SI{-39}{dB}. A sweep every \SI{100}{m} is in
+\cref{sec:height}.
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/pres/res_mountain.pdf}
-\caption[Isolated mountain and height sweep]{Five targets on an isolated \SI{1000}{m} mountain, default formation, true DEM.
-Left: the terrain with the targets, and the focused lines of the standard reconstruction and of the joint reconstruction, each
-against the reference. Right: highest ambiguity against the height of the mountain (the shaded height is the one shown on the left).
-At \SI{100}{m} the joint reconstruction is \SI{0.15}{dB} below the reference and is drawn at the reference level.}
+\caption[Isolated mountain and height sweep]{Five targets on a \SI{1000}{m} mountain. Left: terrain and focused lines
+(standard, joint) against the reference. Right: highest ambiguity against mountain height (shaded: the case on the left). At
+\SI{100}{m} the joint is \SI{0.15}{dB} below the reference and drawn at its level.}
 \label{fig:resmountain}
 \end{figure}
 
-\Cref{fig:resterrains} repeats the experiment on nine simulated terrain shapes. The medians are \SI{-7.2}{dB} for the standard
-reconstruction, \SI{-38.3}{dB} for the joint reconstruction and \SI{-38.8}{dB} for the reference; the joint reconstruction is
-within \SI{1}{dB} of the reference on seven of the nine. The folded ridges stay \SI{3.6}{dB} above the reference; the glacial
-valley stays \SI{9.4}{dB} above it, which is not explained yet.
+On nine simulated terrains (\cref{fig:resterrains}) the medians are \SI{-7.2}{dB} (standard), \SI{-38.3}{dB} (joint) and
+\SI{-38.8}{dB} (reference); the joint is within \SI{1}{dB} of the reference on seven. The folded ridges stay \SI{3.6}{dB} above
+it; the glacial valley \SI{9.4}{dB}, not explained yet.
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/pres/res_terrains.pdf}
-\caption[Nine simulated terrains]{Highest ambiguity on nine simulated terrains (five targets each, default formation, true
-DEM). The shaded band of each row is the \SI{3}{dB} above the reference.}
+\caption[Nine simulated terrains]{Highest ambiguity on nine simulated terrains; shaded: \SI{3}{dB} above the reference.}
 \label{fig:resterrains}
 \end{figure}
 
 \section{Ambiguity and resolution against the height of the mountain}\label{sec:height}
 
-The scene of \cref{fig:resmountain} is repeated for 31 heights of the mountain, from \SI{0}{m} to \SI{3000}{m} every \SI{100}{m}
-(Gaussian mountain with $\sigma=\SI{1.5}{km}$, five targets on the surface at $x=-8$, $-0.55$, $0.65$, $2.9$ and \SI{4.1}{km},
-heights relative to the mean of the line). \Cref{fig:heightirf} shows the focused lines for five of the heights and
-\cref{fig:heightamb} the highest ambiguity and the weakest target peak against the height.
+The scene of \cref{fig:resmountain} is repeated for 31 heights, \SI{0}{m} to \SI{3000}{m} every \SI{100}{m} (Gaussian,
+$\sigma=\SI{1.5}{km}$, targets on the surface at $x=-8$, $-0.55$, $0.65$, $2.9$ and \SI{4.1}{km}, heights relative to the line
+mean; \cref{fig:heightirf,fig:heightamb}).
 
-\paragraph{Metric.} The highest ambiguity is the one of \cref{sec:metric}: the largest value of the focused line inside
-$\pm\SI{20}{ms}$ ($\pm\SI{154}{m}$) of every predicted ambiguity position $x_p+mX$, $m=\pm1,\pm2$, $X=\lambda r_0\PRFop/(2v)=\SI{6.23}{km}$,
-excluding $\pm\SI{154}{m}$ around every true target, in dB relative to the peak of the reference. It was checked before use:
-(i)~in the standard reconstruction of the \SI{1000}{m} mountain every ambiguity peak above \SI{-25}{dB} lies 0 to \SI{2}{m} from a
-predicted position, so the windows are centred; all targets lie on the iso-range of the reference point, so $X$ is the same for all,
-and $|m|\le2$ is complete because $3\PRFop=\SI{1500}{Hz}$ exceeds the echo band (\SI{1281}{Hz}); (ii)~the grid peak of the reference
-differs from the up-sampled peak by at most \SI{0.02}{dB}; (iii)~the guard around the targets is needed, since without it the
-metric would read the sidelobes of the target itself (\SI{-17.7}{dB} just outside the main lobe of the reference); (iv)~to see
-artefacts outside the predicted positions, the largest level anywhere off the targets (the \emph{floor}) was also computed: for
-the joint reconstruction it stays within \SI{1.6}{dB} of the floor of the reference except at the three heights the metric itself
-flags. The recomputed values of \cref{fig:resmountain} are identical (\SI{-4.38}{dB}, \SI{-40.76}{dB} and \SI{-41.44}{dB}).
+\paragraph{Metric.} As in \cref{sec:metric}: the largest value within $\pm\SI{20}{ms}$ ($\pm\SI{154}{m}$) of every predicted
+position $x_p+mX$, $m=\pm1,\pm2$, $X=\lambda r_0\PRFop/(2v)=\SI{6.23}{km}$, excluding $\pm\SI{154}{m}$ around every true
+target. Checks:
+(i)~every standard ambiguity peak above \SI{-25}{dB} on the \SI{1000}{m} mountain lies 0 to \SI{2}{m} from a predicted position;
+$X$ is the same for all targets (same iso-range), and $|m|\le2$ suffices since $3\PRFop=\SI{1500}{Hz}$ exceeds the echo band
+(\SI{1281}{Hz}); (ii)~grid and up-sampled reference peaks differ by at most \SI{0.02}{dB}; (iii)~the guard is needed, otherwise the
+metric reads the target's own sidelobes (\SI{-17.7}{dB}); (iv)~the largest level anywhere off the targets (\emph{floor}) of the
+joint stays within \SI{1.6}{dB} of the reference floor except at the three heights the metric flags. The values of
+\cref{fig:resmountain} are reproduced (\SI{-4.38}{dB}, \SI{-40.76}{dB}, \SI{-41.44}{dB}).
 
 \begin{figure}[p]
 \centering
 \includegraphics[width=\linewidth]{figures/analysis/height_irf.pdf}
-\caption[Focused lines for five heights of the mountain]{Focused lines of the standard reconstruction (left, red) and of the
-joint reconstruction (right, violet) against the reference (green) for mountains of \SIlist{0;500;1000;2000;3000}{m} (top: the
-five terrains and their targets). Default formation, five targets, true DEM, \SI{0}{dB} is the peak of the reference.}
+\caption[Focused lines for five heights of the mountain]{Standard (left, red) and joint (right, violet) against the
+reference (green) for mountains of \SIlist{0;500;1000;2000;3000}{m} (top: terrains and targets).}
 \label{fig:heightirf}
 \end{figure}
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/analysis/height_amb.pdf}
-\caption[Highest ambiguity and target peaks against the height of the mountain]{(a) Highest ambiguity against the height of the
-mountain, every \SI{100}{m}; the amber labels give the blind-height mismatch of the three heights where the joint reconstruction
-is clearly hurt (more than \SI{8}{dB} above the reference). (b) Weakest of the five target peaks, relative to the reference; the \SI{3}{dB} width of
-every main lobe is \SI{5.77}{m} for the joint reconstruction and for the reference at every height.}
+\caption[Highest ambiguity and target peaks against the height of the mountain]{(a) Highest ambiguity against mountain
+height; amber: blind-height mismatch where the joint is more than \SI{8}{dB} above the reference. (b) Weakest target peak relative
+to the reference; the \SI{3}{dB} width is \SI{5.77}{m} for joint and reference at every height.}
 \label{fig:heightamb}
 \end{figure}
 
-\paragraph{Ambiguities.} The standard reconstruction is at the reference level only on flat terrain (\SI{-41.1}{dB}); with any relief
-it rises to between \SI{-12.4}{dB} and \SI{-4.4}{dB} (median \SI{-6.1}{dB}), and its true peaks lose \SIrange{2}{28}{dB}, the energy that
-went into the ambiguities. The joint reconstruction is within \SI{3}{dB} of the reference (\SI{-41.4}{dB}) at 22 of the 31 heights and
-within \SI{1}{dB} at 16. Up to \SI{1500}{m} it stays between \SI{-41.7}{dB} and \SI{-40.4}{dB}; between \SI{1600}{m} and
-\SI{2300}{m} it is between \SI{-39.3}{dB} and \SI{-37.2}{dB}, that is \SIrange{2}{4.3}{dB} above the reference. It is clearly hurt at three heights, \SI{2500}{m} (\SI{-33.4}{dB}), \SI{2600}{m} (\SI{-25.8}{dB}) and \SI{2900}{m}
-(\SI{-28.5}{dB}). At all three, one target and the place $X$ away are close to a blind height (\cref{sec:blind}; mismatch \SIlist{0.27;0.26;0.36}{rad}).
-A small mismatch is necessary but not sufficient: at \SI{1900}{m} (\SI{0.20}{rad}) and \SI{2800}{m} (\SI{0.09}{rad}) the result is
-not affected. A higher mountain produces more height differences between a place and its aliases, so blind heights become more
-frequent as the relief grows.
+\paragraph{Ambiguities.} The standard reconstruction reaches the reference only on flat terrain (\SI{-41.1}{dB}); with relief it is
+between \SI{-12.4}{dB} and \SI{-4.4}{dB} (median \SI{-6.1}{dB}), and its peaks lose \SIrange{2}{28}{dB} to the ambiguities. The
+joint is within \SI{3}{dB} of the reference (\SI{-41.4}{dB}) at 22 of 31 heights and within \SI{1}{dB} at 16. Up to \SI{1500}{m}
+it is between \SI{-41.7}{dB} and \SI{-40.4}{dB}; from \SI{1600}{m} to \SI{2300}{m} between \SI{-39.3}{dB} and \SI{-37.2}{dB}
+(\SIrange{2}{4.3}{dB} above). It is clearly hurt at \SI{2500}{m} (\SI{-33.4}{dB}), \SI{2600}{m} (\SI{-25.8}{dB}) and \SI{2900}{m}
+(\SI{-28.5}{dB}), where a target and the place $X$ away are near a blind height (\cref{sec:blind}; mismatch
+\SIlist{0.27;0.26;0.36}{rad}). A small mismatch is necessary but not sufficient: \SI{1900}{m} (\SI{0.20}{rad}) and \SI{2800}{m}
+(\SI{0.09}{rad}) are unaffected. Higher relief gives more height differences between places and aliases, hence more blind heights.
 
-\paragraph{Resolution.} The joint reconstruction keeps its true peaks at \SI{-0.03}{dB} (at worst \SI{-0.46}{dB}, at \SI{2600}{m}),
-and the \SI{3}{dB} width of every main lobe is \SI{5.77}{m}, the same as the reference, at every height and for every target
-($\approx L_a/2=\SI{6}{m}$). The joint reconstruction does not widen the impulse response: its output is limited to the band
-$\Ba$ like the reference, and the regularisation acts on the ambiguities, not on the main lobe.
+\paragraph{Resolution.} The joint keeps its peaks at \SI{-0.03}{dB} (worst \SI{-0.46}{dB}, at \SI{2600}{m}) and a \SI{3}{dB} width
+of \SI{5.77}{m}, as the reference, at every height and target ($\approx L_a/2=\SI{6}{m}$): the output is band-limited like the
+reference, and the regularisation acts on the ambiguities, not the main lobe.
 
 \section{Real terrain}\label{sec:realterrain}
 
-The real terrain is the SRTM elevation of the Sierra Nevada (California), where the relief reaches about \SI{4}{km}. Every line is
-still a 1-D azimuth line through the elevation model; the map only shows where the lines come from, and the heights are taken
-relative to the mean height of each line, which is the height $h=0$ of the processing (\cref{fig:ressrtm}). The elevation is the
-SRTM \SI{3}{\arcsecond} DEM (about \SI{90}{m}, WGS\,84) \cite{Farr2007srtm}, file \texttt{raster/srtm90.tif} of
-\texttt{github.com/opengeos/data}; a line is a straight \SI{47}{km} profile sampled every \SI{90}{m} and interpolated linearly
-between the samples, and the joint reconstruction receives the same profile as its DEM, never the targets.
+Real terrain: the SRTM \SI{3}{\arcsecond} DEM (about \SI{90}{m}, WGS\,84) \cite{Farr2007srtm} of the Sierra Nevada
+(California), relief up to about \SI{4}{km}, file \texttt{raster/srtm90.tif} of \texttt{github.com/opengeos/data}. Each line is a
+straight \SI{47}{km} 1-D profile, sampled every \SI{90}{m} and linearly interpolated, with heights relative to the line mean
+($h=0$ of the processing; \cref{fig:ressrtm}). The joint reconstruction gets the same profile as DEM, never the targets.
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/pres/res_srtm_map.pdf}
-\caption[Seven cuts through the Sierra Nevada]{Seven \SI{47}{km} cuts through the SRTM elevation of the Sierra Nevada, numbered
-from west to east. Left: their position on the map; right: the height along each cut, with its five targets.}
+\caption[Seven cuts through the Sierra Nevada]{Seven \SI{47}{km} cuts, west to east: position (left) and height with the
+five targets (right).}
 \label{fig:ressrtm}
 \end{figure}
 
-On six of the seven cuts the joint reconstruction is within \SI{3}{dB} of the reference (\SIrange{0.3}{2.2}{dB} above it),
-whereas the standard reconstruction is \SIrange{29.6}{33.9}{dB} above it (\cref{fig:rescuts}). The medians are \SI{-6.3}{dB}
-(standard), \SI{-37.3}{dB} (joint) and \SI{-39.4}{dB} (reference). The exception is the White Mountains cut, \SI{22.9}{dB} above the
-reference: one of its targets and the place $2X$ away form a blind height (\cref{sec:blind}).
+On six of seven cuts the joint is within \SI{3}{dB} of the reference (\SIrange{0.3}{2.2}{dB} above), the standard
+\SIrange{29.6}{33.9}{dB} above (\cref{fig:rescuts}); medians \SI{-6.3}{dB}, \SI{-37.3}{dB} and \SI{-39.4}{dB}. The exception,
+White Mountains (\SI{22.9}{dB} above), has a target and the place $2X$ away at a blind height (\cref{sec:blind}).
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/pres/res_cuts.pdf}
-\caption[Focused lines of the seven cuts]{Focused lines of the seven cuts of \cref{fig:ressrtm} (default formation, five targets
-each, true DEM). In each panel, top: standard reconstruction (red) against the reference (green); bottom: joint reconstruction
-(violet) against the reference. The numbers are the highest ambiguity above the reference. Circle: the ambiguity of the White
-Mountains cut.}
+\caption[Focused lines of the seven cuts]{The seven cuts: standard (top, red) and joint (bottom, violet) against the reference
+(green); numbers: highest ambiguity above the reference; circle: the White Mountains ambiguity.}
 \label{fig:rescuts}
 \end{figure}
 
-With more targets the reference itself rises, because the sidelobes of the neighbouring targets fall on the ambiguity positions.
-\Cref{fig:res20} places 20 targets every \SI{750}{m} on the western-foothills line: the standard reconstruction reaches
-\SI{-6.0}{dB} and the joint reconstruction \SI{-34.0}{dB}, against \SI{-34.4}{dB} for the reference. On four other lines with 20 targets
-the joint reconstruction reaches \SIrange{-32.7}{-27.8}{dB} (reference \SI{-34.4}{dB}); why the gap to the reference is larger
-with 20 targets than with five has not been studied.
+With more targets the reference rises (neighbouring sidelobes fall on the ambiguity positions). With 20 targets every
+\SI{750}{m} on the western foothills (\cref{fig:res20}) the standard reaches \SI{-6.0}{dB}, the joint \SI{-34.0}{dB}, the
+reference \SI{-34.4}{dB}; on four other lines the joint reaches \SIrange{-32.7}{-27.8}{dB} (reference \SI{-34.4}{dB}), a larger
+gap not yet studied.
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/pres/res_20targets.pdf}
-\caption[20 targets on one real line]{20 targets every \SI{750}{m} on the western-foothills line (default formation, true DEM):
-the terrain and the focused lines of the standard and of the joint reconstruction against the reference.}
+\caption[20 targets on one real line]{20 targets every \SI{750}{m} on the western foothills: terrain, standard and joint
+against the reference.}
 \label{fig:res20}
 \end{figure}
 
-Finally, \cref{fig:resrandom} shows 150 random lines of the same elevation model (five targets each). The medians are
-\SI{-6.2}{dB} (standard), \SI{-39.8}{dB} (joint) and \SI{-40.7}{dB} (reference). The joint reconstruction is within \SI{3}{dB}
-of the reference on 130 lines and never worse than the standard reconstruction; on ten lines it stays more than \SI{10}{dB}
-above the reference. Four of these ten are blind heights (\cref{sec:blind}); the other six are not explained yet.
+On 150 random lines (\cref{fig:resrandom}) the medians are \SI{-6.2}{dB} (standard), \SI{-39.8}{dB} (joint) and
+\SI{-40.7}{dB} (reference). The joint is within \SI{3}{dB} on 130 lines, never worse than the standard, and more than \SI{10}{dB}
+above on ten: four are blind heights (\cref{sec:blind}), six are not explained yet.
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/pres/res_random.pdf}
-\caption[150 random real-terrain lines]{Highest ambiguity of 150 random lines of the Sierra Nevada against the relief within
-$\pm\SI{8}{km}$ of the targets (default formation, five targets each, true DEM). Circled: the ten lines on which the joint
-reconstruction stays more than \SI{10}{dB} above the reference; the four in orange are blind heights (\cref{sec:blind}).
-In the legend, taken from the talk, ``explained next'' refers to these four blind heights, explained in \cref{sec:blind}.}
+\caption[150 random real-terrain lines]{Highest ambiguity of 150 random lines against the relief within $\pm\SI{8}{km}$ of
+the targets. Circled: the ten lines with the joint more than \SI{10}{dB} above the reference; orange (``explained next'' in the
+legend): the four blind heights (\cref{sec:blind}).}
 \label{fig:resrandom}
 \end{figure}
 
 \section{Scenes full of point targets}\label{sec:dense}
 
-The previous sections use five or twenty targets. To see whether the joint reconstruction degrades when the line is full of
-scatterers, $N=1$, 5, 20, 50, 100 and 200 point targets of unit amplitude and random phase are placed at random positions within
-$|x|\le\SI{10}{km}$ (so that every ambiguity, at up to $\pm2X=\pm\SI{12.5}{km}$, stays on the line), on the surface of six terrains:
-three simulated ones (the isolated \SI{1000}{m} mountain, random mountains with \SI{1000}{m} of relief and a fractal alpine relief of
-\SIrange{0}{2000}{m}) and three SRTM lines (the western foothills of \cref{fig:res20}, the eastern escarpment and the High Sierra
-cuts of \cref{fig:ressrtm}). Each density is drawn with three seeds, 108 runs in total.
+$N=1$, 5, 20, 50, 100 and 200 unit targets with random phase are placed at random within $|x|\le\SI{10}{km}$ (so ambiguities at
+up to $\pm2X=\pm\SI{12.5}{km}$ stay on the line) on six terrains: the \SI{1000}{m} mountain, random mountains (\SI{1000}{m}), a
+fractal alpine relief (\SIrange{0}{2000}{m}), and the SRTM western foothills, eastern escarpment and High Sierra lines; three seeds
+each, 108 runs.
 
-Two metrics are used. The \emph{image error} $20\log_{10}\|\bm y-\bm y_{\mathrm{ref}}\|/\|\bm y_{\mathrm{ref}}\|$ compares the
-whole focused complex line with the one of the reference and is valid at any density. The highest ambiguity is reported as the
-\emph{gap} to the reference's own value: with many targets the sidelobes of the neighbours fall into the ambiguity windows and the
-reference itself rises from \SI{-63}{dB} (one target) to about \SI{-30}{dB} (200 targets), so the absolute level is no longer
-meaningful.
+Metrics: the \emph{image error} $20\log_{10}\|\bm y-\bm y_{\mathrm{ref}}\|/\|\bm y_{\mathrm{ref}}\|$ of the focused complex
+line, valid at any density, and the highest ambiguity as a \emph{gap} to the reference, whose own level rises from \SI{-63}{dB}
+(one target) to about \SI{-30}{dB} (200 targets) as neighbouring sidelobes fill the windows.
 
 \begin{figure}[p]
 \centering
 \includegraphics[width=\linewidth]{figures/analysis/dense_irf.pdf}
-\caption[Scenes with 20 and 200 targets]{Focused lines with 20 and 200 targets on the isolated \SI{1000}{m} mountain and on the
-western-foothills line (SRTM): standard reconstruction (left) and joint reconstruction (right), each against the reference. The
-numbers are the image errors against the reference.}
+\caption[Scenes with 20 and 200 targets]{20 and 200 targets on the \SI{1000}{m} mountain and the western foothills: standard
+(left) and joint (right) against the reference; numbers: image errors.}
 \label{fig:denseirf}
 \end{figure}
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/analysis/dense_summary.pdf}
-\caption[Image error and ambiguity against the number of targets]{(a) Image error against the number of targets, median and range
-of three seeds, for the six terrains. (b) Highest ambiguity above the reference for every run; orange: joint reconstruction with a
-target and an alias near a blind height (mismatch below \SI{0.4}{rad}).}
+\caption[Image error and ambiguity against the number of targets]{(a) Image error against the number of targets (median and
+range of three seeds). (b) Highest ambiguity above the reference per run; orange: joint with a target near a blind height
+(mismatch below \SI{0.4}{rad}).}
 \label{fig:densesummary}
 \end{figure}
 
-\paragraph{Image error.} The standard reconstruction has an image error of about \SI{+0.6}{dB} at every density: its error is as
-large as the image itself, on simulated and on real terrain. The joint reconstruction has a median of \SI{-29.2}{dB} (from
-\SI{-34.5}{dB} to \SI{-17.5}{dB}), almost independent of the number of targets: \SI{-31.1}{dB} with one target and \SI{-28.4}{dB} with
-200 (\cref{fig:densesummary}a). The floor of about \SI{-30}{dB} is the accuracy of the model, not of the solver: one target on flat
-ground gives \SI{-35.3}{dB} for both the standard and the joint reconstruction, the error of $K\,H_i$ against the exact bistatic echo
-(\cref{ch:joint}), and lowering the regularisation from $0.03$ to $0.01$ and $0.003\,\sigma_{\max}$ makes the error on the mountain worse
-(\SIlist{-30.6;-29.4;-21.7}{dB}), not better.
+\paragraph{Image error.} The standard reconstruction is at about \SI{+0.6}{dB} at every density: an error as large as the image.
+The joint has a median of \SI{-29.2}{dB} (\SI{-34.5}{dB} to \SI{-17.5}{dB}), almost independent of $N$: \SI{-31.1}{dB} with one
+target, \SI{-28.4}{dB} with 200 (\cref{fig:densesummary}a). This floor is the model accuracy, not the solver: one target on flat
+ground gives \SI{-35.3}{dB} for both methods (the error of $K\,H_i$, \cref{ch:joint}), and lowering $\mu$ from $0.03$ to $0.01$
+and $0.003\,\sigma_{\max}$ makes the mountain worse (\SIlist{-30.6;-29.4;-21.7}{dB}).
 
-\paragraph{Ambiguities.} The gap of the joint reconstruction to the reference has a median of \SI{1.5}{dB}; it is below \SI{3}{dB} in
-77 of the 108 runs and above \SI{10}{dB} in nine. The standard reconstruction has a median gap of \SI{27.3}{dB} and never less than
-\SI{19.3}{dB}. All nine failures have a target and one of its aliases within \SI{0.4}{rad} of a blind height (mismatch
-\SIrange{0.02}{0.35}{rad}); as before, the converse does not hold (33 runs are below \SI{0.4}{rad}, nine of them fail). The density
-matters only because it puts more targets on steep parts: the eastern escarpment, with the largest height differences over $X$, fails
-from 50 targets on, while the gentle western foothills never fail (gap at most \SI{1.8}{dB}, image error \SIrange{-34}{-31}{dB} at every
-density). The joint reconstruction therefore does not degrade with the number of targets; its error is set by the model accuracy and
-its residual risk by where the targets sit on the relief, not by how many there are.
+\paragraph{Ambiguities.} The joint's gap has a median of \SI{1.5}{dB}, below \SI{3}{dB} in 77 of 108 runs and above
+\SI{10}{dB} in nine; the standard's median is \SI{27.3}{dB}, never below \SI{19.3}{dB}. All nine failures have a target and an
+alias within \SI{0.4}{rad} of a blind height (\SIrange{0.02}{0.35}{rad}); the converse does not hold (nine of the 33 runs below
+\SI{0.4}{rad} fail). Density matters only by putting targets on steep parts: the eastern escarpment fails from 50 targets on, the
+western foothills never (gap at most \SI{1.8}{dB}, image error \SIrange{-34}{-31}{dB}). The risk depends on where targets sit,
+not on how many there are.
 
 \section{Close targets next to an abrupt height change}\label{sec:close}
 
-The terrains so far are smooth at the scale of the resolution. To test an abrupt change, two unit point targets are placed a
-distance $d$ apart, one on each side of a cliff of height $\Delta h$,
+Two unit targets a distance $d$ apart sit on either side of a cliff of height $\Delta h$,
 $h(x)=\tfrac{\Delta h}{2}\bigl(1+\tanh(2(x-x_s)/w)\bigr)$ with $w=\SI{10}{m}$, or on either side of a narrow bump of height $\Delta h$
 and standard deviation \SI{10}{m}; $x_s$ lies between two samples of the line ($\Delta x=v/\mathrm{PRF}=\SI{3.84}{m}$) and the targets sit
-on the surface. The distance runs over $d=6$, 12, 18, 50, 100, 300, 1000 and \SI{3000}{m} and the height over $\Delta h=0$, 10, 50, 100,
-300 and \SI{1000}{m}. Two variants complete the sweep: the \SI{300}{m} cliff with $w=\SI{1}{m}$ (sharper than one sample) and
-$w=\SI{50}{m}$, and three targets at $x_s-d$, $x_s$ and $x_s+d$, the middle one on the edge of the cliff; 124 runs in total, default
-system, exact distances, no noise. Besides the highest ambiguity, the runs give the peak level of every target, the dip between two
-neighbouring targets relative to the weaker peak (resolved if it is below \SI{-3}{dB}) and the image error on the stretch around the
-targets (\texttt{runs/analysis\_v30/close\_targets\_height\_step}).
+on the surface; $d=6$, 12, 18, 50, 100, 300, 1000, \SI{3000}{m}; $\Delta h=0$, 10, 50, 100, 300, \SI{1000}{m}. Variants: the
+\SI{300}{m} cliff with $w=\SI{1}{m}$ and \SI{50}{m}, and three targets at $x_s-d$, $x_s$, $x_s+d$ (middle one on the edge); 124
+runs. Also measured: peak levels, the dip between neighbours relative to the weaker peak (resolved below \SI{-3}{dB}) and the local
+image error (\texttt{runs/analysis\_v30/close\_targets\_height\_step}).
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/analysis/close_maps.pdf}
-\caption[Close targets next to a cliff or a bump]{Highest ambiguity of two targets a distance $d$ apart on either side of a cliff
-(top) or of a narrow bump (bottom) of height $\Delta h$: standard reconstruction (left) and joint reconstruction (right). The
-reference is at \SIrange{-61}{-55}{dB} in every cell.}
+\caption[Close targets next to a cliff or a bump]{Two targets $d$ apart either side of a cliff (top) or bump (bottom) of
+height $\Delta h$: standard (left) and joint (right). Reference: \SIrange{-61}{-55}{dB} in every cell.}
 \label{fig:closemaps}
 \end{figure}
 
-\paragraph{Standard reconstruction.} Its highest ambiguity depends on the height difference of the targets, not on their distance:
-\SIrange{-37}{-34}{dB} for a \SI{10}{m} cliff, \SIrange{-22}{-19}{dB} for \SI{50}{m}, \SIrange{-16}{-13}{dB} for \SI{100}{m} and
-\SIrange{-9}{-4}{dB} for \SI{300}{m} and \SI{1000}{m}, from $d=\SI{6}{m}$ to \SI{3}{km} (\cref{fig:closemaps}). With the bump, both targets
-are on flat ground from $d=\SI{100}{m}$ on and the standard reconstruction is at the reference level; it fails when they sit on the
-flanks.
+\paragraph{Standard reconstruction.} It depends on the height difference, not the distance (\cref{fig:closemaps}):
+\SIrange{-37}{-34}{dB} for a \SI{10}{m} cliff, \SIrange{-22}{-19}{dB} for \SI{50}{m}, \SIrange{-16}{-13}{dB} for \SI{100}{m},
+\SIrange{-9}{-4}{dB} for \SI{300}{m} and \SI{1000}{m}, from $d=\SI{6}{m}$ to \SI{3}{km}. With the bump it is at the reference from
+$d=\SI{100}{m}$ (targets on flat ground) and fails on the flanks.
 
-\paragraph{Joint reconstruction.} With the targets on flat ground next to the cliff ($d\ge\SI{50}{m}$, at least \SI{25}{m} from it) its
-highest ambiguity is \SIrange{-59}{-43}{dB} for every height up to \SI{1000}{m}, against \SIrange{-61}{-55}{dB} for the reference here and the
-\SI{-41}{dB} the reference itself reaches with the five targets of the mountain (\cref{sec:height}): a cliff between two neighbouring targets is not a problem in itself,
-because the model has one DEM phase per place. It degrades when a target sits on the cliff face or on the flank of the bump. The
-quantity that orders all runs is the height change $\delta h$ between the two DEM samples around a target, the joint reconstruction
-having one height per sample of \SI{3.84}{m} (\cref{fig:closejump}): for $\delta h\le\SI{10}{m}$ the highest ambiguity stays below
+\paragraph{Joint reconstruction.} With the targets on flat ground beside the cliff ($d\ge\SI{50}{m}$, at least \SI{25}{m} away) it
+is at \SIrange{-59}{-43}{dB} for every height up to \SI{1000}{m}, against \SIrange{-61}{-55}{dB} for the reference here (and
+\SI{-41}{dB} for the reference with the five mountain targets, \cref{sec:height}): one DEM phase per place handles the cliff. It
+degrades for a target on the cliff face or the bump flank. All runs are ordered by the height change $\delta h$ between the two DEM
+samples (\SI{3.84}{m} apart) around a target (\cref{fig:closejump}): for $\delta h\le\SI{10}{m}$ it stays below
 \SI{-39}{dB}, for $\delta h\le\SI{115}{m}$ below \SI{-33}{dB}, and all eight failures (above \SI{-30}{dB}) have $\delta h\ge\SI{135}{m}$,
 a phase of at least \SI{3.6}{rad} on the \SI{300}{m} baseline ($2\pi b_{xt}\,\delta h/(\lambda r_0\tan\theta)=\SI{0.027}{rad/m}\times\delta h$):
 the two targets on a \SI{1000}{m} cliff face \SI{10}{m} wide (\SI{-3}{dB}, \cref{fig:closeirf}, right), targets on the flanks of a
@@ -260,67 +222,59 @@ its main lobe. Blind heights play no role here: the smallest mismatch of all run
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.92\linewidth]{figures/analysis/close_jump.pdf}
-\caption[Joint reconstruction against the height change under a target]{Highest ambiguity of the joint reconstruction in all 124
-runs against the height change $\delta h$ between the two DEM samples around a target (maximum over the targets; top axis: its phase on
-the \SI{300}{m} baseline). Green: median of the reference; dashed: \SI{-40}{dB}.}
+\caption[Joint reconstruction against the height change under a target]{Joint, all 124 runs, against the height change
+$\delta h$ between the DEM samples around a target (top axis: phase on the \SI{300}{m} baseline). Green: reference median; dashed:
+\SI{-40}{dB}.}
 \label{fig:closejump}
 \end{figure}
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/analysis/close_irf.pdf}
-\caption[Three examples next to a cliff]{Three lines with two targets next to a cliff: terrain around the targets (top), focused line
-around the targets, upsampled (middle), and the whole line with the ambiguities at $\pm X$ and $\pm2X$ (bottom). Left and centre: targets
-on flat ground \SI{25}{m} and \SI{500}{m} from a \SI{300}{m} cliff; right: both targets on the face of a \SI{1000}{m} cliff \SI{10}{m}
-wide, the only case of the cliff sweep where the joint reconstruction fails.}
+\caption[Three examples next to a cliff]{Terrain (top), upsampled focused line (middle) and whole line with ambiguities at
+$\pm X$, $\pm2X$ (bottom). Left, centre: targets on flat ground \SI{25}{m} and \SI{500}{m} from a \SI{300}{m} cliff. Right: both on
+the face of a \SI{1000}{m} cliff \SI{10}{m} wide, the only cliff-sweep failure.}
 \label{fig:closeirf}
 \end{figure}
 
-\paragraph{Resolution and peaks.} Two targets \SI{6}{m} apart are not separated, by the reference either (dip \SI{-0.6}{dB}; main lobe
-\SI{5.77}{m}, \cref{sec:height}). From \SI{12}{m} on the reference dip is \SI{-26}{dB} and the joint reconstruction's is
-\SIrange{-33}{-24}{dB} in every run that does not fail: it keeps the separation of the reference. In the 116 runs that do not fail its
-target peaks are within \SI{0.36}{dB} of the reference (median \SI{0.005}{dB}) and within \SI{0.24}{m} of their position.
+\paragraph{Resolution and peaks.} Targets \SI{6}{m} apart are not separated, by the reference either (dip \SI{-0.6}{dB}; main
+lobe \SI{5.77}{m}). From \SI{12}{m} the reference dip is \SI{-26}{dB} and the joint's \SIrange{-33}{-24}{dB} in every non-failing
+run. In the 116 non-failing runs the peaks are within \SI{0.36}{dB} of the reference (median \SI{0.005}{dB}) and \SI{0.24}{m} of
+their position.
 
-The limit is therefore the sampling of the DEM phase, not the cliff: a target on a face whose height changes by about \SI{100}{m}
-within one sample gets a channel phase that no single sample of the DEM carries. Oversampling the line (a finer DEM grid) or one DEM
-height per target would remove it; real DEMs are smoother than these cliffs (the SRTM elevation used in \cref{sec:realterrain} has a posting of about \SI{90}{m}).
+The limit is the sampling of the DEM phase, not the cliff: on a face rising about \SI{100}{m} within one sample, no DEM sample
+carries the right phase. A finer DEM grid or one height per target would remove it; real DEMs are smoother (SRTM posting about
+\SI{90}{m}, \cref{sec:realterrain}).
 
 \section{Other inversion and regularisation methods}\label{sec:solvers}
 
-The joint reconstruction solves $\bm s=\mathbf A\bm g$ with Tikhonov regularisation, $\mu=0.03\,\sigma_{\max}$, and two passes
-(\cref{ch:joint}). Three papers on regularised inversion with authors from DLR-HR suggested alternatives, which were
-implemented matrix-free (only the two functions $\mathbf A\bm v$ and $\mathbf A\Hm\bm w$ of \cref{ch:joint}) and compared with the
-current solver:
+Alternatives to the current solver (Tikhonov, $\mu=0.03\,\sigma_{\max}$, two passes) from three papers with authors from DLR-HR
+were implemented matrix-free (only $\mathbf A\bm v$ and $\mathbf A\Hm\bm w$):
 \begin{itemize}
   \item \textbf{L-curve with a reliable search region (RelSea)} \cite{GonzalezCaboverde2026relsea}: $\mu$ at the corner of the L-curve
-        $(\log\|\mathbf A\bm g_\mu-\bm s\|,\ \log\|\bm g_\mu\|)$, found by maximum Menger curvature with a golden-section search restricted
-        to the convex part of the curve. Here the region is the convex part of a 9-point grid over $[10^{-4},1]\,\sigma_{\max}$, and every
-        point of the curve is a full Tikhonov solve (one or two passes).
-  \item \textbf{Discrepancy principle} \cite{Hansen1998}: $\mu$ such that $\|\mathbf A\bm g_\mu-\bm s\|^2$ equals the expected noise
-        energy; only defined with noise.
+        $(\log\|\mathbf A\bm g_\mu-\bm s\|,\ \log\|\bm g_\mu\|)$ by maximum Menger curvature, golden-section search on the convex
+        part; here a 9-point grid over $[10^{-4},1]\,\sigma_{\max}$, each point a full Tikhonov solve (one or two passes).
+  \item \textbf{Discrepancy principle} \cite{Hansen1998}: $\|\mathbf A\bm g_\mu-\bm s\|^2$ equal to the expected noise energy
+        (only with noise).
   \item \textbf{Bayes minimum risk (BMR)} \cite{MartinDelCampo2020statreg}: the estimator $\mathbf R_s\mathbf A\Hm(\mathbf A\mathbf R_s\mathbf A\Hm+\mathbf R_n)^{-1}$,
-        which for white signal and noise ($\mathbf R_s=S_0\mathbf I$, $\mathbf R_n=N_0\mathbf I$) is Tikhonov with $\mu^2=N_0/S_0$; $S_0$
-        is estimated from the data energy and a stochastic estimate of $\mathrm{tr}(\mathbf A\Hm\mathbf A)$.
-  \item \textbf{MARIA} \cite{MartinDelCampo2018maria} and \textbf{WISE} \cite{MartinDelCampo2020statreg}: maximum-likelihood inspired and
-        weighted-covariance-fitting iterative re-weightings of the power $b_\ell$ of every place, started from the matched filter. The
-        complex line is $\hat{\bm g}=\mathbf W\bm u$ with $\mathbf W=\mathrm{diag}(b_\ell)^{1/2}$ and
-        $\bm u=\arg\min\|\mathbf A\mathbf W\bm u-\bm s\|^2+N_0\|\bm u\|^2$, at most ten re-weightings. These estimators were derived for
-        multi-look covariance matrices in tomography; here they are used with a single look, and the diagonal $\bm a_\ell\Hm\mathbf R^{-1}\bm a_\ell$
-        is approximated by its matched-filter value.
+        i.e.\ Tikhonov with $\mu^2=N_0/S_0$ for white signal and noise; $S_0$ from the data energy and a stochastic
+        $\mathrm{tr}(\mathbf A\Hm\mathbf A)$.
+  \item \textbf{MARIA} \cite{MartinDelCampo2018maria} and \textbf{WISE} \cite{MartinDelCampo2020statreg}: iterative re-weightings
+        of the power $b_\ell$ of every place (maximum-likelihood inspired and weighted covariance fitting), from the matched filter;
+        $\hat{\bm g}=\mathbf W\bm u$, $\mathbf W=\mathrm{diag}(b_\ell)^{1/2}$,
+        $\bm u=\arg\min\|\mathbf A\mathbf W\bm u-\bm s\|^2+N_0\|\bm u\|^2$, at most ten re-weightings. Derived for multi-look
+        tomography; used here single-look, with $\bm a_\ell\Hm\mathbf R^{-1}\bm a_\ell$ approximated by its matched-filter value.
 \end{itemize}
-The methods were run on four scenes (the five targets on the \SI{1000}{m} mountain, 40 targets on the mountain line, 20 targets on the
-western foothills and a distributed-like scene of 1500 scatterers with complex Gaussian amplitudes), with white complex Gaussian noise
-added to the channels at SNR $=\infty$, 30, 20 and \SI{10}{dB} (mean channel power over noise power), two noise draws each.
-\Cref{tab:solvers} and \cref{fig:solvers} summarise the results; on the distributed-like scene the image error is used instead of the
-ambiguity.
+Scenes: the five mountain targets, 40 targets on the mountain line, 20 on the western foothills, and a distributed-like scene
+of 1500 scatterers with complex Gaussian amplitudes (scored by image error). White complex Gaussian noise at SNR $=\infty$, 30, 20
+and \SI{10}{dB} (mean channel power over noise power), two draws each (\cref{tab:solvers,fig:solvers}).
 
 \begin{table}[htbp]
 \centering
 \small
-\caption[Comparison of solvers]{Highest ambiguity in dB (last two rows: image error) of the standard reconstruction, of the current
-solver and of the alternatives, median of two noise draws; reference without noise: \SI{-41.4}{dB} (mountain), \SI{-34.2}{dB} (40
-targets), \SI{-34.4}{dB} (foothills). Cost without noise on the mountain, in calls of $\mathbf A$ and $\mathbf A\Hm$: current 266,
-BMR 161, MARIA 581, WISE 1235, L-curve about 2400 (two passes: 4800).}
+\caption[Comparison of solvers]{Highest ambiguity in dB (last two rows: image error), median of two noise draws; reference
+without noise: \SI{-41.4}{dB} (mountain), \SI{-34.2}{dB} (40 targets), \SI{-34.4}{dB} (foothills). Calls of $\mathbf A$ and
+$\mathbf A\Hm$ on the noise-free mountain: current 266, BMR 161, MARIA 581, WISE 1235, L-curve about 2400 (two passes: 4800).}
 \label{tab:solvers}
 \setlength{\tabcolsep}{4pt}
 \resizebox{\linewidth}{!}{%
@@ -343,99 +297,85 @@ foothills, 20 targets & $\infty$ & $-6.0$ & $-34.0$ & $-34.0$ & $-34.1$ & -- & $
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/analysis/item5_summary.pdf}
-\caption[Solvers against the noise level]{Highest ambiguity (right: image error of the distributed-like scene) against the SNR of the
-channels for the four scenes and every solver; the horizontal line is the reference without noise.}
+\caption[Solvers against the noise level]{Highest ambiguity (right: image error of the distributed-like scene) against SNR;
+horizontal line: noise-free reference.}
 \label{fig:solvers}
 \end{figure}
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/analysis/item5_lcurve.pdf}
-\caption[L-curve of the joint problem]{L-curve of the joint problem on the mountain, without noise (left) and at \SI{20}{dB} (right),
-with the corner chosen by the RelSea search and the current $\mu=0.03\,\sigma_{\max}$. The curve has no clear corner.}
+\caption[L-curve of the joint problem]{L-curve on the mountain, without noise (left) and at \SI{20}{dB} (right), with the
+RelSea corner and the current $\mu=0.03\,\sigma_{\max}$: no clear corner.}
 \label{fig:lcurve}
 \end{figure}
 
-\paragraph{Without noise} (the setting of the rest of this chapter) the linear methods are within about \SIrange{1}{2}{dB} of each other,
-except the two-pass L-curve, which is up to \SI{6}{dB} worse, and the current choice is the best of the Tikhonov family; MARIA and
-WISE are up to \SI{2}{dB} better on the point-target scenes, and WISE also on the distributed-like scene. The L-curve has no clear corner (\cref{fig:lcurve}); RelSea's search region ends at
-its small-$\mu$ end, the selected $\mu\approx10^{-3}\sigma_{\max}$ under-regularises, and the search costs about ten times more. RelSea
-itself notes that L-curves without a corner give no guidance.
+\paragraph{Without noise} the linear methods are within about \SIrange{1}{2}{dB} of each other, except the two-pass L-curve (up to
+\SI{6}{dB} worse), and the current choice is the best Tikhonov variant; MARIA and WISE are up to \SI{2}{dB} better on point
+targets, WISE also on the distributed-like scene. The L-curve has no clear corner (\cref{fig:lcurve}): RelSea selects
+$\mu\approx10^{-3}\sigma_{\max}$, which under-regularises, at about ten times the cost; RelSea itself notes that corner-less
+L-curves give no guidance.
 
-\paragraph{With noise} no parameter-choice rule is consistently better than $\mu=0.03\,\sigma_{\max}$: the L-curve under-regularises and
-amplifies the noise, the discrepancy principle over-regularises ($\mu\approx0.08$ to $0.4\,\sigma_{\max}$; the ambiguities are no
-longer cancelled and the targets lose up to \SI{5}{dB}), and BMR is within about \SI{3}{dB} of the current solver on most scenes and \SIrange{4}{6}{dB} better on 40 targets, but needs the
-noise power. The noise itself is the larger effect: at \SI{20}{dB} SNR the current solver loses about \SI{10}{dB} on the mountain
-(\SI{-40.8}{dB} to \SI{-30.0}{dB}), because the noise that reaches the ambiguity positions is not cancelled.
+\paragraph{With noise} no parameter-choice rule is consistently better: the L-curve under-regularises; the discrepancy principle
+over-regularises ($\mu\approx0.08$ to $0.4\,\sigma_{\max}$; ambiguities remain and targets lose up to \SI{5}{dB}); BMR is within
+about \SI{3}{dB} on most scenes and \SIrange{4}{6}{dB} better on 40 targets, but needs the noise power. The noise itself matters
+more: at \SI{20}{dB} SNR the current solver loses about \SI{10}{dB} on the mountain (\SI{-40.8}{dB} to \SI{-30.0}{dB}).
 
-\paragraph{MARIA} is the only method that gains clearly with noise on scenes of point targets: \SI{-41.2}{dB} on the mountain at
-\SI{20}{dB} SNR (the reference level), \SI{-34.5}{dB} with 40 targets and \SI{-34.7}{dB} on the foothills, \SIrange{4}{15}{dB} better than
-the current solver, for two to five times its cost. Its re-weighting concentrates the energy on the places that hold scatterers and
-suppresses the noise at the empty ones, including the ambiguity positions. Its prior is a sparse scene: on the noise-free
-distributed-like scene it is worse than the current solver (\SI{-25.9}{dB} against \SI{-29.8}{dB}), and with noise it creates
-isolated spurious peaks around \SI{-45}{dB} far from the targets. The current solver is therefore kept as the method of this
-report; a sparsity-promoting statistical regularisation such as MARIA is a candidate for noisy data of point-like scenes.
+\paragraph{MARIA} gains clearly with noise on point targets: \SI{-41.2}{dB} on the mountain at \SI{20}{dB} SNR (reference level),
+\SI{-34.5}{dB} with 40 targets, \SI{-34.7}{dB} on the foothills, \SIrange{4}{15}{dB} better than the current solver at two to five
+times the cost, by suppressing noise at empty places. Its prior is sparse: on the noise-free distributed-like scene it is worse
+(\SI{-25.9}{dB} vs \SI{-29.8}{dB}), and with noise it creates spurious peaks around \SI{-45}{dB}. The current solver is kept; MARIA
+is a candidate for noisy point-like scenes.
 
 \section{Limits}\label{sec:limits}
 
 \subsection{Blind heights}\label{sec:blind}
 
-The joint reconstruction separates a place from the places $X$, $2X,\dots$ away, which fold onto the same Doppler bins, through
-the phases with which the receivers see them. Between a place and the place $mX$ away, receiver $i$ sees the phase step
-$2\pi im/\Nrx$ of the reconstruction filters (\cref{sec:mismatch}) plus the difference of the two DEM phases, which grows with
-the height difference $\Delta h$ as $2\pi\bxt_{,i}\Delta h/(\lambda r_0\tan\theta)$. On flat ground the steps differ from
-receiver to receiver and the two places are separable. At a \emph{blind height} the height term cancels the differences
-between the steps, the phase difference is the same in every receiver, and the two columns of $\mathbf A$ become parallel: the data
-no longer contain the information to separate the two places, and the regularisation leaves the ambiguity
-(\cref{fig:resblind}).
+The joint reconstruction separates a place from those $mX$ away (same Doppler bins) through their phases in each receiver: the
+filter step $2\pi im/\Nrx$ (\cref{sec:mismatch}) plus the DEM phase difference
+$2\pi\bxt_{,i}\Delta h/(\lambda r_0\tan\theta)$. On flat ground the steps differ between receivers and the places are separable.
+At a \emph{blind height} the height term cancels those differences, the phase difference is the same in every receiver, the two
+columns of $\mathbf A$ are parallel, and the regularisation leaves the ambiguity (\cref{fig:resblind}).
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/pres/res_blind.pdf}
-\caption[Blind height]{Blind height. A target at place $x$ and the place $x+X$ that folds onto it, $\Delta h$ higher. Top row:
-on flat ground the phase difference between the two places, in each receiver, follows the steps of the reconstruction filters
-$\mathbf H$, and the places are separable. Bottom row: at a blind height it is the same in all four receivers, and the solve
-cannot separate them.}
+\caption[Blind height]{A target at $x$ and the place $x+X$, $\Delta h$ higher. Top: on flat ground the phase difference in each
+receiver follows the filter steps of $\mathbf H$: separable. Bottom: at a blind height it is the same in all four receivers.}
 \label{fig:resblind}
 \end{figure}
 
-All 13 failures of the simulations (more than \SI{10}{dB} above the reference, among them other receiver layouts, two channels
-and other PRFs) meet this condition, with a phase mismatch between the receivers of at most \SI{0.22}{rad}. On real terrain four of
-the ten failing random lines meet it (\SIrange{0.04}{0.17}{rad}) and six do not (\SIrange{0.29}{1.01}{rad}), and the White Mountains
-cut meets it for the ambiguity at $2X$ (\SI{0.05}{rad}). Equally spaced baselines produce blind heights on four of eleven terrains
-and two channels on five of eleven: such formations do not offer enough independent phases, a property of the formation that
-should be considered in its design.
+All 13 simulated failures (more than \SI{10}{dB} above the reference, including other receiver layouts, two channels and other
+PRFs) meet this condition, with a mismatch of at most \SI{0.22}{rad}. On real terrain four of the ten failing random lines meet it
+(\SIrange{0.04}{0.17}{rad}), six do not (\SIrange{0.29}{1.01}{rad}), and White Mountains meets it at $2X$ (\SI{0.05}{rad}). Equally
+spaced baselines give blind heights on four of eleven terrains and two channels on five: too few independent phases, a design
+consideration for the formation.
 
 \subsection{DEM accuracy}\label{sec:demacc}
 
-The DEM phase error is $\approx\num{9.0e-5}\,\bxt\,\delta h$ rad, so the tolerance falls with the baseline. \Cref{fig:resdem}
-adds a smooth random height error to the DEM of the eastern-escarpment cut (four draws per level). With the true DEM the joint
-reconstruction reaches \SI{-38.5}{dB} (reference \SI{-39.4}{dB}); an rms error of \SI{2}{m} raises the median to \SI{-30.2}{dB},
-\SI{5}{m} to \SI{-22.3}{dB}, \SI{10}{m} to \SI{-16.5}{dB} and \SI{20}{m} to \SI{-10.4}{dB}, against \SI{-7.6}{dB} for the
-standard reconstruction. With a \SI{300}{m} baseline the method therefore needs a DEM of about \SI{2}{m} rms for \SI{-30}{dB}.
+The DEM phase error is $\approx\num{9.0e-5}\,\bxt\,\delta h$ rad, so the tolerance falls with the baseline. With a smooth random
+error on the eastern-escarpment DEM (\cref{fig:resdem}, four draws per level) the joint goes from \SI{-38.5}{dB} (true DEM;
+reference \SI{-39.4}{dB}) to a median of \SI{-30.2}{dB} at \SI{2}{m} rms, \SI{-22.3}{dB} at \SI{5}{m}, \SI{-16.5}{dB} at
+\SI{10}{m} and \SI{-10.4}{dB} at \SI{20}{m} (standard: \SI{-7.6}{dB}). With a \SI{300}{m} baseline, \SI{-30}{dB} needs about
+\SI{2}{m} rms.
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/pres/res_dem.pdf}
-\caption[Sensitivity to DEM errors]{Joint reconstruction with a smooth random DEM error on the eastern-escarpment cut (default
-formation, five targets). Left: median, best and worst of four draws per rms error. Right: focused lines of one draw for the
-true DEM, \SI{5}{m} and \SI{20}{m} rms; circles mark the highest ambiguity.}
+\caption[Sensitivity to DEM errors]{Smooth random DEM error, eastern escarpment. Left: median, best and worst of four draws.
+Right: one draw for the true DEM, \SI{5}{m} and \SI{20}{m} rms; circles: highest ambiguity.}
 \label{fig:resdem}
 \end{figure}
 
 \subsection{Baselines that vary during the aperture}\label{sec:timevar}
 
-The joint reconstruction keeps only $\Delta C_0$ of each place (\cref{sec:dc0}): on straight tracks the terms $\Delta C_1$ and
-$\Delta C_2$ are four to seven orders of magnitude smaller. It has been suggested that this does not hold for airborne systems, where
-$C_1$ and $C_2$ would matter. This was checked by repeating the computation of \cref{fig:coeffsres} with exact distances for receiver 1
-whose cross-track baseline changes during the aperture, $\bxt(t)=\bxt_{,0}+\varepsilon(t)$, with four shapes of $\varepsilon(t)$
-(three short bumps, a step, a linear drift and two oscillations per aperture), for the spaceborne system of this report and for two
-airborne systems with parameters typical of an F-SAR-like platform \cite{Reigber2013fsar} (X and L band, $v=\SI{90}{m/s}$,
-$r_0=\SI{4.2}{km}$, \SI{45}{\degree} look angle; the antenna lengths and the \SI{2}{m} baseline are representative choices, not system
-specifications). With a moving receiver the closest-approach times of the raised point and of the reference point fall on different
-samples, so $\Delta t$ and $C_1$ both jump; the shift of the filter is $(\Delta t-C_1)f$ and the quantity to compare is
-$\Delta(\Delta t-C_1)$, not $\Delta C_1$ alone. Since the parabola fits become unreliable for large disturbances, the robust number is
-computed in the time domain: the largest phase of the path difference that a model with $\Delta C_0$ alone ignores.
+The joint keeps only $\Delta C_0$ (\cref{sec:dc0}); on straight tracks $\Delta C_1$ and $\Delta C_2$ are four to seven orders
+smaller. To check the suggestion that $C_1$ and $C_2$ matter for airborne systems, \cref{fig:coeffsres} was recomputed with exact
+distances for receiver 1 with $\bxt(t)=\bxt_{,0}+\varepsilon(t)$ (bumps, step, drift, oscillation), for the spaceborne system and
+two airborne systems typical of F-SAR \cite{Reigber2013fsar} (X and L band, $v=\SI{90}{m/s}$, $r_0=\SI{4.2}{km}$,
+\SI{45}{\degree} look angle; antenna lengths and the \SI{2}{m} baseline are representative choices). With a moving receiver
+$\Delta t$ and $C_1$ both jump, so the quantity to compare is $\Delta(\Delta t-C_1)$. Since the fits become unreliable for large
+disturbances, the robust number is the largest path-difference phase that $\Delta C_0$ alone ignores, computed in time.
 
 \paragraph{Model of a moving receiver.} The simulator uses a flat earth with azimuth $x$, ground range $y$ and height $z$. The
 transmitter flies at $\bm P_{\mathrm{Tx}}(t)=(vt,\,0,\,H)$ and receiver $i$ at
@@ -443,118 +383,104 @@ transmitter flies at $\bm P_{\mathrm{Tx}}(t)=(vt,\,0,\,H)$ and receiver $i$ at
   \bm P_i(t)=\bigl(vt-\bat_{,i},\ \bxt_{,i}(t),\ H\bigr),\qquad \bxt_{,i}(t)=\bxt_{,i,0}+\varepsilon_i(t),
   \label{eq:tvtrack}
 \end{equation}
-so only the cross-track position of the receiver changes. A place of height $h$ on the iso-range of the reference point is
-$\bm X=(x,\ \sqrt{r_0^2-(H-h)^2},\ h)$, seen under the look angle $\theta_h$ with $\cos\theta_h=(H-h)/r_0$. Channel $i$ records the
-bistatic range
+A place of height $h$ on the iso-range is $\bm X=(x,\ \sqrt{r_0^2-(H-h)^2},\ h)$, $\cos\theta_h=(H-h)/r_0$, and channel $i$
+records
 \begin{equation}
   r_i(t;\bm X)=\bigl|\bm P_{\mathrm{Tx}}(t)-\bm X\bigr|+\bigl|\bm P_i(t)-\bm X\bigr| ,
 \end{equation}
-and $\varepsilon_i(t)$ enters only the second term. Here only the receiver with $\bxt_{,0}=\SI{300}{m}$ moves. With $t$ counted from
-the closest approach of the centre of the scene and $T=\lambda r_0/(L_a v)$ the duration of one aperture, the four shapes are
+with $\varepsilon_i(t)$ only in the second term. Only the \SI{300}{m} receiver moves. With $t$ from the closest approach of the
+scene centre and $T=\lambda r_0/(L_a v)$ the aperture duration, the shapes are
 \begin{align*}
   \text{drift:}\quad & \varepsilon(t)=\varepsilon\,\frac{t}{T/2},\\
   \text{oscillation:}\quad & \varepsilon(t)=\varepsilon\,\sin\frac{4\pi t}{T},\\
   \text{step:}\quad & \varepsilon(t)=\varepsilon\,\tfrac12\bigl(1-\cos\pi u\bigr),\qquad u=\min\Bigl(1,\max\Bigl(0,\ \frac{t-0.2T}{0.02T}+\frac12\Bigr)\Bigr),\\
   \text{bumps:}\quad & \varepsilon(t)=\varepsilon\sum_{c}\tfrac12\Bigl(1+\cos\frac{\pi(t-cT)}{0.04T}\Bigr)\quad\text{for }|t-cT|<0.04T,
 \end{align*}
-the bumps centred at $c=-0.30$, $0.05$ and $0.35$ (zero elsewhere). The joint reconstruction assumes the straight
-tracks, $\varepsilon=0$: its phase map uses $\Delta C_{0,i}$ of the nominal baseline $\bxt_{,i,0}$ (\cref{sec:dem-phase}). A first-order
-motion compensation (MoCo) to the reference height multiplies every channel sample by $\exp(+\jj 2\pi\,\delta r_i(t)/\lambda)$, where
-$\delta r_i(t)=|\bm P_i(t)-\bm c(t)|-|\bm P_i^{\,0}(t)-\bm c(t)|$ is the range change that the motion causes for the point $\bm c(t)$ of
-height $h=0$ at the beam centre ($\bm P_i^{\,0}$: nominal track). It removes the motion exactly for the reference height, and only there.
+with bumps at $c=-0.30$, $0.05$, $0.35$. The joint assumes $\varepsilon=0$ (phase map from the nominal $\bxt_{,i,0}$,
+\cref{sec:dem-phase}). A first-order motion compensation (MoCo) multiplies each sample by $\exp(+\jj 2\pi\,\delta r_i(t)/\lambda)$,
+$\delta r_i(t)=|\bm P_i(t)-\bm c(t)|-|\bm P_i^{\,0}(t)-\bm c(t)|$, the range change of the $h=0$ point $\bm c(t)$ at the beam
+centre ($\bm P_i^{\,0}$: nominal track); it is exact only at $h=0$.
 
-\paragraph{Where $\varphi_\varepsilon$ comes from.} The derivative of the receiver range with respect to its cross-track position is
-the cross-track component of the unit line of sight,
+\paragraph{Where $\varphi_\varepsilon$ comes from.} As in \cref{sec:dc0-proof},
 \begin{equation}
   \frac{\partial\,|\bm P_i-\bm X|}{\partial\,\bxt_{,i}}=\frac{\bxt_{,i}-y_{\bm X}}{|\bm P_i-\bm X|}\approx-\sin\theta_h ,
 \end{equation}
-so to first order in $\varepsilon/r_0$ the motion changes the range of the place by $-\varepsilon(t)\sin\theta_h$, and that of the reference
-point by $-\varepsilon(t)\sin\theta_0$. The MoCo removes the second; what remains on the place is
+so the motion changes the range of the place by $-\varepsilon(t)\sin\theta_h$ and of the reference point by
+$-\varepsilon(t)\sin\theta_0$; after MoCo the place keeps
 \begin{equation}
   \Delta r_\varepsilon(t;h)\approx-\varepsilon(t)\,\bigl(\sin\theta_h-\sin\theta_0\bigr).
 \end{equation}
-On the iso-range, $\cos\theta_h=(H-h)/r_0$ gives $\mathrm d\theta/\mathrm dh=1/(r_0\sin\theta)$ and therefore
-$\mathrm d(\sin\theta)/\mathrm dh=\cos\theta/(r_0\sin\theta)=1/(r_0\tan\theta)$; for $h\ll r_0$, $\sin\theta_h-\sin\theta_0\approx h/(r_0\tan\theta_0)$.
-Since only the receiver moves, the path changes once (one way), and the phase left on the place is
+With $\sin\theta_h-\sin\theta_0\approx h/(r_0\tan\theta_0)$ (step~3 of \cref{sec:dc0-proof}) and one-way propagation,
 \begin{equation}
   \varphi_\varepsilon(t)=\frac{2\pi}{\lambda}\,\Delta r_\varepsilon(t;h)\approx-\frac{2\pi}{\lambda}\,\frac{\varepsilon(t)\,h}{r_0\tan\theta_0},
   \qquad \varphi_\varepsilon=\max_t\bigl|\varphi_\varepsilon(t)\bigr|=\frac{2\pi}{\lambda}\,\frac{\max_t|\varepsilon(t)|\;h}{r_0\tan\theta_0}.
   \label{eq:tvphase}
 \end{equation}
-It is the DEM phase of \cref{sec:dc0} with the baseline $\bxt$ replaced by its change $\varepsilon(t)$: the model would be exact if
-$\Delta C_0$ followed $\bxt(t)$ along the aperture. Against the exact distances (script \texttt{verify\_phi\_eps.py}) the law is within
-\SI{2}{\percent} for the spaceborne system at \SI{1000}{m} and within \SI{5}{\percent} for every shape and height up to \SI{3000}{m}; for the
-airborne systems it overestimates by 3 to \SI{10}{\percent} (up to \SI{22}{\percent} for the drift, whose largest value falls at the edges of the
-aperture, where the line of sight is turned along track), because $h/r_0$ is no longer small.
+the DEM phase with $\bxt$ replaced by $\varepsilon(t)$: the model would be exact if $\Delta C_0$ followed $\bxt(t)$. Against
+exact distances (\texttt{verify\_phi\_eps.py}) it is within \SI{2}{\percent} (spaceborne, \SI{1000}{m}) and \SI{5}{\percent} for
+every shape up to \SI{3000}{m}; for the airborne systems it overestimates by 3 to \SI{10}{\percent} (up to \SI{22}{\percent} for the
+drift, maximal at the aperture edges), since $h/r_0$ is no longer small.
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/analysis/item2_panels_space.pdf}
-\caption[Coefficients with a time-varying baseline, spaceborne]{Spaceborne system, receiver with $\bxt=\SI{300}{m}$ that moves by
-$\varepsilon$ during the aperture (four shapes). Top: phase of each term against Doppler frequency for a place at \SI{1000}{m}; bottom: the
-same at the band edge against height. Solid: constant baseline; dotted and dashed: $\varepsilon=\SI{1}{m}$ and \SI{20}{m}. The grey dash-dotted line marks $\pi/4$, drawn for
-scale only.}
+\caption[Coefficients with a time-varying baseline, spaceborne]{Spaceborne, \SI{300}{m} receiver moving by $\varepsilon$ (four
+shapes). Top: phase of each term against Doppler at \SI{1000}{m}; bottom: at the band edge against height. Solid: constant baseline;
+dotted, dashed: $\varepsilon=\SI{1}{m}$, \SI{20}{m}; dash-dotted: $\pi/4$, for scale.}
 \label{fig:tvspace}
 \end{figure}
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/analysis/item2_summary.pdf}
-\caption[Phase ignored by the model against the baseline change]{Phase at the band edge of each term against the change $\varepsilon$
-of the baseline, for the spaceborne system at \SI{3000}{m} and the two airborne systems at \SI{600}{m}: shift $\Delta(\Delta t-C_1)$, bend
-$\Delta C_2$, the part that is not a parabola, and everything except $\Delta C_0$ (red); markers: shape of the change; dotted:
-constant baseline; dash-dotted: $\pi/4$, for scale.}
+\caption[Phase ignored by the model against the baseline change]{Band-edge phase of each term against $\varepsilon$
+(spaceborne at \SI{3000}{m}, airborne at \SI{600}{m}): shift $\Delta(\Delta t-C_1)$, bend $\Delta C_2$, non-parabolic part, and all
+but $\Delta C_0$ (red); markers: shape; dotted: constant baseline; dash-dotted: $\pi/4$.}
 \label{fig:tvsummary}
 \end{figure}
 
-\paragraph{Straight tracks.} The statement of \cref{sec:dc0} holds for all three systems. At the highest height the $\Delta C_0$
-phase against everything else together is \SI{79.7}{rad} against \SI{4.0e-3}{rad} (spaceborne, \SI{3000}{m}), \SI{47.7}{rad} against
-\SI{2.1e-2}{rad} (X band, \SI{600}{m}) and \SI{6.4}{rad} against \SI{3.9e-2}{rad} (L band, \SI{600}{m}): the airborne geometry makes
-$C_2$ relatively 10 to 100 times more important, but still negligible.
+\paragraph{Straight tracks.} \Cref{sec:dc0} holds for all three systems: $\Delta C_0$ against everything else is \SI{79.7}{rad}
+vs \SI{4.0e-3}{rad} (spaceborne, \SI{3000}{m}), \SI{47.7}{rad} vs \SI{2.1e-2}{rad} (X band, \SI{600}{m}) and \SI{6.4}{rad} vs
+\SI{3.9e-2}{rad} (L band, \SI{600}{m}); airborne makes $C_2$ 10 to 100 times more important, still negligible.
 
-\paragraph{Moving receiver.} The phase that $\Delta C_0$ alone ignores is \eqref{eq:tvphase}: it grows linearly with the change of
-the baseline and with the height (a drift of \SI{1}{m} at \SI{3000}{m} gives \SI{0.27}{rad} predicted and
-\SI{0.26}{rad} computed). A drift goes almost entirely into the shift $\Delta(\Delta t-C_1)$; a step splits about equally between the shift,
-the bend and a part that is not a parabola; bumps and oscillations are mostly not a parabola, so a model with all of $C_0$, $C_1$ and
-$C_2$ would not describe them either (\cref{fig:tvspace,fig:tvsummary}). The phase reaches $\pi/4$ at the band edge for
+\paragraph{Moving receiver.} The ignored phase is \eqref{eq:tvphase}, linear in $\varepsilon$ and $h$ (a \SI{1}{m} drift at
+\SI{3000}{m}: \SI{0.27}{rad} predicted, \SI{0.26}{rad} computed). A drift goes almost entirely into the shift; a step splits about
+equally between shift, bend and a non-parabolic part; bumps and oscillations are mostly non-parabolic, so a full $C_0,C_1,C_2$
+model would not describe them either (\cref{fig:tvspace,fig:tvsummary}). It reaches $\pi/4$ at the band edge for
 $\varepsilon\approx\SI{3}{m}$ (spaceborne, \SI{3000}{m}), \SI{3}{cm} (X band, \SI{600}{m}) and \SI{20}{cm} (L band, \SI{600}{m}).
-Since airborne motion deviations of decimetres are common, the remark is right in practice, but the cause is the baseline that varies in
-time, not the airborne geometry itself.
+With airborne deviations of decimetres the suggestion holds in practice, but the cause is the time-varying baseline, not the
+airborne geometry.
 
-\paragraph{Effect on the joint reconstruction.} The scene of \cref{fig:resmountain} was simulated with the \SI{300}{m} receiver on a
-drifting, oscillating or bumped track, the channels were motion-compensated to the reference height ($h=0$, line of sight at the beam
-centre) and then reconstructed with the model of straight tracks. The compensation is exact on flat terrain (\SI{-41.0}{dB} with a
-\SI{2}{m} drift); without it the model fails (\SIrange{-15}{5}{dB}). On the mountain the highest ambiguity rises with the drift as
+\paragraph{Effect on the joint reconstruction.} The scene of \cref{fig:resmountain} with the \SI{300}{m} receiver drifting,
+oscillating or bumped, motion-compensated to $h=0$ and reconstructed with the straight-track model: the compensation is exact on flat
+terrain (\SI{-41.0}{dB} with a \SI{2}{m} drift); without it the model fails (\SIrange{-15}{5}{dB}). On the mountain the highest
+ambiguity rises with the drift as
 \SIlist{-40.8;-40.3;-37.3;-31.5;-25.2;-17.1}{dB} for $\varepsilon=0$, 0.25, 0.5, 1, 2 and \SI{5}{m} (\cref{fig:tvjoint}), and follows
 \begin{equation}
   \text{highest ambiguity}\approx 20\log_{10}\varphi_\varepsilon - \SI{9.5}{dB},
   \label{eq:tvfit}
 \end{equation}
-with $\varphi_\varepsilon$ the phase left on the highest target. This is an empirical least-squares fit to the runs of \cref{fig:tvjoint}, not
-a derived law; its slope of \SI{20}{dB} per decade is what a small phase error gives, since the energy that is not cancelled grows as
-$\varphi_\varepsilon^2$. A residual of $\pi/4$ therefore gives about \SI{-12}{dB}: $\pi/4$ is not a
-tolerance for an ambiguity suppression of \SI{-40}{dB}, which needs $\varphi_\varepsilon\lesssim\SI{0.02}{rad}$ (\eqref{eq:tvfit} gives \SI{-43.5}{dB} there). Solving \eqref{eq:tvphase} for
-$\varepsilon$,
+with $\varphi_\varepsilon$ the phase on the highest target: an empirical least-squares fit, whose \SI{20}{dB}/decade slope is what
+a small phase error gives (uncancelled energy $\propto\varphi_\varepsilon^2$). A residual of $\pi/4$ gives about \SI{-12}{dB}, so
+$\pi/4$ is no tolerance for \SI{-40}{dB}, which needs $\varphi_\varepsilon\lesssim\SI{0.02}{rad}$ (\eqref{eq:tvfit}:
+\SI{-43.5}{dB}). From \eqref{eq:tvphase},
 \begin{equation}
   \max_t|\varepsilon(t)|\lesssim\frac{0.02\,\lambda\,r_0\tan\theta_0}{2\pi\,h},
 \end{equation}
-which allows an uncompensated baseline change of about \SI{0.2}{m} for \SI{1000}{m} of relief in the spaceborne case, and, for
-\SI{100}{m} of relief, about \SI{4}{mm} in X band and \SI{3}{cm} in L band. Airborne use of the method would thus need a
-topography-dependent motion compensation, i.e.\ a $\Delta C_0$ that changes along the aperture, which turns the pointwise screen of the
-model into a space-variant filter, the problem studied for airborne interferometry in \cite{Prats2005topo,Prats2007moco}.
+about \SI{0.2}{m} for \SI{1000}{m} of relief (spaceborne) and, for \SI{100}{m}, about \SI{4}{mm} (X band) and \SI{3}{cm} (L band).
+Airborne use would need topography-dependent motion compensation, a $\Delta C_0$ varying along the aperture, which turns the
+pointwise screen into a space-variant filter \cite{Prats2005topo,Prats2007moco}.
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\linewidth]{figures/analysis/item2_joint.pdf}
-\caption[Joint reconstruction with a moving receiver]{Joint reconstruction of the \SI{1000}{m} mountain when the \SI{300}{m} receiver moves
-by $\varepsilon$ (drift, oscillation, bumps): standard reconstruction after motion compensation, joint reconstruction with the model of
-straight tracks before and after motion compensation to $h=0$, and the reference. Right: highest ambiguity against the phase the motion
-compensation leaves on a target; dashed: the least-squares fit $20\log_{10}\varphi-\SI{9.5}{dB}$. MoCo: motion compensation.}
+\caption[Joint reconstruction with a moving receiver]{\SI{1000}{m} mountain, \SI{300}{m} receiver moving by $\varepsilon$ (drift,
+oscillation, bumps): standard after MoCo, joint before and after MoCo to $h=0$, reference. Right: highest ambiguity against the
+residual phase; dashed: fit $20\log_{10}\varphi-\SI{9.5}{dB}$. MoCo: motion compensation.}
 \label{fig:tvjoint}
 \end{figure}
 
 \subsection{Not yet tested}
 
-Real antenna patterns (the model uses the simulated reference chirp), real orbits, layover, truly distributed scenes and real data.
-Noise was tested only with the solver comparison of \cref{sec:solvers}, and moving baselines only with the first-order motion
-compensation of \cref{sec:timevar}.
+Real antenna patterns (the model uses the simulated reference chirp), real orbits, layover, distributed scenes and real data;
+noise only in \cref{sec:solvers}; moving baselines only with first-order MoCo (\cref{sec:timevar}).

@@ -3,50 +3,44 @@
 \section{Conclusions}
 
 \begin{itemize}
-  \item Cross-track baselines turn topography into a channel-dependent phase that the standard multichannel
-        reconstruction cannot absorb, $\varphi_i\approx 2\pi\bxt_{,i}h/(\lambda r_0\tan\theta)$. On a \SI{1000}{m} mountain the
-        highest ambiguity of the standard reconstruction rises from \SI{-41}{dB} on flat terrain to \SI{-4.4}{dB}; on real terrain
-        its median is \SI{-6.2}{dB}, against a reference near \SI{-40}{dB}.
-  \item The right phase can be read from the DEM, but a correction applied to each aliased channel before the reconstruction
-        can give only one phase to the parcels of positions $X\approx\SI{6.2}{km}$ apart that share a Doppler bin.
-        Placing the DEM phase inside the inversion solves this. The joint reconstruction over the whole line models every
-        channel from the focused line and the DEM and inverts it by regularised least squares, without ever forming the matrix
-        of the model. Using only the system parameters and the DEM it reaches \SI{-40.8}{dB} on the \SI{1000}{m} mountain
-        (reference \SI{-41.4}{dB}), is within \SI{3}{dB} of the reference on seven of nine simulated terrains, on six of seven
-        real-terrain cuts and on 130 of 150 random real-terrain lines, and is never worse than the standard reconstruction.
-  \item The failures are blind heights: a place and the place $X$ away get the same phase difference in every receiver, and the
-        data do not contain the information to separate them. All simulated failures and four of the ten failing real lines meet
-        this condition; the other six are not explained yet. The regularisation leaves the ambiguity there instead of amplifying
-        noise.
-  \item On a mountain swept every \SI{100}{m} up to \SI{3}{km} the joint reconstruction is within \SI{3}{dB} of the reference at 22 of
-        31 heights; the three heights where it is clearly hurt are near blind heights. It keeps the target peaks and the \SI{3}{dB} width
-        of the reference (\SI{5.77}{m}): it does not cost resolution.
-  \item With 1 to 200 targets per line on six terrains its image error is about \SI{-30}{dB} at every density, set by the accuracy of the
-        model $K\,H_i$; the failures (9 of 108 runs) all involve a target near a blind height.
-  \item An abrupt height change between close targets is not a problem in itself: two targets on either side of a cliff up to
-    \SI{1000}{m} high stay at \SIrange{-59}{-43}{dB} and keep the separation of the reference. The joint reconstruction degrades only
-    for a target on the cliff face, where the height changes by more than about \SI{100}{m} between two samples of the DEM phase
-    (\SI{3.84}{m}); a finer DEM grid would remove this limit.
-  \item The accuracy is limited by the DEM: the phase error grows as $\bxt\,\delta h$, and with a \SI{300}{m} baseline a DEM error of
-        about \SI{2}{m} rms already raises the ambiguities to \SI{-30}{dB}.
-  \item On straight tracks only $\Delta C_0$ matters, also for airborne geometries. A cross-track baseline that changes during the
-        aperture by $\varepsilon(t)$ adds the phase $2\pi\varepsilon(t)\,h/(\lambda r_0\tan\theta)$ (the DEM phase with the baseline replaced by its change), mostly not a parabola; after a motion compensation to
-        $h=0$ the ambiguity follows $20\log_{10}\varphi-\SI{9.5}{dB}$, so \SI{-40}{dB} needs residual phases below about \SI{0.02}{rad}, not
-        $\pi/4$.
-  \item Without noise none of the tested parameter-choice rules (L-curve with RelSea, discrepancy principle, Bayes minimum risk)
-        improves on $\mu=0.03\,\sigma_{\max}$; at \SI{20}{dB} SNR the current solver loses about \SI{10}{dB} on the mountain, and the
-        sparsity-promoting MARIA recovers it on point-target scenes, at two to five times the cost and with a sparse prior.
+  \item With cross-track baselines, a height $h$ adds to channel $i$ the phase
+        $\varphi_i\approx 2\pi\bxt_{,i}h/(\lambda r_0\tan\theta)$; the standard reconstruction cannot absorb it. On a
+        \SI{1000}{m} mountain its highest ambiguity rises from \SI{-41}{dB} (flat) to \SI{-4.4}{dB}; on real terrain its
+        median is \SI{-6.2}{dB}, against a reference near \SI{-40}{dB}.
+  \item A per-channel correction can give only one phase to positions $X\approx\SI{6.2}{km}$ apart that share a Doppler
+        bin. The joint reconstruction puts the DEM phase inside a matrix-free regularised inversion and, with the system
+        parameters and the DEM only, reaches \SI{-40.8}{dB} on the mountain (reference \SI{-41.4}{dB}). It is within
+        \SI{3}{dB} of the reference on seven of nine simulated terrains, six of seven real cuts and 130 of 150 random real
+        lines, and never worse than the standard reconstruction.
+  \item Failures are blind heights: a place and the place $X$ away get the same phase difference in every receiver, so the
+        data cannot separate them. This explains all simulated failures and four of the ten failing real lines; the other
+        six are not explained yet.
+  \item Over mountain heights up to \SI{3}{km} (every \SI{100}{m}) it is within \SI{3}{dB} of the reference at 22 of 31
+        heights, clearly hurt only at three near blind heights, and keeps the reference \SI{3}{dB} width (\SI{5.77}{m}).
+  \item With 1 to 200 targets per line on six terrains the image error stays near \SI{-30}{dB}, set by the accuracy of
+        $K\,H_i$; the 9 failures of 108 runs all involve a target near a blind height.
+  \item Two targets on either side of a cliff up to \SI{1000}{m} stay at \SIrange{-59}{-43}{dB}; only a target on the cliff
+        face, with more than about \SI{100}{m} of height change between two DEM samples (\SI{3.84}{m}), degrades it. A finer
+        DEM grid would remove this limit.
+  \item The DEM limits the accuracy: with a \SI{300}{m} baseline, about \SI{2}{m} rms of DEM error gives \SI{-30}{dB}.
+  \item On straight tracks only $\Delta C_0$ matters, also for airborne geometries. A baseline change $\varepsilon(t)$ adds
+        $2\pi\varepsilon(t)\,h/(\lambda r_0\tan\theta)$, mostly not a parabola; after motion compensation to $h=0$ the
+        ambiguity follows $20\log_{10}\varphi-\SI{9.5}{dB}$, so \SI{-40}{dB} needs residual phases below about
+        \SI{0.02}{rad}, not $\pi/4$.
+  \item Without noise no tested parameter-choice rule (L-curve with RelSea, discrepancy, Bayes minimum risk) beats
+        $\mu=0.03\,\sigma_{\max}$; at \SI{20}{dB} SNR the current solver loses about \SI{10}{dB} on the mountain, which
+        MARIA recovers on point-target scenes at two to five times the cost.
 \end{itemize}
 
 \section{Outlook}
 
 \begin{itemize}
-  \item Validation with realistic antenna patterns, orbits and noise, and eventually with real multistatic data.
-  \item A topography-dependent motion compensation inside the model (a $\Delta C_0$ that changes along the aperture) for formations
-        whose baselines vary in time, in particular airborne ones.
-  \item Statistical, sparsity-promoting regularisation (MARIA-type) for noisy data, with safeguards for distributed scenes.
-  \item An extension to two dimensions (azimuth and range), with the DEM height of every pixel, is the natural next step.
-  \item Joint estimation of a DEM correction, using the unexplained part of the channels as the cost.
-  \item Use of the blind-height condition (\cref{sec:blind}) as a design rule for the cross-track baselines of a formation.
-  \item Computational cost: block-wise or GPU implementation of the model and its adjoint for full scenes.
+  \item Validation with realistic antenna patterns, orbits and noise, and with real multistatic data.
+  \item Topography-dependent motion compensation inside the model ($\Delta C_0$ varying along the aperture), in particular
+        for airborne formations.
+  \item Sparsity-promoting regularisation (MARIA-type) for noisy data, with safeguards for distributed scenes.
+  \item Extension to two dimensions (azimuth and range), with the DEM height of every pixel.
+  \item Joint estimation of a DEM correction from the unexplained part of the channels.
+  \item The blind-height condition (\cref{sec:blind}) as a design rule for cross-track baselines.
+  \item Block-wise or GPU implementation for full scenes.
 \end{itemize}

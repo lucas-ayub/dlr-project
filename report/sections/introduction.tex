@@ -2,54 +2,44 @@
 
 \section{Context}
 
-A conventional SAR cannot improve its azimuth resolution and its swath width at the same time: a fine azimuth resolution
-needs a short antenna and therefore a wide Doppler bandwidth, which must be sampled with a high PRF, while a wide swath
-needs a long interval between pulses. Multichannel systems break this trade-off by receiving each pulse with several
-apertures displaced along track \cite{Krieger2004,Gebert2009}. Each channel is sampled at a PRF below the Doppler bandwidth
-and is therefore aliased, but the set of channels samples the azimuth signal at the full rate, and the unambiguous
-spectrum is recovered by an \emph{azimuth reconstruction}: a bank of filters that combines the channels so that the
-aliased parts cancel.
+A conventional SAR cannot have both a fine azimuth resolution, which needs a wide Doppler bandwidth and a high PRF, and a
+wide swath, which needs a long interval between pulses. Multichannel systems break this trade-off by receiving each pulse
+with several apertures displaced along track \cite{Krieger2004,Gebert2009}. Each channel is aliased, but together they
+sample the azimuth signal at the full rate, and an \emph{azimuth reconstruction} (a filter bank) recovers the unambiguous
+spectrum.
 
-Multistatic formations distribute the receivers over several platforms. They lift the limit set by the length of a
-single antenna and offer flexibility, but the baselines between platforms are no longer small \cite{Sakar2020tgrs,Sakar2022thesis}.
-In particular, a \emph{cross-track} baseline makes the bistatic range history of a scatterer depend on its height. The
-reconstruction filters are derived for a reference geometry (here: the reference point of the scene at height
-$h_0=0$); a scatterer at another height carries a residual phase that is different in each channel. The filters then
-no longer match the data, the aliased parts no longer cancel and azimuth ambiguities appear in the image.
+Multistatic formations spread the receivers over several platforms, so the baselines are no longer small
+\cite{Sakar2020tgrs,Sakar2022thesis}. A \emph{cross-track} baseline makes the bistatic range history depend on the
+scatterer height. The reconstruction filters assume the reference height $h_0=0$; any other height leaves a
+channel-dependent residual phase, the aliased parts no longer cancel, and azimuth ambiguities appear.
 
-The same kind of height-dependent phase is known from airborne motion compensation, where it is computed from an external
-DEM and removed position by position \cite{Prats2005topo,Prats2005thesis,Prats2007moco}. This work builds on that idea: the phase that the
-terrain adds to each channel is known from the DEM and the system geometry, and the question is how to use it so that the
-multichannel reconstruction recovers an image free of ambiguities.
+A similar height-dependent phase is removed position by position from an external DEM in airborne motion compensation
+\cite{Prats2005topo,Prats2005thesis,Prats2007moco}. This work uses the same idea: the phase the terrain adds to each channel
+is known from the DEM and the geometry; the question is how to use it in the reconstruction.
 
 \section{Objective}
 
-The goal is to remove the azimuth ambiguities caused by topography and cross-track baselines in multistatic SAR systems,
-using \emph{only the system parameters and a DEM}, with no knowledge of where the scatterers are. The work answers two
-questions:
+Remove the azimuth ambiguities caused by topography and cross-track baselines using \emph{only the system parameters and a
+DEM}, without knowing where the scatterers are. Two questions:
 \begin{enumerate}
-  \item How large are the ambiguities caused by unaccounted topography, as a function of the terrain, the baselines and
-        the number of channels?
-  \item How can the DEM be used inside the reconstruction so that the image reaches the quality of an ideal, unaliased
-        reference?
+  \item How large are the ambiguities caused by unaccounted topography?
+  \item How can the DEM be used inside the reconstruction so that the image reaches the quality of an unaliased reference?
 \end{enumerate}
 
 \section{Contributions}
 
 \begin{itemize}
-  \item A numerical simulator of the multistatic acquisition and of the multichannel reconstruction along one azimuth line,
-        with along- and cross-track baselines and arbitrary terrain (\cref{ch:model,ch:recon}).
-  \item A joint reconstruction that places the DEM phase of every position of the line inside the inversion, solved by
-        regularised least squares with conjugate gradients without forming its matrix (\cref{ch:joint}).
-  \item Results with a DEM only on simulated terrains and on real terrain (SRTM), against the height of the relief and the
-        number of targets and for close targets next to an abrupt height change, an analysis of the failures (blind heights), of the DEM accuracy and of baselines that vary during the
-        aperture, and a comparison with other regularisation methods (\cref{ch:results}).
+  \item A simulator of the multistatic acquisition and of the multichannel reconstruction along one azimuth line, with
+        along- and cross-track baselines and arbitrary terrain (\cref{ch:model,ch:recon}).
+  \item A joint reconstruction that puts the DEM phase of every position inside a matrix-free regularised least-squares
+        inversion (\cref{ch:joint}).
+  \item Results on simulated and real (SRTM) terrain: relief height, target density, close targets beside cliffs, blind
+        heights, DEM accuracy, time-varying baselines and other regularisation methods (\cref{ch:results}).
 \end{itemize}
 
 \section{Outline}
 
-\Cref{ch:model} introduces the acquisition geometry and the topographic residual $\dC$. \Cref{ch:recon} reviews the
-multichannel reconstruction and explains how topography produces ambiguities. \Cref{ch:joint} presents the joint
-reconstruction.
-\Cref{ch:results} collects the results and \cref{ch:conclusions} concludes. The simulator, the methods and the scripts that
-produce every figure of this report are available at \href{https://github.com/lucas-ayub/dlr-project}{github.com/lucas-ayub/dlr-project}.
+\Cref{ch:model} introduces the geometry and the topographic residual $\dC$; \cref{ch:recon} the multichannel
+reconstruction and how topography creates ambiguities; \cref{ch:joint} the joint reconstruction; \cref{ch:results} the
+results; \cref{ch:conclusions} the conclusions. Code and figure scripts:
+\href{https://github.com/lucas-ayub/dlr-project}{github.com/lucas-ayub/dlr-project}.

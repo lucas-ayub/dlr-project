@@ -10,11 +10,8 @@ at the DLR Microwaves and Radar Institute (DLR-HR) within a DLR-DAAD fellowship.
 <td width="32%"><a href="report/report.pdf"><img src="report/figures/readme_cover.png" alt="Report cover" width="100%"></a></td>
 <td>
 <b><a href="report/report.pdf">Topography-Dependent Azimuth Reconstruction in Multistatic SAR Systems</a></b><br>DLR-DAAD fellowship report, November 2026<br><br>
-Signal model and the coefficients C<sub>0</sub>, C<sub>1</sub>, C<sub>2</sub>; multichannel reconstruction and how topography
-creates ambiguities; the joint reconstruction (final method) along one azimuth line: the model, the matrix-free solver and
-its regularisation; results on simulated and real (SRTM) terrain, ambiguity and resolution against the mountain height,
-scenes full of targets, blind heights, DEM accuracy, baselines that vary during the aperture and other regularisation
-methods.<br><br>
+Signal model and C<sub>0</sub>, C<sub>1</sub>, C<sub>2</sub>; how topography creates ambiguities; the joint reconstruction
+(model, matrix-free solver, regularisation); results on simulated and SRTM terrain and their limits.<br><br>
 <a href="report/report.pdf">PDF</a> · <a href="report/">LaTeX sources</a>
 </td>
 </tr>
@@ -22,14 +19,11 @@ methods.<br><br>
 
 <p align="center">
 <a href="report/report.pdf"><img src="report/figures/readme_result.png" alt="Standard reconstruction, joint reconstruction and reference over a 1000 m mountain" width="85%"></a><br>
-<sub>Five targets on a 1000 m Gaussian mountain, four channels: the standard reconstruction leaves ambiguities up to
-&minus;4.4 dB, the joint reconstruction (DEM only) reaches &minus;40.8 dB against &minus;41.4 dB for the reference; right: the
-same against the height of the mountain.</sub><br><br>
+<sub>Five targets on a 1000 m mountain: standard reconstruction &minus;4.4 dB, joint reconstruction (DEM only)
+&minus;40.8 dB, reference &minus;41.4 dB; right: against the mountain height.</sub><br><br>
 <a href="report/report.pdf"><img src="report/figures/readme_realterrain.png" alt="Seven 47 km cuts through the SRTM elevation of the Sierra Nevada" width="95%"></a><br>
-<sub>Real terrain: 47 km azimuth lines cut from the SRTM 3'' DEM of the Sierra Nevada, heights relative to the mean of each
-line. On six of the seven cuts the joint reconstruction is within 3 dB of the reference; over 150 random lines the median
-highest ambiguity is &minus;6.2 dB with the standard reconstruction, &minus;39.8 dB with the joint reconstruction and
-&minus;40.7 dB for the reference, with the geometry and the DEM only.</sub>
+<sub>47 km lines from the SRTM 3'' DEM of the Sierra Nevada: the joint reconstruction is within 3 dB of the reference on six
+of seven cuts (150 random lines: see the table below).</sub>
 </p>
 
 <p align="center"><b>🎬 How the joint reconstruction works</b> (animation, 4 min)</p>
@@ -43,22 +37,18 @@ https://github.com/user-attachments/assets/6e90b157-4b01-40fe-99bc-f6733f9ec6a3
 
 
 
-<p align="center"><sub>From the aliased channels to the focused line: the acquisition, the range histories and the
-channel filter H<sub>i</sub> inside K<sub>i</sub>, the model as matrices, why it cannot be solved Doppler bin by Doppler
-bin, the back-projection of all receivers, the iterations of the regularised solver and the comparison with the reference IRF. Every curve
-comes from the simulation (four channels, three targets on a 250 m hill).</sub></p>
+<p align="center"><sub>From the aliased channels to the focused line: geometry, channel filters, the model as matrices, the
+regularised solver and the comparison with the reference (simulation: four channels, three targets on a 250 m hill).</sub></p>
 
-A multichannel SAR samples the azimuth signal at a PRF below the Doppler bandwidth and recovers it by combining the
-channels. The reconstruction filters assume a reference geometry (flat earth); when the scene has topography and the
-channels have cross-track baselines, every scatterer carries a channel-dependent phase residual
-(&Delta;C<sub>0</sub>) and the folded parts of the spectrum no longer cancel, leaving azimuth ambiguities.
+A multichannel SAR samples each channel below the Doppler bandwidth and combines the channels with filters that assume a
+flat earth. With topography and cross-track baselines every scatterer carries a channel-dependent phase
+(&Delta;C<sub>0</sub>), the folded spectrum no longer cancels, and azimuth ambiguities appear.
 
 **Questions addressed**
 
-1. How large are the ambiguities caused by unaccounted topography, on simulated and real terrain?
-2. How much of them can be corrected using **only the system parameters and a DEM** (no knowledge of where the targets are)?
-3. Where does that correction stop working: blind heights, DEM accuracy, abrupt height changes, baselines that vary
-   during the aperture, noise and the choice of regularisation?
+1. How large are the ambiguities caused by topography, on simulated and real terrain?
+2. How much can be corrected with **only the system parameters and a DEM** (target positions unknown)?
+3. Where does the correction stop working (blind heights, DEM accuracy, cliffs, moving baselines, noise, regularisation)?
 
 **Main results** (default formation: four channels, cross-track baselines 300 m, 119.8 m and 100.5 m; details in the [report](report/report.pdf))
 
@@ -68,19 +58,17 @@ channels have cross-track baselines, every scatterer carries a channel-dependent
 | Nine simulated terrains (median) | &minus;7.2 dB | &minus;38.3 dB | &minus;38.8 dB |
 | 150 random SRTM lines, Sierra Nevada (median) | &minus;6.2 dB | &minus;39.8 dB | &minus;40.7 dB |
 
-- **Mountain height 0 to 3 km:** the joint reconstruction is within 3 dB of the reference at 22 of 31 heights, is clearly
-  hurt only near blind heights, and keeps the resolution of the reference (3 dB width 5.77 m).
-- **Lines full of targets (1 to 200):** image error of the joint reconstruction about &minus;30 dB, the accuracy of the
-  model, independent of the number of targets; the few failures are near blind heights.
-- **Two close targets beside a cliff up to 1000 m:** &minus;59 dB to &minus;43 dB; it degrades only for a target on the
-  cliff face, where the height changes by more than about 100 m between two DEM samples.
-- **Limits:** blind heights (a place and its alias get the same phase in every receiver); DEM accuracy (about 2 m rms
-  for &minus;30 dB with a 300 m baseline); a cross-track baseline that varies during the aperture leaves a phase
+- **Mountain height 0 to 3 km:** within 3 dB of the reference at 22 of 31 heights, hurt only near blind heights, same
+  resolution as the reference (3 dB width 5.77 m).
+- **1 to 200 targets per line:** image error about &minus;30 dB (the model accuracy) at every density.
+- **Two close targets beside a cliff up to 1000 m:** &minus;59 dB to &minus;43 dB; only a target on the cliff face (more
+  than about 100 m of height change between two DEM samples) degrades it.
+- **Limits:** blind heights (a place and its alias with the same phase in every receiver); DEM accuracy (about 2 m rms for
+  &minus;30 dB with a 300 m baseline); a time-varying baseline leaves
   &phi;<sub>&epsilon;</sub> &asymp; (2&pi;/&lambda;)&middot;&epsilon;(t)&middot;h/(r<sub>0</sub> tan&theta;), so &epsilon; must stay below
   about 0.2 m (spaceborne, 1000 m of relief) or millimetres to centimetres (airborne).
-- **Regularisation:** without noise the current choice &mu; = 0.03&nbsp;&sigma;<sub>max</sub> is the best of the
-  parameter-choice rules tested (L-curve, discrepancy, Bayes minimum risk); with noise the re-weighting method MARIA gains
-  up to 15 dB on scenes of point targets.
+- **Regularisation:** without noise &mu; = 0.03&nbsp;&sigma;<sub>max</sub> beats the tested parameter-choice rules (L-curve,
+  discrepancy, Bayes minimum risk); with noise MARIA gains up to 15 dB on point-target scenes.
 
 ## Methods compared
 
